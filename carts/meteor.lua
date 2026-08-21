@@ -99,10 +99,10 @@ function _draw()
     circb(shipx, SHIPY, 5, 2)
   end
 
-  -- The HUD gets its own black backing, drawn over the rocks: without it a
-  -- rock falling past the top makes the score unreadable at the moment you
-  -- most want to read it. Rocks spawn above the bar and slide out from under
-  -- it, which reads as entering the screen rather than popping into it.
+  -- The HUD gets its own ground, drawn over the rocks: without it a rock
+  -- falling past the top makes the score unreadable at the moment you most
+  -- want to read it. Rocks spawn above the bar and slide out from under it,
+  -- which reads as entering the screen rather than popping into it.
   rect(0, 0, 128, 16, 0)
   line(0, 16, 127, 16, 1)
   print("SCORE " .. points, 2, 2, 7)

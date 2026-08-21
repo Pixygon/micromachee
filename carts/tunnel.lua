@@ -2,9 +2,11 @@
 -- author: pixygon
 -- about: fly the cave. do not touch the walls.
 
--- The cave is not stored anywhere. It is drawn, and collision is done by
--- reading the screen back with pget() — which is the whole trick, and why
--- this is 60 lines instead of 300.
+-- The cave IS stored — two arrays of column heights, scrolled one step a
+-- frame. What is not stored is the SHAPE the ship has to fit through: instead
+-- of testing the ship against those numbers, it reads the pixel it is about to
+-- occupy with pget() and asks what colour it is. Collision therefore agrees
+-- with what is on screen by construction, and cannot drift from it.
 
 local FLOOR = 122
 
