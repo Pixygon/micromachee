@@ -4,6 +4,15 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.13.0] — 2026-08-21
+
+### Added
+- Added Mega Micromachee to the web console — a meta-game that cycles through every cart on the shelf for a few seconds each, with the pace and countdown ramping up round after round until you run out of lives.
+
+### Fixed
+- The web console's shared module now exports CHAR_WIDTH and LINE_HEIGHT alongside the existing constants, so other parts of the page can size and lay out text correctly.
+
+
 ## [0.12.0] — 2026-08-21
 
 ### Added

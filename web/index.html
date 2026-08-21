@@ -100,6 +100,7 @@
 <script src="./vendor/wasmoon.js"></script>
 <script type="module">
 import { loadCart, blit, localStore, THEMES, W, H } from "./micromachee.js";
+import { Mega, megaCover, MEGA_ID, MEGA_TITLE, MEGA_ABOUT } from "./mega.js";
 // One request for the whole shelf: the catalog carries each cart's source, and
 // .json is the only thing the CDN sends CORS headers for anyway. The url is
 // generated from the helper, so the page always asks for a shelf that exists.
@@ -132,7 +133,10 @@ async function buildShelf() {
     $("err").textContent = "could not reach the shelf: " + e.message;
     return;
   }
-  carts = list.carts || [];
+  carts = [
+    { id: MEGA_ID, title: MEGA_TITLE, about: MEGA_ABOUT, author: "pixygon", code: "" },
+    ...(list.carts || []),
+  ];
   $("shelf").innerHTML = "";
   for (const entry of carts) {
     const el = document.createElement("button");
@@ -151,6 +155,10 @@ async function buildShelf() {
 /// The cover is drawn by running the cart's own `_cover()` — the same thing the
 /// console does, because it is the same console.
 async function drawCover(entry) {
+  if (entry.id === MEGA_ID) {
+    blit(megaCover(), entry._canvas.getContext("2d"), palette(), 1);
+    return;
+  }
   try {
     const cart = await loadCart(factory, entry.code);
     cart.init();
@@ -174,6 +182,14 @@ async function choose(entry) {
   $("score").textContent = "0";
   fitScreen();
 
+  if (entry.id === MEGA_ID) {
+    // Nothing to load: its cover is drawn, and X builds the meta-game.
+    const shot = megaCover();
+    blit(shot, $("screen").getContext("2d"), palette(), 1);
+    armed = { entry, cart: { close() {}, screen: shot } };
+    $("start").classList.remove("hidden");
+    return;
+  }
   const cart = await loadCart(factory, entry.code, {
     onScore: (n) => ($("score").textContent = String(n)),
     storage: localStore(entry.id),
@@ -189,6 +205,7 @@ async function choose(entry) {
 function start() {
   if (!armed) return;
   $("start").classList.add("hidden");
+  if (armed.entry.id === MEGA_ID) { startMega(); return; }
   // A fresh engine, so a cover drawn from `_init` never leaks into the game.
   const { entry } = armed;
   armed.cart.close();
@@ -214,6 +231,33 @@ function start() {
         paint(cart);
       }, 1000 / FPS);
     });
+}
+
+/// The meta-game runs the same loop, except a round begins with an await, so
+/// each tick is skipped rather than overlapped while one is loading.
+function startMega() {
+  const { entry } = armed;
+  armed.cart.close();
+  armed = null;
+  held = 0; latch = 0; paintKeys();
+  const mega = new Mega(factory, carts);
+  running = { close() {}, screen: mega.out, mega };
+  let busy = false;
+  timer = setInterval(async () => {
+    if (busy) return;
+    busy = true;
+    try {
+      await mega.step(held | latch);
+      latch = 0;
+      $("score").textContent = String(mega.score);
+      blit(mega.out, $("screen").getContext("2d"), palette(), 1);
+    } catch (e) {
+      $("err").textContent = String(e.message || e);
+      stop();
+    }
+    busy = false;
+  }, 1000 / FPS);
+  void entry;
 }
 
 function stop() {

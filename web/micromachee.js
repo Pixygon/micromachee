@@ -14,7 +14,7 @@
 
 import { W, H, CHAR_WIDTH, LINE_HEIGHT, FONT, THEMES } from "./console-data.js";
 
-export { W, H, THEMES };
+export { W, H, CHAR_WIDTH, LINE_HEIGHT, THEMES };
 
 const wrap = (c) => ((Math.floor(c) % 8) + 8) % 8;
 
