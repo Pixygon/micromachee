@@ -115,6 +115,10 @@ let carts = [];
 let running = null;      // the cart being played
 let armed = null;        // chosen, waiting for X
 let held = 0;
+// Bits pressed since the last frame was handed to the cart. A tap that goes
+// down and up between two frames would otherwise be sampled as "never pressed",
+// and btnp() would never see it — which is most of a menu press.
+let latch = 0;
 let timer = null;
 
 const palette = () => THEMES[theme];
@@ -189,6 +193,11 @@ function start() {
   const { entry } = armed;
   armed.cart.close();
   armed = null;
+  // The X that started the game is not a move in it. Without this the press
+  // carries into the first frame and the cart acts on it.
+  held = 0;
+  latch = 0;
+  paintKeys();
   loadCart(factory, entry.code, {
     onScore: (n) => ($("score").textContent = String(n)),
     // Per cart, in this browser: a farm planted today is still growing tomorrow.
@@ -198,7 +207,8 @@ function start() {
       running = cart;
       cart.init();
       timer = setInterval(() => {
-        cart.setHeld(held);
+        cart.setHeld(held | latch);
+        latch = 0;
         try { cart.update(); cart.draw(); }
         catch (e) { $("err").textContent = String(e.message || e); stop(); return; }
         paint(cart);
@@ -252,6 +262,7 @@ function paintKeys() {
 function setBit(bit, down) {
   const next = down ? held | (1 << bit) : held & ~(1 << bit);
   if (next === held) return;
+  if (down) latch |= 1 << bit;
   held = next;
   paintKeys();
   if (armed && down && bit === 5) start();
