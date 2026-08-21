@@ -4,6 +4,13 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.23.0] — 2026-08-21
+
+### Added
+- New cart: Dreadwager — drift into an endless horde of enemies or take control of your own ending by leaping into a cliff once you've gathered enough sparks. Two distinct endings, dash-based movement, and an upgradeable multi-gun system based on how many sparks you collect.
+- New cart: The Tower — a raycasted first-person dungeon climb across 9 procedurally built floors. Fight off horrors with a simple shooter, find the way up each floor, and rack up a score from kills, floors cleared, and a bonus for reaching the top.
+
+
 ## [0.22.0] — 2026-08-21
 
 ### Added
