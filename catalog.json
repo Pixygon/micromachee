@@ -3,12 +3,22 @@
     {
       "about": "clear the wall, keep the ball alive",
       "author": "pixygon",
-      "bytes": 3240,
-      "code": "-- title: Breakout\n-- author: pixygon\n-- about: clear the wall, keep the ball alive\n\n-- Ball position is kept in floats and only rounded when it is drawn, so it\n-- moves at speeds that are not whole pixels. Collision is resolved one axis at\n-- a time: that is what stops the ball burrowing into a brick corner and coming\n-- out the far side.\n\nlocal COLS, ROWS   = 8, 5\nlocal BW, BH       = 14, 6\nlocal LEFT, TOP    = 8, 14\nlocal PADW, PADY   = 22, 118\nlocal WALL_COLOUR  = { 2, 3, 4, 5, 6 }\n\nlocal bricks, left, padx, bx, by, vx, vy, points, lives, stuck\n\nlocal function reset_ball()\n  bx, by = padx + PADW / 2, PADY - 3\n  vx, vy = 1.1, -1.4\n  stuck = true\nend\n\nfunction _init()\n  bricks = {}\n  left = 0\n  for r = 1, ROWS do\n    bricks[r] = {}\n    for c = 1, COLS do\n      bricks[r][c] = true\n      left = left + 1\n    end\n  end\n  padx   = 64 - PADW / 2\n  points = 0\n  lives  = 3\n  score(0)\n  reset_ball()\nend\n\nlocal function brick_at(x, y)\n  local c = flr((x - LEFT) / BW) + 1\n  local r = flr((y - TOP) / BH) + 1\n  if r >= 1 and r <= ROWS and c >= 1 and c <= COLS and bricks[r][c] then\n    return r, c\n  end\nend\n\nlocal function hit(x, y)\n  local r, c = brick_at(x, y)\n  if not r then return false end\n  bricks[r][c] = false\n  left = left - 1\n  points = points + (ROWS - r + 1) * 10\n  score(points)\n  return true\nend\n\nfunction _update()\n  if lives <= 0 or left == 0 then\n    if btnp(4) then _init() end\n    return\n  end\n\n  if btn(0) then padx = padx - 3 end\n  if btn(1) then padx = padx + 3 end\n  padx = mid(0, padx, 128 - PADW)\n\n  if stuck then\n    bx = padx + PADW / 2\n    if btnp(4) then stuck = false end\n    return\n  end\n\n  -- One axis at a time, each with its own bounce.\n  bx = bx + vx\n  if bx < 1 then bx, vx = 1, -vx end\n  if bx > 126 then bx, vx = 126, -vx end\n  if hit(bx, by) then vx = -vx end\n\n  by = by + vy\n  if by < 8 then by, vy = 8, -vy end\n  if hit(bx, by) then vy = -vy end\n\n  -- The paddle steers: where the ball lands on it decides how far it comes off\n  -- sideways, which is the whole game.\n  if vy > 0 and by >= PADY - 1 and by <= PADY + 2 and bx >= padx and bx <= padx + PADW then\n    by = PADY - 1\n    vy = -vy\n    vx = mid(-2.2, (bx - (padx + PADW / 2)) / 5, 2.2)\n  end\n\n  if by > 127 then\n    lives = lives - 1\n    if lives > 0 then reset_ball() end\n  end\nend\n\nfunction _draw()\n  cls(0)\n\n  print(\"SCORE \" .. points, 2, 1, 7)\n  for i = 1, lives do\n    rect(120 - (i - 1) * 5, 2, 3, 3, 2)\n  end\n  line(0, 7, 127, 7, 1)\n\n  for r = 1, ROWS do\n    for c = 1, COLS do\n      if bricks[r][c] then\n        rect(LEFT + (c - 1) * BW, TOP + (r - 1) * BH, BW - 1, BH - 1, WALL_COLOUR[r])\n      end\n    end\n  end\n\n  rect(padx, PADY, PADW, 3, 7)\n  circ(bx, by, 1, 7)\n\n  if left == 0 then\n    print(\"WALL CLEARED\", 40, 60, 5)\n    print(\"PRESS O\", 50, 68, 3)\n  elseif lives <= 0 then\n    print(\"GAME OVER\", 46, 60, 2)\n    print(\"PRESS O\", 50, 68, 3)\n  elseif stuck then\n    print(\"O TO LAUNCH\", 42, 100, 3)\n  end\nend\n\nfunction _cover()\n  cls(0)\n  local rows = { 2, 3, 4, 5, 6 }\n  for r = 1, 5 do\n    for c = 0, 7 do\n      rect(4 + c * 15, 8 + (r - 1) * 9, 14, 8, rows[r])\n    end\n  end\n\n  rect(46, 108, 36, 5, 7)\n  rect(60, 96, 5, 5, 4)\n\n  rect(0, 58, 128, 30, 0)\n  print(\"BREAK\", 34, 60, 7, 3)\n  print(\"OUT\", 46, 76, 2, 3)\nend\n",
+      "bytes": 3449,
+      "code": "-- title: Breakout\n-- author: pixygon\n-- about: clear the wall, keep the ball alive\n\n-- Ball position is kept in floats and only rounded when it is drawn, so it\n-- moves at speeds that are not whole pixels. Collision is resolved one axis at\n-- a time: that is what stops the ball burrowing into a brick corner and coming\n-- out the far side.\n\nlocal COLS, ROWS   = 8, 5\nlocal BW, BH       = 14, 6\nlocal LEFT, TOP    = 8, 14\nlocal PADW, PADY   = 22, 118\nlocal WALL_COLOUR  = { 2, 3, 4, 5, 6 }\n\nlocal bricks, left, padx, bx, by, vx, vy, points, lives, stuck\n\nlocal function reset_ball()\n  bx, by = padx + PADW / 2, PADY - 3\n  vx, vy = 1.1, -1.4\n  stuck = true\nend\n\nfunction _init()\n  bricks = {}\n  left = 0\n  for r = 1, ROWS do\n    bricks[r] = {}\n    for c = 1, COLS do\n      bricks[r][c] = true\n      left = left + 1\n    end\n  end\n  padx   = 64 - PADW / 2\n  points = 0\n  lives  = 3\n  score(0)\n  reset_ball()\nend\n\nlocal function brick_at(x, y)\n  local c = flr((x - LEFT) / BW) + 1\n  local r = flr((y - TOP) / BH) + 1\n  if r >= 1 and r <= ROWS and c >= 1 and c <= COLS and bricks[r][c] then\n    return r, c\n  end\nend\n\nlocal function hit(x, y)\n  local r, c = brick_at(x, y)\n  if not r then return false end\n  bricks[r][c] = false\n  left = left - 1\n  points = points + (ROWS - r + 1) * 10\n  score(points)\n  return true\nend\n\nfunction _update()\n  if lives <= 0 or left == 0 then\n    if btnp(4) then _init() end\n    return\n  end\n\n  if btn(0) then padx = padx - 3 end\n  if btn(1) then padx = padx + 3 end\n  padx = mid(0, padx, 128 - PADW)\n\n  if stuck then\n    bx = padx + PADW / 2\n    if btnp(4) then stuck = false end\n    return\n  end\n\n  -- One axis at a time, each with its own bounce.\n  bx = bx + vx\n  if bx < 1 then bx, vx = 1, -vx end\n  if bx > 126 then bx, vx = 126, -vx end\n  if hit(bx, by) then vx = -vx end\n\n  by = by + vy\n  if by < 8 then by, vy = 8, -vy end\n  if hit(bx, by) then vy = -vy end\n\n  -- The paddle steers: where the ball lands on it decides how far it comes off\n  -- sideways, which is the whole game.\n  if vy > 0 and by >= PADY - 1 and by <= PADY + 2 and bx >= padx and bx <= padx + PADW then\n    by = PADY - 1\n    vy = -vy\n    vx = mid(-2.2, (bx - (padx + PADW / 2)) / 5, 2.2)\n  end\n\n  if by > 127 then\n    lives = lives - 1\n    if lives > 0 then reset_ball() end\n  end\nend\n\nfunction _draw()\n  cls(0)\n\n  -- The walls the ball bounces off. They were always there in the physics and\n  -- never drawn, so the ball turned around in mid-air at the edge of nothing.\n  rect(0, 8, 1, 120, 1)\n  rect(127, 8, 1, 120, 1)\n\n  print(\"SCORE \" .. points, 2, 1, 7)\n  for i = 1, lives do\n    rect(120 - (i - 1) * 5, 2, 3, 3, 2)\n  end\n  line(0, 7, 127, 7, 1)\n\n  for r = 1, ROWS do\n    for c = 1, COLS do\n      if bricks[r][c] then\n        rect(LEFT + (c - 1) * BW, TOP + (r - 1) * BH, BW - 1, BH - 1, WALL_COLOUR[r])\n      end\n    end\n  end\n\n  rect(padx, PADY, PADW, 3, 7)\n  circ(bx, by, 1, 7)\n\n  if left == 0 then\n    print(\"WALL CLEARED\", 40, 60, 5)\n    print(\"PRESS O\", 50, 68, 3)\n  elseif lives <= 0 then\n    print(\"GAME OVER\", 46, 60, 2)\n    print(\"PRESS O\", 50, 68, 3)\n  elseif stuck then\n    print(\"O TO LAUNCH\", 42, 100, 3)\n  end\nend\n\nfunction _cover()\n  cls(0)\n  local rows = { 2, 3, 4, 5, 6 }\n  for r = 1, 5 do\n    for c = 0, 7 do\n      rect(4 + c * 15, 8 + (r - 1) * 9, 14, 8, rows[r])\n    end\n  end\n\n  rect(46, 108, 36, 5, 7)\n  rect(60, 96, 5, 5, 4)\n\n  rect(0, 58, 128, 30, 0)\n  print(\"BREAK\", 34, 60, 7, 3)\n  print(\"OUT\", 46, 76, 2, 3)\nend\n",
       "id": "breakout",
-      "sha256": "e56d6a617444924c5775bd3a93725f6766506252150d783a4d3645a23074f86e",
+      "sha256": "f4f6e0b7d85a859cbdf3758866a9d99f5df27a498c2b01f7ca06d56024222137",
       "title": "Breakout",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.11.0/breakout.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.12.0/breakout.lua"
+    },
+    {
+      "about": "plant, wait, sell. it grows while you are away",
+      "author": "pixygon",
+      "bytes": 4667,
+      "code": "-- title: Farm\n-- author: pixygon\n-- about: plant, wait, sell. it grows while you are away\n\n-- The one game here that uses the clock on the wall rather than the frame\n-- counter. `now()` is real seconds since 1970 and `save()` outlives the widget,\n-- so a plot planted before lunch is ripe after it — the console being closed is\n-- exactly the same to a turnip as the console being open.\n--\n-- Nothing is stored as a countdown. Each plot remembers only WHEN it was\n-- planted, and ripeness is `now() - planted >= grow`. A countdown would have to\n-- be ticked, and nothing ticks while the bar is shut.\n\nlocal COLS, ROWS = 4, 3\nlocal CELL = 26\nlocal OX, OY = 12, 22\n\n-- name, seconds to grow, seed cost, sale price, ripe colour\nlocal CROPS = {\n  { \"TURNIP\",   60, 3,  7, 4 },\n  { \"CORN\",    300, 8, 22, 3 },\n  { \"PUMPKIN\", 1800, 20, 70, 2 },\n}\n\nlocal planted, kind, cx, cy, coins, pick, note, noteleft\n\nlocal function slot(x, y) return y * COLS + x end\n\nlocal function save_plot(i)\n  save(\"p\" .. i, planted[i])\n  save(\"k\" .. i, kind[i])\nend\n\nlocal function say(t) note, noteleft = t, 90 end\n\nfunction _init()\n  planted, kind = {}, {}\n  for i = 0, COLS * ROWS - 1 do\n    planted[i] = load(\"p\" .. i) or 0\n    kind[i] = load(\"k\" .. i) or 1\n  end\n  coins = load(\"coins\") or 12\n  cx, cy, pick = 0, 0, 1\n  note, noteleft = \"\", 0\n  score(coins)\nend\n\n-- 0 empty, 1 sown, 2 growing, 3 ripe\nlocal function stage(i)\n  if planted[i] == 0 then return 0 end\n  local age = now() - planted[i]\n  local grow = CROPS[kind[i]][2]\n  if age >= grow then return 3 end\n  if age >= grow / 2 then return 2 end\n  return 1\nend\n\nlocal function left(i)\n  local secs = CROPS[kind[i]][2] - (now() - planted[i])\n  if secs < 0 then secs = 0 end\n  return flr(secs)\nend\n\nfunction _update()\n  if btnp(0) then cx = cx - 1 end\n  if btnp(1) then cx = cx + 1 end\n  if btnp(2) then cy = cy - 1 end\n  if btnp(3) then cy = cy + 1 end\n  cx = mid(0, cx, COLS - 1)\n  cy = mid(0, cy, ROWS - 1)\n\n  if btnp(5) then\n    pick = pick % #CROPS + 1\n  end\n\n  if btnp(4) then\n    local i = slot(cx, cy)\n    local st = stage(i)\n    if st == 3 then\n      coins = coins + CROPS[kind[i]][4]\n      planted[i] = 0\n      save_plot(i)\n      save(\"coins\", coins)\n      score(coins)\n      say(\"SOLD FOR \" .. CROPS[kind[i]][4])\n    elseif st == 0 then\n      local cost = CROPS[pick][3]\n      if coins >= cost then\n        coins = coins - cost\n        planted[i] = flr(now())\n        kind[i] = pick\n        save_plot(i)\n        save(\"coins\", coins)\n        score(coins)\n        say(\"PLANTED \" .. CROPS[pick][1])\n      else\n        say(\"NOT ENOUGH COINS\")\n      end\n    else\n      say(CROPS[kind[i]][1] .. \" IN \" .. left(i) .. \"S\")\n    end\n  end\n\n  if noteleft > 0 then noteleft = noteleft - 1 end\nend\n\nlocal function draw_plot(i, x, y)\n  local st = stage(i)\n  rect(x, y, CELL - 2, CELL - 2, 1)\n  rectb(x, y, CELL - 1, CELL - 1, 0)\n\n  if st == 1 then\n    -- a shoot\n    rect(x + 11, y + 15, 2, 6, 5)\n    pset(x + 10, y + 14, 5)\n    pset(x + 13, y + 14, 5)\n  elseif st == 2 then\n    rect(x + 11, y + 10, 2, 11, 5)\n    rect(x + 7, y + 12, 4, 2, 5)\n    rect(x + 13, y + 15, 4, 2, 5)\n  elseif st == 3 then\n    local c = CROPS[kind[i]][5]\n    rect(x + 11, y + 13, 2, 8, 5)\n    circ(x + 12, y + 9, 5, c)\n    pset(x + 10, y + 7, 7)\n  end\nend\n\nfunction _draw()\n  cls(0)\n\n  for y = 0, ROWS - 1 do\n    for x = 0, COLS - 1 do\n      draw_plot(slot(x, y), OX + x * CELL, OY + y * CELL)\n    end\n  end\n\n  -- the cursor\n  rectb(OX + cx * CELL - 1, OY + cy * CELL - 1, CELL + 1, CELL + 1, 7)\n\n  -- ── the panel ───────────────────────────────────────────────────────────\n  rect(0, 0, 128, 20, 0)\n  line(0, 20, 127, 20, 1)\n  print(\"COINS \" .. coins, 2, 3, 4)\n\n  local c = CROPS[pick]\n  print(\"X:\" .. c[1], 2, 11, 6)\n  print(c[3] .. \"C\", 74, 11, 1)\n  print(\"->\" .. c[4] .. \"C\", 92, 11, 5)\n\n  rect(0, 100, 128, 28, 0)\n  line(0, 100, 127, 100, 1)\n\n  local i = slot(cx, cy)\n  local st = stage(i)\n  if noteleft > 0 then\n    print(note, 2, 104, 7)\n  elseif st == 0 then\n    print(\"O TO PLANT\", 2, 104, 3)\n  elseif st == 3 then\n    print(\"O TO SELL \" .. CROPS[kind[i]][1], 2, 104, 5)\n  else\n    print(CROPS[kind[i]][1] .. \" READY IN \" .. left(i) .. \"S\", 2, 104, 1)\n  end\n  print(\"IT GROWS WHILE YOU ARE AWAY\", 2, 114, 1)\nend\n\nfunction _cover()\n  cls(0)\n  for y = 0, 2 do\n    for x = 0, 3 do\n      local px, py = 12 + x * 26, 14 + y * 26\n      rect(px, py, 24, 24, 1)\n      rect(px + 11, py + 13, 2, 8, 5)\n      circ(px + 12, py + 9, 5, (x + y) % 2 == 0 and 4 or 2)\n    end\n  end\n  rect(0, 96, 128, 32, 0)\n  print(\"FARM\", 40, 104, 5, 3)\nend\n",
+      "id": "farm",
+      "sha256": "3ea536fb8db07d888260e24280318cffcd4a90a7d7b1cef670f819daf79a021c",
+      "title": "Farm",
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.12.0/farm.lua"
     },
     {
       "about": "fall forever, hit nothing",
@@ -18,7 +28,7 @@
       "id": "meteor",
       "sha256": "580e8b4d2fabb763a60e610c7165c34abb4ac94abe9a33b6e08ec4e5a2e4c5e9",
       "title": "Meteor",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.11.0/meteor.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.12.0/meteor.lua"
     },
     {
       "about": "fill the squares the numbers describe",
@@ -28,7 +38,7 @@
       "id": "picross",
       "sha256": "1c3ada7fd24a0f40859397699b40e720f13b9342b36d0dc9ca2131bf8c6ba355",
       "title": "Picross",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.11.0/picross.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.12.0/picross.lua"
     },
     {
       "about": "first to seven, and the machine does not blink",
@@ -38,7 +48,7 @@
       "id": "pong",
       "sha256": "57245516bbe2847ecca3f4b7ad43527a227c3d4af8be3f5acd059dd639be3cb5",
       "title": "Pong",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.11.0/pong.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.12.0/pong.lua"
     },
     {
       "about": "down as far as you can get",
@@ -48,7 +58,7 @@
       "id": "rogue",
       "sha256": "a61acdd128b84eee3c5381e77f7cad35c9445725bebac63ffbff3351348077e8",
       "title": "Rogue",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.11.0/rogue.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.12.0/rogue.lua"
     },
     {
       "about": "eat, grow, do not bite yourself",
@@ -58,7 +68,7 @@
       "id": "snake",
       "sha256": "ef40d67b8062cae7b232feebf554f89786d3d9f4ba1484ba9c9de487abf54fd8",
       "title": "Snake",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.11.0/snake.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.12.0/snake.lua"
     },
     {
       "about": "fly the cave. do not touch the walls.",
@@ -68,7 +78,7 @@
       "id": "tunnel",
       "sha256": "d4695fe96cf1c3620be59f62a1c5804aa76fc1a131affef1f236e50ed87654b6",
       "title": "Tunnel",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.11.0/tunnel.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.12.0/tunnel.lua"
     }
   ],
   "micromachee": 1
