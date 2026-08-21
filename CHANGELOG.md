@@ -4,6 +4,16 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.16.0] — 2026-08-21
+
+### Added
+- Documentation now includes a guide to where each cart's new name comes from in the Pixygon Codex, giving players lore context for Recycler, The Veil, Plate Fall, Down-Shaft, The Whale, The Signs, Abaddon, and Seedplate.
+
+### Changed
+- All eight shipped carts have been renamed and re-themed to fit the Pixygon universe: Snake is now Recycler, Breakout is The Veil, Meteor is Plate Fall, Tunnel is Down-Shaft, Pong is The Whale, Picross is The Signs, Rogue is Abaddon, and Farm is Seedplate. In-game text, win/lose messages, cover art, and crop names have been updated to match the new lore-driven names, though the underlying gameplay is unchanged.
+- Mega Micromachee's tagline now reads "every pearl, a few seconds each" / "EVERY PEARL. NO TIME." to match the new cart naming.
+
+
 ## [0.15.0] — 2026-08-21
 
 ### Added

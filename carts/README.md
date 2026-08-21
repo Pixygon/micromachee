@@ -1,6 +1,6 @@
 # The shelf
 
-Seven carts, and between them they are the best documentation this console has.
+Eight carts, and between them they are the best documentation this console has.
 Every one is a complete game in a single Lua file, and each was written to show
 one thing clearly — so when you are about to write something and want to see how
 it is done here, open the cart in the right-hand column rather than guessing.
@@ -9,14 +9,14 @@ The rules, the API and the traps are in [`../CLAUDE.md`](../CLAUDE.md).
 
 | cart | the game | read it for | size |
 |---|---|---|---|
-| [`snake.lua`](snake.lua) | eat, grow, do not bite yourself | grid movement, and queuing a turn so two taps in one step cannot reverse you into your own neck | 11% |
-| [`breakout.lua`](breakout.lua) | clear the wall, keep the ball alive | float positions rounded only at draw time, and resolving collision one axis at a time so the ball cannot burrow through a corner | 11% |
-| [`meteor.lua`](meteor.lua) | fall forever, hit nothing | spawning, a difficulty ramp that adds rocks rather than speed, and drawing the HUD **last** on its own ground so nothing falls through the score | 11% |
-| [`tunnel.lua`](tunnel.lua) | fly the cave, do not touch the walls | `pget` collision — the cave is stored as column heights, but the ship tests the *pixel* it is moving into rather than the numbers, so collision cannot disagree with what you can see | 9% |
-| [`pong.lua`](pong.lua) | first to seven | an opponent worth playing: it idles until the ball turns toward it and moves fractionally slower than you, so it loses to angle rather than to reflex | 12% |
-| [`picross.lua`](picross.lua) | fill the squares the numbers describe | dense layout on a small screen — clue gutters sized for the worst case (four clues per line), a cursor, and satisfied clues dimming as you go | 20% |
-| [`rogue.lua`](rogue.lua) | down as far as you can get | generated levels, turn order (you move, then everything else does), a remembered map, and stats that carry between floors | 39% |
-| [`farm.lua`](farm.lua) | plant, wait, sell | `save`/`load` and `now()` — crops ripen against the clock on the wall, so closing the console is the same to a turnip as leaving it open | 18% |
+| [`snake.lua`](snake.lua) | **Recycler** — collect the discarded | grid movement, and queuing a turn so two taps in one step cannot reverse you into your own neck | 11% |
+| [`breakout.lua`](breakout.lua) | **The Veil** — peel it away | float positions rounded only at draw time, and resolving collision one axis at a time so the ball cannot burrow through a corner | 11% |
+| [`meteor.lua`](meteor.lua) | **Plate Fall** — the sphere is shedding | spawning, a difficulty ramp that adds rocks rather than speed, and drawing the HUD **last** on its own ground so nothing falls through the score | 11% |
+| [`tunnel.lua`](tunnel.lua) | **Down-Shaft** — it only looks like it rises | `pget` collision — the cave is stored as column heights, but the ship tests the *pixel* it is moving into rather than the numbers, so collision cannot disagree with what you can see | 9% |
+| [`pong.lua`](pong.lua) | **The Whale** — first to seven | an opponent worth playing: it idles until the ball turns toward it and moves fractionally slower than you, so it loses to angle rather than to reflex | 12% |
+| [`picross.lua`](picross.lua) | **The Signs** — draw the sign the numbers describe | dense layout on a small screen — clue gutters sized for the worst case (four clues per line), a cursor, and satisfied clues dimming as you go | 20% |
+| [`rogue.lua`](rogue.lua) | **Abaddon** — down as far as you can get | generated levels, turn order (you move, then everything else does), a remembered map, and stats that carry between floors | 39% |
+| [`farm.lua`](farm.lua) | **Seedplate** — plant, wait, sell | `save`/`load` and `now()` — crops ripen against the clock on the wall, so closing the console is the same to a turnip as leaving it open | 18% |
 
 Sizes are of the 24K a cart may be. **The largest thing anyone has built for
 this console uses 39% of the budget** — the limit has not been the constraint on
@@ -76,6 +76,26 @@ rather than an asset beside it.
 ```bash
 micromachee cover rogue -o /tmp/cover.png
 ```
+
+## Where the names come from
+
+Each cart is a window onto the Pixygon universe rather than a generic arcade
+game — the file names stayed put (ids are baked into save data and the published
+catalog) but the games are named for what they are in the Codex:
+
+| cart | is | from the Codex |
+|---|---|---|
+| snake | **Recycler** | the afterlife-machine the Arra built to dissolve broken Pixiels *gently* — a death-machine that believes it is mercy |
+| breakout | **The Veil** | Caul's membrane, peeled at the first apocalypse. Breaking it is how a world is born |
+| pong | **The Whale** | the Whale sign — *"calm, controlled, and the foundation which everything rests on"* |
+| meteor | **Plate Fall** | the hexagonal plates the Dyson sphere is assembled from, shed and falling |
+| tunnel | **Down-Shaft** | the White Tower: pilgrims read it as rising; it is a shaft descending to the pulsar |
+| picross | **The Signs** | the nine celestial figures — the numbers describe one, you draw it |
+| rogue | **Abaddon** | the prison laid over the cursed forest. Nothing escapes it, and you do not die here — you dissolve |
+| farm | **Seedplate** | *"each plate carried everything needed to grow a world on top"* |
+
+Mega Micromachee is the [pearl-dress](../README.md#mega-micromachee): every
+pearl, a few seconds each.
 
 ## One thing that is true of all seven
 

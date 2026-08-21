@@ -1,6 +1,6 @@
--- title: Meteor
+-- title: Plate Fall
 -- author: pixygon
--- about: fall forever, hit nothing
+-- about: the sphere is shedding. do not be under it
 
 -- A dodger that gets harder by spawning more often rather than by moving
 -- faster, so it stays readable at 128 pixels: at speed the screen fills up,
@@ -110,9 +110,9 @@ function _draw()
   print("BEST " .. best, 2, 9, 6)
 
   if not alive then
-    rect(28, 52, 72, 24, 0)
-    rectb(28, 52, 72, 24, 2)
-    print("YOU HIT A ROCK", 36, 58, 2)
+    rect(25, 52, 78, 24, 0)
+    rectb(25, 52, 78, 24, 2)
+    print("A PLATE TAKES YOU", 30, 58, 2)
     print("PRESS O", 50, 66, 3)
   end
 end
@@ -134,5 +134,5 @@ function _cover()
   pset(62, 109, 3)
 
   rect(0, 108, 128, 20, 0)
-  print("METEOR", 22, 111, 3, 3)
+  print("PLATE FALL", 4, 111, 3, 3)
 end

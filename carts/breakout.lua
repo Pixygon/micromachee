@@ -1,6 +1,6 @@
--- title: Breakout
+-- title: The Veil
 -- author: pixygon
--- about: clear the wall, keep the ball alive
+-- about: peel it away. that is how a world is born
 
 -- Ball position is kept in floats and only rounded when it is drawn, so it
 -- moves at speeds that are not whole pixels. Collision is resolved one axis at
@@ -123,7 +123,7 @@ function _draw()
   circ(bx, by, 1, 7)
 
   if left == 0 then
-    print("WALL CLEARED", 40, 60, 5)
+    print("THE VEIL PEELS", 36, 60, 5)
     print("PRESS O", 50, 68, 3)
   elseif lives <= 0 then
     print("GAME OVER", 46, 60, 2)
@@ -146,6 +146,6 @@ function _cover()
   rect(60, 96, 5, 5, 4)
 
   rect(0, 58, 128, 30, 0)
-  print("BREAK", 34, 60, 7, 3)
-  print("OUT", 46, 76, 2, 3)
+  print("THE", 46, 60, 7, 3)
+  print("VEIL", 40, 76, 2, 3)
 end

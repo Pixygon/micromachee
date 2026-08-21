@@ -1,6 +1,6 @@
--- title: Pong
+-- title: The Whale
 -- author: pixygon
--- about: first to seven, and the machine does not blink
+-- about: first to seven against a thing that does not blink
 
 -- The opponent is deliberately imperfect. It only starts tracking once the ball
 -- is heading its way and it moves fractionally slower than you do, so it can be
@@ -113,7 +113,7 @@ function _draw()
     local won = sl >= TARGET
     rect(20, 52, 88, 24, 0)
     rectb(20, 52, 88, 24, won and 5 or 2)
-    print(won and "YOU WIN" or "YOU LOSE", won and 50 or 46, 58, 7)
+    print(won and "IT YIELDS" or "IT HOLDS", won and 46 or 48, 58, 7)
     print("PRESS O", 50, 66, 3)
   elseif serve > 0 and sl == 0 and sr == 0 then
     print("UP AND DOWN", 42, 100, 1)
@@ -131,5 +131,5 @@ function _cover()
   rect(58, 52, 6, 6, 4)
 
   rect(0, 96, 128, 32, 0)
-  print("PONG", 40, 102, 7, 3)
+  print("THE WHALE", 10, 102, 7, 3)
 end

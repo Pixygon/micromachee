@@ -1,6 +1,6 @@
--- title: Tunnel
+-- title: Down-Shaft
 -- author: pixygon
--- about: fly the cave. do not touch the walls.
+-- about: it looks like a tower rising. fly it down.
 
 -- The cave IS stored — two arrays of column heights, scrolled one step a
 -- frame. What is not stored is the SHAPE the ship has to fit through: instead
@@ -117,5 +117,5 @@ function _cover()
   rect(74, sy - 1, 6, 2, 4)
 
   rect(0, 100, 128, 28, 0)
-  print("TUNNEL", 22, 106, 6, 3)
+  print("DOWN-SHAFT", 4, 106, 6, 3)
 end

@@ -1,6 +1,6 @@
--- title: Snake
+-- title: Recycler
 -- author: pixygon
--- about: eat, grow, do not bite yourself
+-- about: collect the discarded. do not consume yourself
 
 -- The board is 16x15 cells of 8 pixels, with the top 8 pixels kept for the
 -- score. Everything below works in cells and only multiplies up in _draw, so
@@ -94,7 +94,7 @@ end
 
 function _draw()
   cls(0)
-  print("SCORE " .. points, 2, 1, 7)
+  print("TAKEN " .. points, 2, 1, 7)
   line(0, TOP - 1, 127, TOP - 1, 1)
 
   if food then
@@ -109,7 +109,7 @@ function _draw()
   if not alive then
     rect(24, 52, 80, 24, 0)
     rectb(24, 52, 80, 24, 2)
-    print("GAME OVER", 46, 58, 7)
+    print("IT TAKES YOU", 40, 58, 7)
     print("PRESS O", 50, 66, 3)
   end
 end
@@ -141,5 +141,5 @@ function _cover()
 
   rect(0, 98, 128, 30, 0)
   line(0, 98, 127, 98, 5)
-  print("SNAKE", 34, 106, 5, 3)
+  print("RECYCLER", 16, 106, 5, 3)
 end

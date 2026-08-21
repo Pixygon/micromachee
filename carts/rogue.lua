@@ -1,6 +1,6 @@
--- title: Rogue
+-- title: Abaddon
 -- author: pixygon
--- about: down as far as you can get
+-- about: down as far as you can get. nothing escapes
 
 -- A dungeon crawl in 120x90 pixels. Rooms joined by corridors, monsters that
 -- get meaner the deeper you go, and nothing happens until you move — every
@@ -16,7 +16,7 @@ local map, seen, vis, roomid, rooms
 local px, py, hp, maxhp, atk, def, lvl, xp, depth
 local mons, items, msg, msgleft, over
 
-local KIND = { "R", "K", "O", "T" }   -- rat, kobold, orc, troll
+local KIND = { "P", "Y", "S", "B" }   -- broken pixiel, ydrast warden, shade, beast
 
 local function inb(x, y) return x >= 1 and y >= 1 and x <= COLS and y <= ROWS end
 local function say(t) msg, msgleft = t, 14 end
@@ -192,7 +192,7 @@ local function monsters_move()
         hp = 0
         over = true
         lose()
-        say("YOU DIE ON DEPTH " .. depth)
+        say("YOU DISSOLVE ON " .. depth)
         return
       end
     elseif dist <= 7 then
@@ -343,7 +343,7 @@ function _draw()
   if over then
     rect(14, 46, 100, 26, 0)
     rectb(14, 46, 100, 26, 2)
-    print("YOU DIE ON DEPTH " .. depth, 64 - (17 + #tostring(depth)) * 2, 52, 7)
+    print("YOU DISSOLVE ON " .. depth, 64 - (16 + #tostring(depth)) * 2, 52, 7)
     print("PRESS O", 50, 62, 3)
   elseif on_stairs() then
     print("O TO GO DOWN", 4, 121, 4)
@@ -370,11 +370,11 @@ function _cover()
   end
 
   print("@", 60, 46, 7, 2)
-  print("R", 33, 37, 2, 2)
-  print("K", 93, 64, 2, 2)
+  print("P", 33, 37, 2, 2)   -- a broken Pixiel
+  print("Y", 93, 64, 2, 2)   -- an Ydrast warden
   print(">", 99, 28, 4, 2)
   print("+", 33, 70, 5, 2)
 
   rect(0, 94, 128, 34, 0)
-  print("ROGUE", 34, 102, 2, 3)
+  print("ABADDON", 22, 102, 2, 3)
 end

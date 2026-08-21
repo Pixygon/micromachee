@@ -1,11 +1,11 @@
--- title: Farm
+-- title: Seedplate
 -- author: pixygon
--- about: plant, wait, sell. it grows while you are away
+-- about: a plate carried everything to grow a world. grow it
 
 -- The one game here that uses the clock on the wall rather than the frame
 -- counter. `now()` is real seconds since 1970 and `save()` outlives the widget,
 -- so a plot planted before lunch is ripe after it — the console being closed is
--- exactly the same to a turnip as the console being open.
+-- exactly the same to a growing thing as the console being open.
 --
 -- Nothing is stored as a countdown. Each plot remembers only WHEN it was
 -- planted, and ripeness is `now() - planted >= grow`. A countdown would have to
@@ -17,9 +17,9 @@ local OX, OY = 12, 22
 
 -- name, seconds to grow, seed cost, sale price, ripe colour
 local CROPS = {
-  { "TURNIP",   60, 3,  7, 4 },
-  { "CORN",    300, 8, 22, 3 },
-  { "PUMPKIN", 1800, 20, 70, 2 },
+  { "MOSS",     60, 3,  7, 4 },
+  { "GRAIN",   300, 8, 22, 3 },
+  { "BLOOM",  1800, 20, 70, 2 },
 }
 
 local planted, kind, cx, cy, coins, pick, note, noteleft
@@ -176,5 +176,5 @@ function _cover()
     end
   end
   rect(0, 96, 128, 32, 0)
-  print("FARM", 40, 104, 5, 3)
+  print("SEEDPLATE", 10, 104, 5, 3)
 end

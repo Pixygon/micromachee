@@ -26,7 +26,7 @@ use crate::vm::{Machine, Outcome, FPS};
 /// meta-game instead, which is why the shelf and the panel need no special case.
 pub const MEGA_ID: &str = "mega";
 pub const MEGA_TITLE: &str = "Mega Micromachee";
-pub const MEGA_ABOUT: &str = "every game, a few seconds each, faster and faster";
+pub const MEGA_ABOUT: &str = "every pearl, a few seconds each, faster and faster";
 
 const LIVES: i32 = 3;
 const INTRO_FRAMES: u32 = 60;
@@ -285,7 +285,7 @@ impl Mega {
         self.out.cls(0);
         self.out.print("MEGA", centre("MEGA", 3), 34, 4, 3);
         self.out.print("MICROMACHEE", centre("MICROMACHEE", 1), 58, 7, 1);
-        self.out.print("EVERY GAME. NO TIME.", centre("EVERY GAME. NO TIME.", 1), 78, 1, 1);
+        self.out.print("EVERY PEARL. NO TIME.", centre("EVERY PEARL. NO TIME.", 1), 78, 1, 1);
         let lives = format!("{LIVES} LIVES");
         self.out.print(&lives, centre(&lives, 1), 94, 2, 1);
     }

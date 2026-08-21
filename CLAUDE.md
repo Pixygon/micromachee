@@ -258,13 +258,13 @@ The shipped carts in `carts/` each demonstrate one thing:
 
 | cart | for |
 |---|---|
-| `snake.lua` | grid movement, queued turns |
-| `breakout.lua` | float physics, per-axis collision |
-| `meteor.lua` | spawning, difficulty ramp, HUD layering |
-| `tunnel.lua` | `pget` collision against the framebuffer |
-| `pong.lua` | an opponent worth playing — imperfect on purpose |
-| `picross.lua` | dense layout, a cursor, clue gutters that fit |
-| `rogue.lua` | generated levels, turn order, remembered map, stats |
-| `farm.lua` | `save`/`load` and `now()` — real time passing while closed |
+| `snake.lua` | *Recycler* — grid movement, queued turns |
+| `breakout.lua` | *The Veil* — float physics, per-axis collision |
+| `meteor.lua` | *Plate Fall* — spawning, difficulty ramp, HUD layering |
+| `tunnel.lua` | *Down-Shaft* — `pget` collision against the framebuffer |
+| `pong.lua` | *The Whale* — an opponent worth playing, imperfect on purpose |
+| `picross.lua` | *The Signs* — dense layout, a cursor, clue gutters that fit |
+| `rogue.lua` | *Abaddon* — generated levels, turn order, remembered map, stats |
+| `farm.lua` | *Seedplate* — `save`/`load` and `now()`, real time while closed |
 
 All seven draw their own `_cover()`, so they double as worked examples of that.

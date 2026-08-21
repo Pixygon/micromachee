@@ -13,7 +13,7 @@ import { Screen, loadCart, W, H, CHAR_WIDTH } from "./micromachee.js";
 
 export const MEGA_ID = "mega";
 export const MEGA_TITLE = "Mega Micromachee";
-export const MEGA_ABOUT = "every game, a few seconds each, faster and faster";
+export const MEGA_ABOUT = "every pearl, a few seconds each, faster and faster";
 
 export const LIVES = 3;
 const FPS = 30;
@@ -194,7 +194,7 @@ export class Mega {
     this.out.cls(0);
     this.out.print("MEGA", centre("MEGA", 3), 34, 4, 3);
     this.out.print("MICROMACHEE", centre("MICROMACHEE", 1), 58, 7, 1);
-    this.out.print("EVERY GAME. NO TIME.", centre("EVERY GAME. NO TIME.", 1), 78, 1, 1);
+    this.out.print("EVERY PEARL. NO TIME.", centre("EVERY PEARL. NO TIME.", 1), 78, 1, 1);
     const lives = `${LIVES} LIVES`;
     this.out.print(lives, centre(lives, 1), 94, 2, 1);
   }
