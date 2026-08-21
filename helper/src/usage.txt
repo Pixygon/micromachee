@@ -19,8 +19,12 @@ MAKING A GAME
   micromachee discard <id>    throw a draft away
   micromachee check <file>    does it load, and survive a minute of play?
   micromachee cover <id|file> [-o out.png]   look at its cover
-  micromachee shot <file> [--frames N] [--hold 2,4] [-o out.png]
-                              look at it, with buttons held down
+  micromachee shot <file> [--frames N] [--hold 2,4] [--keys 5:2,6:0]
+                              [-o out.png]
+                              look at it. --hold holds buttons down;
+                              --keys is a frame:mask track, so a TAP is
+                              expressible — which is the only way to drive a
+                              game that reads btnp()
 
 A cart is one Lua file, at most 24K. It needs _draw(); _init() and _update()
 are optional. 30 frames a second.

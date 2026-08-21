@@ -4,6 +4,24 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.22.0] — 2026-08-21
+
+### Added
+- The `shot` command now supports a `--keys` option to script a frame-by-frame button track (e.g. `--keys 10:2,11:0,20:16,21:0`). This lets you simulate a tap rather than a held button, which is essential for capturing screenshots of games that read input with `btnp()` — previously `--hold` could only ever show frame 1 of such games since a held button never re-fires.
+
+### Fixed
+- Invalid `--keys` values now produce a clear error message explaining the expected `frame:mask` format instead of failing silently or confusingly.
+
+
+## [0.21.0] — 2026-08-21
+
+### Added
+- The `shot` command now supports a `--keys` option to script a frame-by-frame button track (e.g. `--keys 10:2,11:0,20:16,21:0`). This lets you simulate a tap rather than a held button, which is essential for capturing screenshots of games that read input with `btnp()` — previously `--hold` could only ever show frame 1 of such games since a held button never re-fires.
+
+### Fixed
+- Invalid `--keys` values now produce a clear error message explaining the expected `frame:mask` format instead of failing silently or confusingly.
+
+
 ## [0.20.1] — 2026-08-21
 
 ### Added

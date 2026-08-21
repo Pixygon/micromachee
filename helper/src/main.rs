@@ -452,11 +452,41 @@ fn cmd_check(file: &str) -> i32 {
     0
 }
 
+/// `"5:2,6:0"` → the button mask in force from each frame until the next.
+///
+/// Sorted, so the track may be written in any order, and masked to six buttons
+/// so a typo cannot set a bit no cart can read.
+fn parse_key_track(spec: &str) -> Result<Vec<(u32, u8)>, String> {
+    let mut out = Vec::new();
+    for part in spec.split(',') {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        let (f, m) = part
+            .split_once(':')
+            .ok_or_else(|| format!("--keys wants frame:mask pairs, e.g. 0:2,15:16,30:0 — got {part:?}"))?;
+        let frame: u32 = f
+            .trim()
+            .parse()
+            .map_err(|_| format!("--keys: {:?} is not a frame number", f.trim()))?;
+        let mask: u8 = m
+            .trim()
+            .parse()
+            .map_err(|_| format!("--keys: {:?} is not a button mask (0-63)", m.trim()))?;
+        out.push((frame, mask & 0b0011_1111));
+    }
+    out.sort_by_key(|(f, _)| *f);
+    Ok(out)
+}
+
 fn cmd_shot(args: &[String]) -> i32 {
     let mut file = None;
     let mut out = "shot.png".to_string();
     let mut frames = 1u32;
     let mut hold = 0u8;
+    // (frame, button mask) — the mask in force from that frame until the next.
+    let mut keys: Vec<(u32, u8)> = Vec::new();
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
@@ -481,12 +511,29 @@ fn cmd_shot(args: &[String]) -> i32 {
                     }
                 }
             }
+            // `--hold` can only ever show you frame 1 of a btnp game: a held
+            // button fires btnp once, so a menu never moves and a turn-based
+            // game never takes a second turn. That is exactly the class where
+            // the bugs are layout and state rather than motion, and exactly
+            // the class an author most needs to look at. A track of
+            // `frame:mask` changes lets a tap be expressed.
+            "--keys" => {
+                i += 1;
+                match parse_key_track(args.get(i).map(String::as_str).unwrap_or("")) {
+                    Ok(track) => keys = track,
+                    Err(e) => {
+                        eprintln!("✗ {e}");
+                        return 2;
+                    }
+                }
+            }
             other => file = Some(other.to_string()),
         }
         i += 1;
     }
     let Some(file) = file else {
         eprintln!("✗ shot what? try: micromachee shot mygame.lua --frames 60 --hold 2 -o look.png");
+        eprintln!("  for a btnp game, tap instead:  --keys \"10:2,11:0,20:16,21:0\"");
         return 2;
     };
     let cart = match Cart::load(std::path::Path::new(&file)) {
@@ -508,7 +555,15 @@ fn cmd_shot(args: &[String]) -> i32 {
         return 1;
     }
     machine.set_held(hold);
+    let mut next_key = 0usize;
     for f in 0..frames.max(1) {
+        // Apply every change scheduled at or before this frame. Holding the
+        // mask until the next entry is what makes a tap expressible: set it on
+        // one frame, clear it on the next.
+        while next_key < keys.len() && keys[next_key].0 <= f {
+            machine.set_held(keys[next_key].1);
+            next_key += 1;
+        }
         if let Err(e) = machine.update() {
             eprintln!("✗ _update() failed on frame {f}: {e}");
             return 1;
@@ -1006,6 +1061,26 @@ mod tests {
         assert_eq!(base64(b"foobar"), "Zm9vYmFy");
         // A frame is binary, so the high bytes matter more than the ASCII ones.
         assert_eq!(base64(&[0xff, 0xfe, 0xfd]), "//79");
+    }
+
+    #[test]
+    fn a_key_track_parses_into_frame_ordered_masks() {
+        assert_eq!(parse_key_track("5:2,6:0").unwrap(), vec![(5, 2), (6, 0)]);
+        // Any order in, frame order out.
+        assert_eq!(parse_key_track("30:0, 5:2 ,6:0").unwrap(), vec![(5, 2), (6, 0), (30, 0)]);
+        assert_eq!(parse_key_track("").unwrap(), vec![]);
+        // Six buttons; a stray high bit is not a seventh.
+        assert_eq!(parse_key_track("0:255").unwrap(), vec![(0, 63)]);
+    }
+
+    #[test]
+    fn a_malformed_key_track_says_what_is_wrong() {
+        // Silently ignoring a typo would render a frame that looks like the
+        // game ignoring input, which is the bug the author is hunting.
+        for bad in ["5", "5:x", "x:5", "5:2,junk"] {
+            let e = parse_key_track(bad).expect_err(&format!("{bad:?} should not parse"));
+            assert!(!e.is_empty());
+        }
     }
 
     #[test]

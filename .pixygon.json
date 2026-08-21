@@ -1,4 +1,5 @@
 {
   "name": "micromachee",
-  "projectId": "6a884131b7683301d126a291"
+  "projectId": "6a884131b7683301d126a291",
+  "postVersion": "scripts/release.sh"
 }
