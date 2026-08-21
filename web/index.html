@@ -97,7 +97,7 @@
   <div id="hint">arrows or WASD · Z and X · Esc for the shelf</div>
 </div>
 
-<script src="./vendor/wasmoon.js"></script>
+<script src="./node_modules/wasmoon/dist/index.js"></script>
 <script type="module">
 import { loadCart, blit, localStore, THEMES, W, H } from "./micromachee.js";
 import { Mega, megaCover, MEGA_ID, MEGA_TITLE, MEGA_ABOUT } from "./mega.js";
@@ -108,7 +108,7 @@ import { CATALOG } from "./console-data.js";
 const FPS = 30;
 
 const $ = (id) => document.getElementById(id);
-const factory = new window.wasmoon.LuaFactory("./vendor/glue.wasm");
+const factory = new window.wasmoon.LuaFactory("./node_modules/wasmoon/dist/glue.wasm");
 
 let themeIds = Object.keys(THEMES);
 let theme = themeIds[0];

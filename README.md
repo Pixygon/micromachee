@@ -150,8 +150,16 @@ profile. Without either, the panel says so rather than failing quietly.
 
 `web/` is the whole console again, in JavaScript: it fetches the published
 catalog, runs the carts with real Lua 5.4 (wasmoon, the same version the helper
-embeds) and draws to a canvas. No server, no build step — open `web/index.html`
-from any static host.
+embeds) and draws to a canvas. No server and no build step — but wasmoon is not
+vendored, so fetch it first and serve the folder:
+
+```bash
+cd web && npm install
+```
+
+Nothing binary is committed to this repository. wasmoon ships a WebAssembly
+module and it is left in `node_modules/` where you can see where it came from,
+rather than checked in as an opaque blob.
 
 The meta-game is there too, as `web/mega.js` — a port of `helper/src/mega.rs`.
 
@@ -223,6 +231,57 @@ registry to tell.
 Every entry carries a SHA-256 and `sync` checks it, so a cart that arrived
 mangled is refused rather than saved. That is one way for a file to travel, not
 how carts work — copying a file into that directory still does the same job.
+
+## Removing it
+
+```bash
+rm ~/.config/omarchy/plugins/io.pixygon.micromachee     # the symlink
+rm ~/.local/bin/omarchy-micromachee                     # the helper
+rm -rf ~/.local/share/omarchy-micromachee               # carts and drafts
+rm -rf ~/.local/state/omarchy-micromachee               # high scores, saves, settings
+```
+
+Remove the widget from your bar in Omarchy's plugin settings first. Nothing else
+on your system is touched — the installer never uses root and writes only to
+those paths.
+
+## What it does on your machine
+
+Stated plainly, because a plugin runs unsandboxed:
+
+- **It builds and runs a helper binary.** `install.sh` compiles `helper/` with
+  cargo and installs it to `~/.local/bin`. Nothing is downloaded and piped to a
+  shell, and no prebuilt binary is bundled — you build what you can read.
+- **It runs Lua that you may not have written.** That is the product: a cart is
+  a program. Carts get `math`, `string` and `table` and nothing else — no `io`,
+  no `os`, no `require` — plus a per-frame instruction budget and a memory
+  ceiling so a bad one cannot hang your bar. It is a restricted interpreter in
+  the helper's process, not a security boundary. **Read a cart from a stranger
+  before you run it.** It is one file and at most 24K, which is the point.
+- **It reaches the network only when you ask.** `sync` fetches the published
+  shelf over HTTPS. `make`/`revise` send your prompt to the Anthropic API.
+  Nothing else talks to anything.
+- **Credentials, if you use `make`.** It reads `ANTHROPIC_API_KEY`, or a token
+  from an existing `ant auth login` profile. The key is never written anywhere
+  and never printed.
+- **It writes only under your home.** `~/.local/bin`,
+  `~/.local/share/omarchy-micromachee` and `~/.local/state/omarchy-micromachee`.
+  Reinstalling never overwrites a cart you already have.
+
+## Dependencies and licences
+
+Micromachee is MIT (see [LICENSE](LICENSE)). What it builds on:
+
+| | | |
+|---|---|---|
+| [mlua](https://github.com/mlua-rs/mlua) | MIT | Rust bindings for Lua |
+| [Lua 5.4](https://www.lua.org/) | MIT | vendored and built by mlua |
+| [serde_json](https://github.com/serde-rs/json) | MIT / Apache-2.0 | the one line of JSON the bar reads |
+| [wasmoon](https://github.com/ceifa/wasmoon) | MIT | Lua 5.4 in WebAssembly, for the browser build only |
+
+Everything else — the PNG encoder, SHA-256, the palettes, the font — is written
+here rather than pulled in. `curl` is used for network fetches and `stty` for
+the terminal player; both are expected to be present already.
 
 ## Publishing
 

@@ -4,6 +4,19 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.14.0] — 2026-08-21
+
+### Added
+- README now documents how to fully remove Micromachee (helper, symlink, carts, saves, and settings) from your system.
+- README now clearly explains what the plugin does on your machine — what it builds and runs, the sandboxing limits on cart Lua scripts, when it touches the network, how credentials are handled, and exactly which paths it writes to — plus a full list of dependencies and their licences.
+
+### Changed
+- The web build (web/index.html) no longer vendors a copy of wasmoon in the repository. Instead, run `npm install` inside `web/` once to fetch it before serving the folder — the console itself works exactly the same afterward. **(BREAKING)**
+
+### Fixed
+- Reinstalling no longer overwrites carts you've already installed or edited. The installer now skips any cart file that already exists at the destination and reports how many were added versus kept.
+
+
 ## [0.13.0] — 2026-08-21
 
 ### Added

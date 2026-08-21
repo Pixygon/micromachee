@@ -21,8 +21,20 @@ echo "✓ installed $prefix/bin/$bin"
 # this repo — so without this step the widget comes up with an empty shelf.
 carts="${MICROMACHEE_CARTS:-${XDG_DATA_HOME:-$HOME/.local/share}/omarchy-micromachee/carts}"
 mkdir -p "$carts"
-install -m644 -t "$carts" "$here"/carts/*.lua
-echo "✓ installed $(ls -1 "$here"/carts/*.lua | wc -l) cart(s) to $carts"
+added=0
+kept=0
+for f in "$here"/carts/*.lua; do
+  # Never overwrite a cart that is already there. A game you wrote, or one you
+  # edited, is yours — and a reinstall silently replacing it would be the worst
+  # kind of data loss, because you would not find out until you played it.
+  if [ -e "$carts/$(basename "$f")" ]; then
+    kept=$((kept + 1))
+  else
+    install -m644 "$f" "$carts/"
+    added=$((added + 1))
+  fi
+done
+echo "✓ installed $added cart(s) to $carts${kept:+ (kept $kept already there)}"
 case ":$PATH:" in
   *":$prefix/bin:"*) ;;
   *) echo "  note: $prefix/bin is not on your PATH" ;;
