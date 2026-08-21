@@ -4,6 +4,14 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.20.1] — 2026-08-21
+
+### Added
+- New cart: Firekeeper — hold the line as a descending rank of invaders closes in, using bunkers for cover before they reach and snuff out your light.
+- New cart: Sparrow — fly through waves of enemy formations, clearing each wing cleanly to earn gifts that upgrade your gun.
+- New cart: The Twins — a tic-tac-toe game against an opponent who plays smart but occasionally blunders, keeping matches winnable.
+
+
 ## [0.20.0] — 2026-08-21
 
 ### Improved
