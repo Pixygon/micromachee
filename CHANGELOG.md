@@ -4,6 +4,31 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.11.0] — 2026-08-21
+
+### Added
+- Games can now save and load persistent state (numbers, strings and booleans) plus read the real wall-clock time with the new save(key,value), load(key) and now() cart API functions. This lets games have things happen "while you're away" — like crops that keep growing even after the console is closed.
+- Added Farm, a new cart demonstrating save/load and real-time growth: plant crops, close the console, and come back later to find them ripe.
+- The console shelf is now a grid of covers you can navigate entirely with the keyboard — arrows or WASD to move the selection, O/X to pick a cart — no mouse required.
+- Screen size can now be adjusted directly from the console with +/- buttons, instead of only through a settings page, and your chosen size is remembered.
+- Added a new `micromachee scale [2-6]` command-line option to view or set the console's screen size directly from the terminal.
+- Web version: cart save data now persists per-cart in the browser via localStorage, so progress in games like Farm carries over between visits.
+
+### Changed
+- Closing the panel now pauses the running game instead of stopping it — reopening picks up right where you left off, rather than losing your run.
+
+### Improved
+- Switching themes while a game is running no longer restarts the cart or interrupts your play — the palette now updates live, and cover art updates to match the new theme too.
+
+### Fixed
+- Fixed screen flicker during gameplay caused by the display briefly going blank while each new frame decoded.
+- Fixed mid() and flr() returning floating-point numbers (e.g. "2.0") when given whole numbers, which could corrupt save keys or on-screen text built from clamped coordinates.
+- Fixed the Breakout cart not drawing its side walls, so the ball appeared to bounce off empty space at the screen edges.
+
+### Removed
+- Removed the separate "Screen size" setting from the plugin's settings page, since screen size is now controlled directly from buttons on the console itself. **(BREAKING)**
+
+
 ## [0.10.0] — 2026-08-21
 
 ### Added

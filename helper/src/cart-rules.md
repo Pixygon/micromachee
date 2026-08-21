@@ -33,12 +33,22 @@ wants both. `_cover()` is optional and draws the shelf picture.
     flr(n)                      floor, returns an integer
     mid(lo, v, hi)              clamp v between lo and hi
     score(n)                    tell the console the score
+    save(key, value)            remember a number, string or boolean
+    load(key)                   read it back, or nil the first time
+    now()                       real seconds since 1970 (wall clock)
 
 That is all of it. There is no sprite sheet, no sound, no file access, no
 `require`. Lua's `math`, `string` and `table` are available. `io` and `os` are
 NOT — do not use them.
 
 Buttons: 0 left, 1 right, 2 up, 3 down, 4 O, 5 X.
+
+`save`/`load` survive the console being closed, so a game can pick up where it
+was left. `t()` is seconds since THIS run started; `now()` is the clock on the
+wall, so together they let something keep growing while nobody is watching:
+store WHEN a thing started (`save("planted", flr(now()))`) and compare against
+`now()` later. Never store a countdown — nothing counts down while the console
+is shut.
 
 # Colours are indexes, never names
 

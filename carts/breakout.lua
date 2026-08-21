@@ -99,6 +99,11 @@ end
 function _draw()
   cls(0)
 
+  -- The walls the ball bounces off. They were always there in the physics and
+  -- never drawn, so the ball turned around in mid-air at the edge of nothing.
+  rect(0, 8, 1, 120, 1)
+  rect(127, 8, 1, 120, 1)
+
   print("SCORE " .. points, 2, 1, 7)
   for i = 1, lives do
     rect(120 - (i - 1) * 5, 2, 3, 3, 2)

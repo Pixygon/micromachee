@@ -31,12 +31,8 @@ Panel {
   // and the whole screen shimmers as anything moves across it. That is the one
   // thing an eight-colour console cannot afford, and it gets worse the bigger
   // the screen is — so growing it and squaring it up are the same job.
-  readonly property int pixelSize: {
-    var n = parseInt(String(settings && settings.screenScale !== undefined
-                            ? settings.screenScale : 3), 10)
-    if (!isFinite(n)) n = 3
-    return Math.max(2, Math.min(6, n))
-  }
+  readonly property int pixelSize: Math.max(2, Math.min(6, mm.scale || 3))
+
   readonly property int screenInset: Style.space(7)
   readonly property int consoleWidth: 128 * pixelSize + screenInset * 2
 
@@ -44,6 +40,10 @@ Panel {
   // to stand down, or typing a game called "Retro" cycles the theme twice.
   readonly property bool typing: nameField.activeFocus || promptField.activeFocus
                                  || reviseField.activeFocus
+
+  /// Which cart the shelf has highlighted, and how wide the grid is.
+  property int shelfIndex: 0
+  readonly property int shelfColumns: 3
 
   readonly property string glyph: "▦"
   readonly property string barLabel: mm.carts.length > 0 ? glyph + " " + mm.carts.length : glyph
@@ -63,15 +63,27 @@ Panel {
     if (opened) {
       mm.refresh()
       mm.loadCovers()          // once per opening, not on the poll timer
+      mm.resume()              // a closed panel paused it; pick it back up
       Qt.callLater(function() { keys.forceActiveFocus() })
     } else {
-      mm.stop()
+      // Not `stop()`. Closing the bar to look at something else should cost you
+      // a moment, not the run you were in the middle of.
+      mm.pause()
     }
   }
 
   Service {
     id: mm
     settings: root.settings
+  }
+
+  // Carts come and go — syncing, publishing, discarding — and a selection that
+  // points past the end of the shelf highlights nothing.
+  Connections {
+    target: mm
+    function onCartsChanged() {
+      root.shelfIndex = Math.max(0, Math.min(root.shelfIndex, mm.carts.length - 1))
+    }
   }
 
   IpcHandler {
@@ -130,7 +142,24 @@ Panel {
           if (event.key === Qt.Key_X) { mm.startArmed(); event.accepted = true }
           return
         }
-        if (!mm.playing) return
+        // On the shelf the same buttons move a selection and pick one, so the
+        // whole console is usable without ever touching the mouse.
+        if (!mm.playing) {
+          if (mm.creating) return
+          var n = mm.carts.length
+          if (n === 0) return
+          var s = buttonFor(event.key)
+          if (s === 0)      root.shelfIndex = Math.max(0, root.shelfIndex - 1)
+          else if (s === 1) root.shelfIndex = Math.min(n - 1, root.shelfIndex + 1)
+          else if (s === 2) root.shelfIndex = Math.max(0, root.shelfIndex - root.shelfColumns)
+          else if (s === 3) root.shelfIndex = Math.min(n - 1, root.shelfIndex + root.shelfColumns)
+          else if (s === 4 || s === 5) {
+            var pick = mm.carts[root.shelfIndex]
+            if (pick) mm.arm(pick.id, pick.title)
+          } else return
+          event.accepted = true
+          return
+        }
         var b = buttonFor(event.key)
         if (b >= 0) { mm.setButton(b, true); event.accepted = true }
       }
@@ -197,24 +226,55 @@ Panel {
               Behavior on color { ColorAnimation { duration: 180 } }
             }
 
-            Image {
+            // Two images, shown alternately. A single Image reloading a data
+            // uri thirty times a second is blank for part of every frame, and
+            // that is the flicker: the fix is to decode into the hidden one and
+            // only then swap which is visible, so something complete is always
+            // on screen.
+            Item {
               id: screen
               anchors.centerIn: parent
               width: 128 * screenBox.pixelScale
               height: width
-              // Playing shows the game; chosen-but-not-started shows the cover,
-              // which is the same screen drawn by the same cart.
-              source: mm.playing
+
+              readonly property string src: mm.playing
                 ? (mm.frame !== "" ? "data:image/png;base64," + mm.frame : "")
                 : (mm.coverFor(mm.armedId) !== ""
                    ? "data:image/png;base64," + mm.coverFor(mm.armedId) : "")
-              // 128 pixels blown up: never interpolate, or the whole point of an
-              // eight-colour console is lost to a blur.
-              smooth: false
-              mipmap: false
-              fillMode: Image.Stretch
-              cache: false
-              asynchronous: false
+
+              property bool showA: true
+
+              onSrcChanged: {
+                if (src === "") { pageA.source = ""; pageB.source = ""; return }
+                // asynchronous:false, so the assignment has finished decoding by
+                // the time the next line runs.
+                if (showA) { pageB.source = src; showA = false }
+                else       { pageA.source = src; showA = true }
+              }
+
+              Image {
+                id: pageA
+                anchors.fill: parent
+                visible: screen.showA
+                // 128 pixels blown up: never interpolate, or the whole point of
+                // an eight-colour console is lost to a blur.
+                smooth: false
+                mipmap: false
+                fillMode: Image.Stretch
+                cache: false
+                asynchronous: false
+              }
+
+              Image {
+                id: pageB
+                anchors.fill: parent
+                visible: !screen.showA
+                smooth: false
+                mipmap: false
+                fillMode: Image.Stretch
+                cache: false
+                asynchronous: false
+              }
             }
 
             Text {
@@ -321,14 +381,61 @@ Panel {
               }
             }
 
-            Text {
+            // Brand, and the size control under it. A widget you can only
+            // resize from a settings page is one you resize once and never
+            // again — so it is a button on the console, where your hand is.
+            Column {
               anchors.centerIn: parent
-              text: "MICROMACHEE"
-              color: mm.shellDim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.bodySmall
-              font.letterSpacing: 2
-              opacity: 0.7
+              spacing: Style.space(3)
+
+              Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "MICROMACHEE"
+                color: mm.shellDim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                font.letterSpacing: 2
+                opacity: 0.7
+              }
+
+              Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: Style.space(4)
+
+                Repeater {
+                  model: [
+                    { "label": "−", "step": -1 },
+                    { "label": "+", "step": 1 }
+                  ]
+                  delegate: Rectangle {
+                    required property var modelData
+                    readonly property bool canDo:
+                      mm.scale + modelData.step >= 2 && mm.scale + modelData.step <= 6
+                    width: Style.space(16)
+                    height: Style.space(14)
+                    radius: Style.space(3)
+                    color: "transparent"
+                    border.width: 1
+                    border.color: mm.shellDim
+                    opacity: canDo ? 0.8 : 0.25
+
+                    Text {
+                      anchors.centerIn: parent
+                      text: modelData.label
+                      color: mm.shellDim
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.bodySmall
+                    }
+
+                    MouseArea {
+                      anchors.fill: parent
+                      enabled: parent.canDo
+                      cursorShape: Qt.PointingHandCursor
+                      onClicked: mm.setScale(mm.scale + modelData.step)
+                    }
+                  }
+                }
+              }
             }
 
             Row {
@@ -798,104 +905,104 @@ Panel {
           }
         }
 
-        Repeater {
-          model: (mm.playing || mm.arming) ? [] : mm.carts
-          delegate: Item {
-            required property var modelData
-            width: body.width
-            height: Style.space(46)
+        Text {
+          visible: !mm.playing && !mm.arming && !mm.creating && mm.carts.length > 0
+          width: parent.width
+          text: "ARROWS OR WASD TO CHOOSE · Z OR X TO PICK · T THEME"
+          color: root.dim
+          font.family: root.fontFamily
+          font.pixelSize: Style.font.bodySmall
+          horizontalAlignment: Text.AlignHCenter
+        }
 
-            Rectangle {
-              anchors.fill: parent
-              anchors.rightMargin: Style.space(2)
-              radius: Style.cornerRadius
-              color: hover.containsMouse
-                ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.13)
-                : "transparent"
-            }
+        // ── the shelf, as a grid ────────────────────────────────────────
+        // Covers are the point, so they get the room. It is navigable with the
+        // same buttons a game uses — arrows or WASD to move, O or X to pick —
+        // because reaching for the mouse in a console is a jarring thing to
+        // have to do.
+        Grid {
+          visible: !mm.playing && !mm.arming && !mm.creating
+          width: parent.width
+          columns: root.shelfColumns
+          spacing: Style.space(6)
 
-            Rectangle {
-              id: thumb
-              anchors.left: parent.left
-              anchors.leftMargin: Style.space(6)
-              anchors.verticalCenter: parent.verticalCenter
-              width: Style.space(38)
-              height: width
-              radius: Style.space(3)
-              color: mm.shellBezel
-              clip: true
+          Repeater {
+            model: (mm.playing || mm.arming || mm.creating) ? [] : mm.carts
 
-              Image {
+            delegate: Item {
+              required property var modelData
+              required property int index
+              readonly property bool picked: index === root.shelfIndex
+              width: (body.width - Style.space(6) * (root.shelfColumns - 1)) / root.shelfColumns
+              height: width + Style.space(16)
+
+              Rectangle {
                 anchors.fill: parent
-                anchors.margins: 1
-                source: mm.coverFor(modelData.id) !== ""
-                  ? "data:image/png;base64," + mm.coverFor(modelData.id) : ""
-                smooth: false
-                mipmap: false
-                fillMode: Image.PreserveAspectFit
-                cache: false
+                radius: Style.cornerRadius
+                color: picked || tileHover.containsMouse
+                  ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.12)
+                  : "transparent"
+                border.width: picked ? 1 : 0
+                border.color: mm.shellAccent
+              }
+
+              Rectangle {
+                id: art
+                anchors.top: parent.top
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.topMargin: Style.space(3)
+                width: parent.width - Style.space(6)
+                height: width
+                radius: Style.space(3)
+                color: mm.shellBezel
+                clip: true
+
+                Image {
+                  anchors.fill: parent
+                  anchors.margins: 1
+                  source: mm.coverFor(modelData.id) !== ""
+                    ? "data:image/png;base64," + mm.coverFor(modelData.id) : ""
+                  smooth: false
+                  mipmap: false
+                  fillMode: Image.PreserveAspectFit
+                  cache: false
+                }
+
+                Text {
+                  anchors.centerIn: parent
+                  visible: mm.coverFor(modelData.id) === ""
+                  text: String(modelData.title || "?").substring(0, 1).toUpperCase()
+                  color: mm.shellDim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.body
+                  font.bold: true
+                }
               }
 
               Text {
-                anchors.centerIn: parent
-                visible: mm.coverFor(modelData.id) === ""
-                text: String(modelData.title || "?").substring(0, 1).toUpperCase()
-                color: mm.shellDim
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.body
-                font.bold: true
-              }
-            }
-
-            Column {
-              anchors.left: thumb.right
-              anchors.leftMargin: Style.space(8)
-              anchors.verticalCenter: parent.verticalCenter
-              width: parent.width - thumb.width - Style.space(70)
-              spacing: 1
-
-              Text {
-                width: parent.width
+                anchors.top: art.bottom
+                anchors.topMargin: 1
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: parent.width - Style.space(6)
+                horizontalAlignment: Text.AlignHCenter
                 text: modelData.title
-                color: root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.body
-                elide: Text.ElideRight
-              }
-              Text {
-                width: parent.width
-                text: modelData.draft === true
-                  ? "draft — not kept yet"
-                  : (modelData.about !== "" ? modelData.about : ("by " + modelData.author))
-                color: modelData.draft === true ? mm.shellAccent : root.dim
+                color: modelData.draft === true ? mm.shellAccent : root.foreground
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.bodySmall
                 elide: Text.ElideRight
               }
-            }
 
-            Text {
-              anchors.right: parent.right
-              anchors.rightMargin: Style.space(8)
-              anchors.verticalCenter: parent.verticalCenter
-              visible: Number(modelData.best || 0) > 0
-              text: modelData.best
-              color: root.dim
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.bodySmall
-            }
-
-            MouseArea {
-              id: hover
-              anchors.fill: parent
-              hoverEnabled: true
-              cursorShape: Qt.PointingHandCursor
-              onClicked: {
-                // Choosing a cart raises its cover; X starts it. The pause is
-                // the point — you get a moment to look at it and get your
-                // hands on the keys before anything is moving.
-                mm.arm(modelData.id, modelData.title)
-                Qt.callLater(function() { keys.forceActiveFocus() })
+              MouseArea {
+                id: tileHover
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onEntered: root.shelfIndex = index
+                onClicked: {
+                  root.shelfIndex = index
+                  mm.arm(modelData.id, modelData.title)
+                  Qt.callLater(function() { keys.forceActiveFocus() })
+                }
               }
             }
           }

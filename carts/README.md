@@ -16,6 +16,7 @@ The rules, the API and the traps are in [`../CLAUDE.md`](../CLAUDE.md).
 | [`pong.lua`](pong.lua) | first to seven | an opponent worth playing: it idles until the ball turns toward it and moves fractionally slower than you, so it loses to angle rather than to reflex | 12% |
 | [`picross.lua`](picross.lua) | fill the squares the numbers describe | dense layout on a small screen — clue gutters sized for the worst case (four clues per line), a cursor, and satisfied clues dimming as you go | 20% |
 | [`rogue.lua`](rogue.lua) | down as far as you can get | generated levels, turn order (you move, then everything else does), a remembered map, and stats that carry between floors | 39% |
+| [`farm.lua`](farm.lua) | plant, wait, sell | `save`/`load` and `now()` — crops ripen against the clock on the wall, so closing the console is the same to a turnip as leaving it open | 18% |
 
 Sizes are of the 24K a cart may be. **The largest thing anyone has built for
 this console uses 39% of the budget** — the limit has not been the constraint on

@@ -159,6 +159,29 @@ end
 
 function flr(x) return math.floor(x) end
 
+-- Persistence and the wall clock. This load() deliberately shadows Lua's own
+-- load() (which compiles a string) -- a cart asking to load "coins" means the
+-- save, and the standard one would hand back nil and look like it worked.
+local __store = {}
+
+function __seed_store(k, v) __store[k] = v end
+
+function save(k, v)
+  __store[k] = v
+  __persist(k, v)
+end
+
+function load(k)
+  local v = __store[k]
+  -- A number that came back through JSON is a float; a cart that concatenates
+  -- it would print "COINS 9.0".
+  if type(v) == "number" and v == math.floor(v) then return math.tointeger(v) end
+  return v
+end
+
+function now() return __now() end
+
+
 function mid(a, b, c)
   local lo, hi = a, c
   if a > c then lo, hi = c, a end
@@ -169,12 +192,23 @@ end
 `;
 
 /// Load a cart and give back something you can drive a frame at a time.
-export async function loadCart(factory, code, { onScore } = {}) {
+export async function loadCart(factory, code, { onScore, storage } = {}) {
   const lua = await factory.createEngine({ openStandardLibs: true });
   const screen = new Screen();
+  const mem = {};
   let score = 0;
 
   const g = lua.global;
+  // Where `save` puts things. In a browser that is localStorage keyed by cart,
+  // so a farm planted on Monday is still growing on Tuesday; in node it is a
+  // plain object, which is what the pixel comparison wants.
+  const store = storage || {
+    get: (k) => mem[k],
+    set: (k, v) => { mem[k] = v; },
+    all: () => ({ ...mem }),
+  };
+  g.set("__persist", (k, v) => store.set(k, v));
+  g.set("__now", () => Math.floor(Date.now() / 1000));
   g.set("cls", (c) => screen.cls(c ?? 0));
   g.set("pset", (x, y, c) => screen.pset(x, y, c));
   g.set("pget", (x, y) => screen.pget(x, y));
@@ -198,6 +232,9 @@ export async function loadCart(factory, code, { onScore } = {}) {
   });
 
   await lua.doString(PRELUDE);
+  // Anything saved before this run has to be in place before `_init` reads it.
+  const seed = g.get("__seed_store");
+  for (const [k, v] of Object.entries(store.all ? store.all() : {})) seed(k, v);
   await lua.doString(code);
 
   const has = (name) => typeof g.get(name) === "function";
@@ -216,6 +253,23 @@ export async function loadCart(factory, code, { onScore } = {}) {
     draw() { sync(); call("_draw"); frame += 1; },
     cover() { sync(); call("_cover"); },
     close() { lua.global.close(); },
+  };
+}
+
+/// Persistence for a browser: one localStorage entry per cart.
+export function localStore(id) {
+  const key = "micromachee:" + id;
+  const read = () => {
+    try { return JSON.parse(localStorage.getItem(key) || "{}"); } catch { return {}; }
+  };
+  return {
+    all: read,
+    get: (k) => read()[k],
+    set: (k, v) => {
+      const all = read();
+      all[k] = v;
+      try { localStorage.setItem(key, JSON.stringify(all)); } catch { /* full or blocked */ }
+    },
   };
 }
 

@@ -55,11 +55,23 @@ pub struct Machine {
     pub input: Rc<RefCell<Input>>,
     pub frame: Rc<Cell<u64>>,
     pub score: Rc<Cell<i64>>,
+    /// What the cart has saved, and whether it has changed since it was written
+    /// out. A farm that grows while the widget is closed needs somewhere to put
+    /// the time it was last looked at.
+    pub saved: Rc<RefCell<serde_json::Map<String, serde_json::Value>>>,
+    pub dirty: Rc<Cell<bool>>,
     budget: Rc<Cell<u32>>,
 }
 
 impl Machine {
     pub fn load(cart: &Cart) -> Result<Machine, String> {
+        Self::load_with(cart, serde_json::Map::new())
+    }
+
+    pub fn load_with(
+        cart: &Cart,
+        saved_in: serde_json::Map<String, serde_json::Value>,
+    ) -> Result<Machine, String> {
         // Only the libraries a game actually needs. `Lua::new()` would also
         // bring `io`, `os` and `package`, and a cart could then write to your
         // disk — which was true and demonstrated: a test cart created a file in
@@ -88,6 +100,8 @@ impl Machine {
         let frame = Rc::new(Cell::new(0u64));
         let score = Rc::new(Cell::new(0i64));
         let budget = Rc::new(Cell::new(FRAME_INSTRUCTION_BUDGET));
+        let saved = Rc::new(RefCell::new(saved_in));
+        let dirty = Rc::new(Cell::new(false));
         let rng = Rc::new(Cell::new(0x2545_f491_4f6c_dd1du64));
 
         {
@@ -220,9 +234,76 @@ impl Machine {
         // stringifies a float as "30.0" before `print` ever sees it — so a
         // floating flr puts a ".0" in the corner of nearly every first draft.
         api!("flr", |_, x: f64| Ok(x.floor() as i64));
-        api!("mid", |_, (a, b, c): (f64, f64, f64)| {
-            let (lo, hi) = if a <= c { (a, c) } else { (c, a) };
-            Ok(b.clamp(lo, hi))
+        // Integers in, integer out — the same rule `flr` follows, and for the
+        // same reason: a cart clamps a grid coordinate and then builds a key
+        // out of it, and a float turns "p0" into "p0.0". Nothing concatenated
+        // this result until a game started saving one plot per square, so the
+        // flaw sat here unnoticed the whole time.
+        api!("mid", |_, (a, b, c): (mlua::Value, mlua::Value, mlua::Value)| {
+            let num = |v: &mlua::Value| match v {
+                mlua::Value::Integer(i) => *i as f64,
+                mlua::Value::Number(f) => *f,
+                _ => 0.0,
+            };
+            let whole = matches!(a, mlua::Value::Integer(_))
+                && matches!(b, mlua::Value::Integer(_))
+                && matches!(c, mlua::Value::Integer(_));
+            let (x, y, z) = (num(&a), num(&b), num(&c));
+            let (lo, hi) = if x <= z { (x, z) } else { (z, x) };
+            let r = y.clamp(lo, hi);
+            Ok(if whole {
+                mlua::Value::Integer(r as i64)
+            } else {
+                mlua::Value::Number(r)
+            })
+        });
+        {
+            // Persistent state, so a game can pick up where it was left. Only
+            // numbers and strings: a save file that can hold a table is a save
+            // file that can hold a cycle, and this one has to survive being
+            // written to disk by a widget that may be killed at any moment.
+            let (st, dr) = (saved.clone(), dirty.clone());
+            api!("save", move |_, (k, v): (String, mlua::Value)| {
+                let val = match v {
+                    mlua::Value::Integer(i) => serde_json::json!(i),
+                    mlua::Value::Number(f) => serde_json::json!(f),
+                    mlua::Value::String(s) => serde_json::json!(s.to_string_lossy()),
+                    mlua::Value::Boolean(b) => serde_json::json!(b),
+                    mlua::Value::Nil => serde_json::Value::Null,
+                    _ => return Err(mlua::Error::runtime("save() takes a number, string or boolean")),
+                };
+                st.borrow_mut().insert(k, val);
+                dr.set(true);
+                Ok(())
+            });
+        }
+        {
+            let st = saved.clone();
+            api!("load", move |lua, k: String| {
+                let store = st.borrow();
+                Ok(match store.get(&k) {
+                    Some(serde_json::Value::Number(n)) => {
+                        if let Some(i) = n.as_i64() {
+                            mlua::Value::Integer(i)
+                        } else {
+                            mlua::Value::Number(n.as_f64().unwrap_or(0.0))
+                        }
+                    }
+                    Some(serde_json::Value::String(s)) => {
+                        mlua::Value::String(lua.create_string(s.as_str())?)
+                    }
+                    Some(serde_json::Value::Bool(b)) => mlua::Value::Boolean(*b),
+                    _ => mlua::Value::Nil,
+                })
+            });
+        }
+        // Wall-clock seconds. `t()` is time inside this run; this is time in the
+        // world, so a crop can grow while nobody is looking at it.
+        api!("now", |_, ()| {
+            Ok(std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs() as f64)
+                .unwrap_or(0.0))
         });
         {
             let sc = score.clone();
@@ -237,7 +318,7 @@ impl Machine {
             .exec()
             .map_err(|e| tidy(&e.to_string()))?;
 
-        Ok(Machine { lua, screen, input, frame, score, budget })
+        Ok(Machine { lua, screen, input, frame, score, saved, dirty, budget })
     }
 
     fn call(&self, name: &str) -> Result<(), String> {
@@ -442,6 +523,19 @@ mod tests {
         assert_eq!(g.get::<f64>("a").unwrap(), 123.0);
         assert_eq!(g.get::<f64>("b").unwrap(), 4.0);
         assert_eq!(g.get::<f64>("c").unwrap(), 60.0);
+    }
+
+    #[test]
+    fn mid_keeps_integers_whole_so_they_can_be_concatenated() {
+        let m = machine(
+            "a = '' .. mid(0, 2, 5)\n             b = '' .. mid(0, 7, 5)\n\
+             c = '' .. mid(0.0, 2.5, 5.0)\n\
+             function _draw() end",
+        );
+        let g = m.lua.globals();
+        assert_eq!(g.get::<String>("a").unwrap(), "2", "an in-range integer must stay whole");
+        assert_eq!(g.get::<String>("b").unwrap(), "5", "a clamped integer must stay whole");
+        assert_eq!(g.get::<String>("c").unwrap(), "2.5", "floats are still floats");
     }
 
     #[test]

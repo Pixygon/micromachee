@@ -25,7 +25,7 @@ mod vm;
 
 use std::io::{BufRead, IsTerminal, Write};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use cart::{Cart, MAX_CART_BYTES};
@@ -66,7 +66,7 @@ fn cmd_play(id: &str) -> i32 {
             return 1;
         }
     };
-    let machine = match Machine::load(&cart) {
+    let machine = match Machine::load_with(&cart, shelf::load_save(&cart.id)) {
         Ok(m) => m,
         Err(e) => {
             eprintln!("✗ {e}");
@@ -75,10 +75,20 @@ fn cmd_play(id: &str) -> i32 {
     };
 
     // stdin blocks, so it gets its own thread and hands the loop a byte.
+    //
+    //   B <mask>   buttons held
+    //   P / R      pause and resume — closing the panel should not lose a game
+    //   T <id>     change the colour mode WITHOUT restarting: restarting meant
+    //              tearing down this process and standing another one up, and
+    //              the dying one's exit took the new one's state with it
+    //   Q          quit, and write the high score out properly
     let held = Arc::new(AtomicU8::new(0));
     let quit = Arc::new(AtomicBool::new(false));
+    let paused = Arc::new(AtomicBool::new(false));
+    let want_theme: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
     {
-        let (held, quit) = (held.clone(), quit.clone());
+        let (held, quit, paused, want_theme) =
+            (held.clone(), quit.clone(), paused.clone(), want_theme.clone());
         std::thread::spawn(move || {
             let stdin = std::io::stdin();
             for line in stdin.lock().lines() {
@@ -88,6 +98,13 @@ fn cmd_play(id: &str) -> i32 {
                     if let Ok(v) = bits.trim().parse::<u8>() {
                         held.store(v, Ordering::Relaxed);
                     }
+                } else if let Some(id) = line.strip_prefix("T ") {
+                    *want_theme.lock().unwrap() = Some(id.trim().to_string());
+                } else if line == "P" {
+                    paused.store(true, Ordering::Relaxed);
+                    held.store(0, Ordering::Relaxed); // no key is held while away
+                } else if line == "R" {
+                    paused.store(false, Ordering::Relaxed);
                 } else if line == "Q" {
                     break;
                 }
@@ -96,7 +113,7 @@ fn cmd_play(id: &str) -> i32 {
         });
     }
 
-    let palette = theme::active(shelf::saved_theme().as_deref()).palette;
+    let mut palette = theme::active(shelf::saved_theme().as_deref()).palette;
     let out = std::io::stdout();
     let mut out = out.lock();
     let fail = |out: &mut dyn Write, e: String| {
@@ -112,7 +129,26 @@ fn cmd_play(id: &str) -> i32 {
     let step = Duration::from_micros(1_000_000 / FPS as u64);
     let mut next = Instant::now();
     let mut last_score = i64::MIN;
+    let mut last_flush = Instant::now();
     while !quit.load(Ordering::Relaxed) {
+        // A new colour mode is eight different bytes in the next PLTE chunk.
+        // Nothing else has to happen — the cart never learns about it.
+        if let Some(id) = want_theme.lock().unwrap().take() {
+            if let Some(t) = theme::get(&id) {
+                palette = t.palette;
+                shelf::set_theme(&id);
+            }
+        }
+
+        // Paused: the game stops advancing and stops costing anything, and the
+        // last frame stays on screen. Closing the panel is a pause, not a loss.
+        if paused.load(Ordering::Relaxed) {
+            flush_save(&cart.id, &machine);
+            next = Instant::now();
+            std::thread::sleep(Duration::from_millis(120));
+            continue;
+        }
+
         machine.set_held(held.load(Ordering::Relaxed));
         if let Err(e) = machine.update() {
             fail(&mut out, e);
@@ -134,6 +170,13 @@ fn cmd_play(id: &str) -> i32 {
             shelf::record_score(&cart.id, score);
         }
 
+        // Written at most once a second: a widget can be killed at any moment,
+        // so waiting for a clean exit would lose the farm.
+        if machine.dirty.get() && last_flush.elapsed() >= Duration::from_secs(1) {
+            flush_save(&cart.id, &machine);
+            last_flush = Instant::now();
+        }
+
         next += step;
         let now = Instant::now();
         if next > now {
@@ -142,7 +185,16 @@ fn cmd_play(id: &str) -> i32 {
             next = now; // fell behind; do not try to catch up
         }
     }
+    flush_save(&cart.id, &machine);
     0
+}
+
+fn flush_save(id: &str, machine: &Machine) {
+    if !machine.dirty.get() {
+        return;
+    }
+    shelf::store_save(id, &machine.saved.borrow());
+    machine.dirty.set(false);
 }
 
 // ── authoring ───────────────────────────────────────────────────────────────
@@ -357,6 +409,9 @@ fn cmd_status() {
             // worse than one that does not theme at all.
             "theme": th.id,
             "themes": theme::ids(),
+            // The console's own size control, so the buttons on it can change
+            // it without anybody opening a settings page.
+            "scale": shelf::saved_scale(),
             "shell": {
                 "body": th.shell.body, "bezel": th.shell.bezel,
                 "text": th.shell.text, "dim": th.shell.dim, "accent": th.shell.accent,
@@ -586,6 +641,11 @@ fn cmd_cover(args: &[String]) -> i32 {
     0
 }
 
+fn return_code(n: i32) -> i64 {
+    // A tiny shim so the match arm above can bail out with a code.
+    std::process::exit(n)
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let cmd = args.first().map(String::as_str).unwrap_or("status");
@@ -677,6 +737,21 @@ fn main() {
         "covers" => cmd_covers(),
         "cover" => cmd_cover(&rest),
         "catalog" => cmd_catalog(&rest),
+        "scale" => {
+            // With no argument it reports; with one it sets and reports.
+            let n = match rest.first() {
+                Some(v) => match v.parse::<i64>() {
+                    Ok(n) => shelf::set_scale(n),
+                    Err(_) => {
+                        eprintln!("✗ scale takes a number from 2 to 6");
+                        return_code(2)
+                    }
+                },
+                None => shelf::saved_scale(),
+            };
+            println!("{n}");
+            0
+        }
         "sync" => shelf::sync(),
         "doctor" => cmd_doctor(),
         "-h" | "--help" | "help" => {

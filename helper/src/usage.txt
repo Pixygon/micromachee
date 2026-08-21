@@ -8,6 +8,7 @@ PLAYING
   micromachee play <id>       run a cart (frames on stdout, buttons on stdin)
   micromachee sync            fetch carts from the catalog
   micromachee catalog         write catalog.json from carts/ (for publishing)
+  micromachee scale [2-6]     how big the screen is drawn
   micromachee doctor          where everything lives
 
 MAKING A GAME

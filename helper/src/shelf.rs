@@ -140,6 +140,25 @@ fn save_state(v: &Value) {
 }
 
 /// The theme the player chose, if they chose one.
+/// How many screen pixels one console pixel gets. Kept here rather than in the
+/// plugin settings so the buttons on the console can change it: a widget you
+/// have to open a settings page to resize is one you resize once and never
+/// again.
+pub fn saved_scale() -> i64 {
+    load_state().get("scale").and_then(|v| v.as_i64()).unwrap_or(3).clamp(2, 6)
+}
+
+pub fn set_scale(n: i64) -> i64 {
+    let n = n.clamp(2, 6);
+    let mut state = load_state();
+    if !state.is_object() {
+        state = json!({});
+    }
+    state["scale"] = json!(n);
+    save_state(&state);
+    n
+}
+
 pub fn saved_theme() -> Option<String> {
     load_state().get("theme").and_then(|v| v.as_str()).map(String::from)
 }
@@ -157,6 +176,26 @@ pub fn best(id: &str) -> i64 {
 /// The console keeps the records, not the game. A cart calls `score(n)` and
 /// forgets about it; nothing in a cart can read or write another cart's best,
 /// and a game cannot lower your record by mistake.
+/// What a cart has saved. Kept beside the high scores, because it is the same
+/// kind of thing: something the console remembers about a game between runs.
+pub fn load_save(id: &str) -> serde_json::Map<String, Value> {
+    load_state()
+        .get("saves")
+        .and_then(|s| s.get(id))
+        .and_then(|v| v.as_object())
+        .cloned()
+        .unwrap_or_default()
+}
+
+pub fn store_save(id: &str, data: &serde_json::Map<String, Value>) {
+    let mut state = load_state();
+    if !state.is_object() {
+        state = json!({});
+    }
+    state["saves"][id] = Value::Object(data.clone());
+    save_state(&state);
+}
+
 pub fn record_score(id: &str, score: i64) {
     let mut state = load_state();
     let prev = state.get("best").and_then(|b| b.get(id)).and_then(|v| v.as_i64()).unwrap_or(0);

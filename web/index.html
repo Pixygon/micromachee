@@ -99,7 +99,7 @@
 
 <script src="./vendor/wasmoon.js"></script>
 <script type="module">
-import { loadCart, blit, THEMES, W, H } from "./micromachee.js";
+import { loadCart, blit, localStore, THEMES, W, H } from "./micromachee.js";
 // One request for the whole shelf: the catalog carries each cart's source, and
 // .json is the only thing the CDN sends CORS headers for anyway. The url is
 // generated from the helper, so the page always asks for a shelf that exists.
@@ -172,6 +172,7 @@ async function choose(entry) {
 
   const cart = await loadCart(factory, entry.code, {
     onScore: (n) => ($("score").textContent = String(n)),
+    storage: localStore(entry.id),
   });
   cart.init();
   if (cart.hasCover()) cart.cover();
@@ -188,7 +189,11 @@ function start() {
   const { entry } = armed;
   armed.cart.close();
   armed = null;
-  loadCart(factory, entry.code, { onScore: (n) => ($("score").textContent = String(n)) })
+  loadCart(factory, entry.code, {
+    onScore: (n) => ($("score").textContent = String(n)),
+    // Per cart, in this browser: a farm planted today is still growing tomorrow.
+    storage: localStore(entry.id),
+  })
     .then((cart) => {
       running = cart;
       cart.init();

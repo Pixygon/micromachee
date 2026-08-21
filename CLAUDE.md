@@ -71,6 +71,7 @@ cls(c)  pset(x,y,c)  pget(x,y)
 rect(x,y,w,h,c)  rectb(x,y,w,h,c)  line(x0,y0,x1,y1,c)
 circ(x,y,r,c)  circb(x,y,r,c)  print(text,x,y,c,scale)
 btn(i)  btnp(i)  t()  rnd(n)  flr(n)  mid(lo,v,hi)  score(n)
+save(key,value)  load(key)  now()
 ```
 
 That is all of it. There is no sprite sheet and no sound. Lua's `math.*`,
@@ -99,6 +100,15 @@ point.
 - `pget(x,y)` reads the framebuffer back, so you can collide against what you
   drew last frame instead of keeping a parallel model. Very effective for cave,
   tunnel and maze games.
+- `save(k,v)` / `load(k)` persist across runs — numbers, strings and booleans
+  only. `now()` is wall-clock seconds since 1970, where `t()` is seconds since
+  this run began. Together they make time pass while the console is closed:
+  store *when* something started and compare, never a countdown, because
+  nothing counts down while the widget is shut. `farm.lua` is the worked
+  example.
+- `flr` and `mid` both return an **integer** when given integers, so
+  `"p" .. mid(0, x, 3)` is `"p2"` and not `"p2.0"`. That mattered the day a
+  game started using a clamped coordinate as a save key.
 - `print`'s fifth argument is an optional **scale**, defaulting to 1: every
   pixel of the glyph becomes a block that many wide. It is how you get a title
   worth looking at out of a 3x5 font. A scaled line is `#text * 4 * scale`
@@ -250,5 +260,6 @@ The shipped carts in `carts/` each demonstrate one thing:
 | `pong.lua` | an opponent worth playing — imperfect on purpose |
 | `picross.lua` | dense layout, a cursor, clue gutters that fit |
 | `rogue.lua` | generated levels, turn order, remembered map, stats |
+| `farm.lua` | `save`/`load` and `now()` — real time passing while closed |
 
 All seven draw their own `_cover()`, so they double as worked examples of that.

@@ -29,6 +29,10 @@ Item {
   // theme at all.
   property string themeId: ""
   property var themes: []
+  /// Screen pixels per console pixel. Lives in the helper so the buttons on the
+  /// console can change it, and so it survives a reload.
+  property int scale: 3
+  property bool paused: false
   property color shellBody: "#000000"
   property color shellBezel: "#000000"
   property color shellText: "#fff1e8"
@@ -159,6 +163,7 @@ Item {
 
   function play(id, title) {
     stop()
+    paused = false
     lastError = ""
     frame = ""
     score = 0
@@ -175,8 +180,41 @@ Item {
     if (themes.length < 2) return
     var i = themes.indexOf(themeId)
     var next = themes[(i + 1) % themes.length]
-    themeProcess.command = [bin, "theme", next]
-    themeProcess.running = true
+    themeId = next                       // show it at once; status confirms it
+    if (gameProcess.running) {
+      // Live. The old code restarted the cart to pick up the palette, which
+      // meant killing this process and starting another on the same Process
+      // object — and the dying one's `onExited` then wiped the new one's state,
+      // dropping you to the shelf and leaving everything stuck there. A palette
+      // is eight bytes in the next frame's PLTE; the cart never needs to know.
+      try { gameProcess.write("T " + next + "\n") } catch (e) {}
+      refresh()
+    } else {
+      themeProcess.command = [bin, "theme", next]
+      themeProcess.running = true
+    }
+  }
+
+  function setScale(n) {
+    var want = Math.max(2, Math.min(6, n))
+    if (want === scale) return
+    scale = want                          // no wait for the round trip
+    scaleProcess.command = [bin, "scale", String(want)]
+    scaleProcess.running = true
+  }
+
+  /// Closing the panel pauses; it does not throw the game away.
+  function pause() {
+    if (!gameProcess.running || paused) return
+    paused = true
+    held = 0
+    try { gameProcess.write("P\n") } catch (e) {}
+  }
+
+  function resume() {
+    if (!gameProcess.running || !paused) return
+    paused = false
+    try { gameProcess.write("R\n") } catch (e) {}
   }
 
   function stop() {
@@ -229,6 +267,7 @@ Item {
       root.lastId = String(s.last || "")
       root.themeId = String(s.theme || "")
       root.themes = s.themes || []
+      root.scale = Number(s.scale || 3)
       if (s.shell) {
         root.shellBody = s.shell.body || root.shellBody
         root.shellBezel = s.shell.bezel || root.shellBezel
@@ -240,18 +279,19 @@ Item {
   }
 
   Process {
+    id: scaleProcess
+    running: false
+    command: []
+    onExited: function() { root.refresh() }
+  }
+
+  Process {
     id: themeProcess
     running: false
     command: []
     onExited: function() {
       root.refresh()
-      // A running cart is drawing with the old palette; restart it so the
-      // change is visible immediately rather than at the next game.
-      if (root.playing) {
-        var id = root.playingId, title = root.playingTitle
-        root.stop()
-        root.play(id, title)
-      }
+      root.loadCovers()   // the covers are drawn in the palette too
     }
   }
 
