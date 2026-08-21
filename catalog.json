@@ -8,7 +8,7 @@
       "id": "breakout",
       "sha256": "9d461e3f1999860d9ba269c3ac4000b74ec1a2c8dfcc0e6d915f0148d0fef1b2",
       "title": "The Veil",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.18.0/breakout.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.19.0/breakout.lua"
     },
     {
       "about": "a plate that carries a whole world. grow it",
@@ -18,7 +18,7 @@
       "id": "farm",
       "sha256": "27a9c52e82b5c357572ed59e9c262c89f9af26afa7bcf298749b130900acf58a",
       "title": "Farm of Arra",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.18.0/farm.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.19.0/farm.lua"
     },
     {
       "about": "the sphere is shedding. do not be under it",
@@ -28,7 +28,7 @@
       "id": "meteor",
       "sha256": "2ad219ca59b0b115fff35f35df7923aa85da2145d4b36cc729765e72a7d57aa2",
       "title": "Plate Fall",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.18.0/meteor.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.19.0/meteor.lua"
     },
     {
       "about": "the numbers describe a sign. carve it",
@@ -38,7 +38,7 @@
       "id": "picross",
       "sha256": "f279c182b5421f2b48f4f78945ad263d44b84813ac1a97a59ab487e14ec7c26a",
       "title": "Signcarver",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.18.0/picross.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.19.0/picross.lua"
     },
     {
       "about": "a discarded body, still running",
@@ -48,7 +48,7 @@
       "id": "pixiel",
       "sha256": "f4eb73a93a78b3f4767f16a598e21438ec73a6d4bcea5777b693b0da56b6d70f",
       "title": "Pixiel",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.18.0/pixiel.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.19.0/pixiel.lua"
     },
     {
       "about": "first to seven. it does not blink",
@@ -58,7 +58,7 @@
       "id": "pong",
       "sha256": "8dc13962ad75f15ba526963198c62fec0b3b6b01a9279867a69b56f950b15dbd",
       "title": "The Whale",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.18.0/pong.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.19.0/pong.lua"
     },
     {
       "about": "down as far as you can get. nothing escapes",
@@ -68,7 +68,7 @@
       "id": "rogue",
       "sha256": "c6925b4996fd54adbd27fe3d33a9754713f40f01d55f136567ae8b18f59106fc",
       "title": "Abaddon",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.18.0/rogue.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.19.0/rogue.lua"
     },
     {
       "about": "coiling at the depths. do not eat yourself",
@@ -78,7 +78,7 @@
       "id": "snake",
       "sha256": "63a4c2287ad71da4ddeb61e85b810de0c40feb5c26d02257f57147b0195e0521",
       "title": "Serpent",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.18.0/snake.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.19.0/snake.lua"
     },
     {
       "about": "it looks like a tower rising. fly it down.",
@@ -88,7 +88,7 @@
       "id": "tunnel",
       "sha256": "715738577fe491ec448a4fc79df9205769727eefd1867c8ad44282a1aef19d94",
       "title": "Down-Shaft",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.18.0/tunnel.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.19.0/tunnel.lua"
     }
   ],
   "micromachee": 1
