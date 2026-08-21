@@ -14,12 +14,14 @@
 
 mod cart;
 mod console;
+mod palettes;
 mod png;
 mod shelf;
 mod theme;
+mod tty;
 mod vm;
 
-use std::io::{BufRead, Write};
+use std::io::{BufRead, IsTerminal, Write};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -46,6 +48,11 @@ fn base64(data: &[u8]) -> String {
 /// Long-lived. One line per frame: `F <base64 png>`; `E <message>` and exit if
 /// the cart dies. Reads `B <bitmask>` on stdin for buttons, `Q` to stop.
 fn cmd_play(id: &str) -> i32 {
+    // `play` prints eleven kilobytes of base64 thirty times a second. Nobody
+    // typing it at a prompt wants that, and the fix is one word away.
+    if std::io::stdout().is_terminal() {
+        eprintln!("note: `play` prints a frame protocol for the bar. To play it here: micromachee tty {id}");
+    }
     let Some(path) = shelf::find(id) else {
         eprintln!("✗ no cart called {id}");
         return 2;
@@ -413,6 +420,13 @@ fn main() {
             Some(f) => cmd_check(f),
             None => {
                 eprintln!("✗ check what? try: micromachee check mygame.lua");
+                2
+            }
+        },
+        "tty" => match rest.first() {
+            Some(id) => tty::play(id),
+            None => {
+                eprintln!("✗ play what? try: micromachee list");
                 2
             }
         },

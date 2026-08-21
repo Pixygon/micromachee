@@ -79,6 +79,29 @@ can photograph a game mid-play rather than only its title card.
 That is the whole loop: write, check, look, fix. Three of the four carts here
 were written by an agent working exactly that way.
 
+## Playing without installing
+
+The bar widget is one front end. `play` is a protocol — one base64 PNG per line
+on stdout, a button bitmask on stdin — so anything can be the screen:
+
+```bash
+micromachee list         # what is on the shelf
+micromachee tty rogue    # play it, right here
+```
+
+`tty` runs the cart in this process and draws its framebuffer straight to the
+terminal — no PNG, no base64, no second process. Pixels become half-blocks, two
+to a character cell, so 128x128 lands in 128x64 of terminal. Give it a window at
+least 128x68 for one cell per pixel; it will halve the resolution to fit a
+smaller one and say so. Arrows or WASD, `z` and `x`, `q` to quit.
+
+Raw mode and the window size come from `stty`, so this pulls in no crate — the
+same reasoning that made the PNG encoder hand-written.
+
+A terminal cannot report a key being *released*, so a press is held briefly and
+then let go on a timer — `btnp` games are exact, and `btn` games feel right
+because key-repeat keeps renewing the press.
+
 ## Installing
 
 ```bash

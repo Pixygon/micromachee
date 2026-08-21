@@ -87,8 +87,34 @@ matching console body for free.
 | `dim` | labels, the controls hint | ground↔light, 45% |
 | `accent` | records, the active cart | slot 2 |
 
+## Where this lives
+
+The generator is [`helper/src/palettes.rs`](../helper/src/palettes.rs). The
+binary builds its palettes from it directly, so nothing has to be read at
+startup and there is no second source of truth.
+
+`palettes.json` is the same data exported for anything that is not Rust — the
+QML shell, this documentation, a future editor. It is committed, and a test
+regenerates it and fails if it has drifted.
+
 ## Adding one
 
-Add a `(ground, light, [eight hues])` entry, run the generator, and read what it
-says. If it fails, it will name the slot and the reason. Then **look at the
-carts under it** — the checks catch unreadable, not ugly.
+Add an `(id, ground, light, [eight hues])` row to `THEMES` in `palettes.rs`,
+then:
+
+```bash
+cargo test  --manifest-path helper/Cargo.toml
+```
+
+Three tests will tell you if the theme is illegal, naming the slot and the
+reason. Once it passes, refresh the exported JSON:
+
+```bash
+MICROMACHEE_WRITE_PALETTES=1 cargo test --manifest-path helper/Cargo.toml
+```
+
+Then **look at the carts under it** — the checks catch unreadable, not ugly:
+
+```bash
+MICROMACHEE_THEME=yourtheme micromachee tty breakout
+```

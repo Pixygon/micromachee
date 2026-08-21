@@ -21,6 +21,16 @@ Sizes are of the 24K a cart may be. **The largest thing anyone has built for
 this console uses 39% of the budget** — the limit has not been the constraint on
 any game yet, and is not meant to be.
 
+## Playing them here
+
+```bash
+micromachee tty rogue
+```
+
+No install, no bar, no compositor — the cart runs in the process and its
+framebuffer is drawn to the terminal in half-blocks. Arrows or WASD, `z` and
+`x`, `q` to quit.
+
 ## Adding one
 
 ```bash

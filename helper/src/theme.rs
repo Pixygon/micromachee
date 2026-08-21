@@ -19,14 +19,10 @@
 //! it. Preserve the order and anything readable in one theme is readable in all
 //! of them, including monochrome ones. It is checked by a test, not by eye.
 //!
-//! The palettes themselves are generated — see `themes/build.py` and
+//! The palettes themselves are generated — see `palettes.rs` and
 //! `themes/README.md`.
 
-use serde_json::Value;
-
-/// Baked into the binary rather than read at runtime: a console that cannot
-/// draw until it finds a JSON file is a console with a way to be broken.
-const THEMES_JSON: &str = include_str!("../../themes/palettes.json");
+use crate::palettes;
 
 pub type Palette = [(u8, u8, u8); 8];
 
@@ -34,9 +30,9 @@ pub type Palette = [(u8, u8, u8); 8];
 pub struct Theme {
     pub id: String,
     pub palette: Palette,
-    /// The console body around the screen. Derived from the palette when the
-    /// themes were generated, so a new palette gets a matching shell for free
-    /// and the two cannot drift apart.
+    /// The console body around the screen. Derived from the palette rather than
+    /// chosen beside it, so a new palette gets a matching shell for free and the
+    /// two cannot drift apart.
     pub shell: Shell,
 }
 
@@ -49,63 +45,33 @@ pub struct Shell {
     pub accent: String,
 }
 
-fn hex(s: &str) -> Option<(u8, u8, u8)> {
-    let s = s.trim().strip_prefix('#')?;
-    if s.len() != 6 {
-        return None;
-    }
-    Some((
-        u8::from_str_radix(&s[0..2], 16).ok()?,
-        u8::from_str_radix(&s[2..4], 16).ok()?,
-        u8::from_str_radix(&s[4..6], 16).ok()?,
-    ))
-}
-
-fn doc() -> Value {
-    serde_json::from_str(THEMES_JSON).unwrap_or(Value::Null)
-}
-
-/// The luminance order every theme has to keep, as the data states it.
+/// The luminance order every theme has to keep.
 pub fn rank() -> Vec<usize> {
-    doc()
-        .get("rank")
-        .and_then(|r| r.as_array())
-        .map(|a| a.iter().filter_map(|v| v.as_u64()).map(|n| n as usize).collect())
-        .unwrap_or_else(|| vec![0, 1, 2, 6, 3, 5, 4, 7])
+    palettes::rank()
 }
 
 pub fn ids() -> Vec<String> {
-    doc()
-        .get("themes")
-        .and_then(|t| t.as_object())
-        .map(|o| o.keys().cloned().collect())
-        .unwrap_or_default()
+    palettes::THEMES.iter().map(|t| t.0.to_string()).collect()
 }
 
 pub fn get(id: &str) -> Option<Theme> {
-    let d = doc();
-    let t = d.get("themes")?.get(id)?;
-    let arr = t.get("palette")?.as_array()?;
-    if arr.len() != 8 {
-        return None;
-    }
-    let mut palette = [(0u8, 0u8, 0u8); 8];
-    for (i, v) in arr.iter().enumerate() {
-        palette[i] = hex(v.as_str()?)?;
-    }
-    let s = t.get("shell");
-    let pick = |k: &str, fallback: &str| -> String {
-        s.and_then(|s| s.get(k)).and_then(|v| v.as_str()).unwrap_or(fallback).to_string()
+    let palette = palettes::build(id)?;
+    let sh = palettes::shell(&palette);
+    let pick = |key: &str| {
+        sh.iter()
+            .find(|(k, _)| *k == key)
+            .map(|(_, v)| v.clone())
+            .unwrap_or_default()
     };
     Some(Theme {
         id: id.to_string(),
         palette,
         shell: Shell {
-            body: pick("body", "#000000"),
-            bezel: pick("bezel", "#000000"),
-            text: pick("text", "#ffffff"),
-            dim: pick("dim", "#888888"),
-            accent: pick("accent", "#ff004d"),
+            body: pick("body"),
+            bezel: pick("bezel"),
+            text: pick("text"),
+            dim: pick("dim"),
+            accent: pick("accent"),
         },
     })
 }
@@ -207,7 +173,14 @@ mod tests {
                 ("body", &t.shell.body), ("bezel", &t.shell.bezel), ("text", &t.shell.text),
                 ("dim", &t.shell.dim), ("accent", &t.shell.accent),
             ] {
-                assert!(hex(v).is_some(), "theme {id} has a bad {what}: {v:?}");
+                // QML puts these straight into a colour property, so the
+                // format matters as much as the value.
+                assert!(
+                    v.len() == 7
+                        && v.starts_with('#')
+                        && v[1..].chars().all(|c| c.is_ascii_hexdigit()),
+                    "theme {id} has a bad {what}: {v:?}"
+                );
             }
         }
     }

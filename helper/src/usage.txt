@@ -3,6 +3,7 @@ micromachee — a 128x128, eight-colour console that lives in your bar
 PLAYING
   micromachee status          one line of JSON for the bar
   micromachee list            the shelf, as JSON
+  micromachee tty <id>        play it here, in this terminal
   micromachee play <id>       run a cart (frames on stdout, buttons on stdin)
   micromachee sync            fetch carts from the catalog
   micromachee doctor          where everything lives
