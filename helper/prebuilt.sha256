@@ -1,3 +1,4 @@
 # sha256  version  arch — pinned here so a downloaded binary is checked
 # against this repository, not against the server that served it.
 4a506b4da14a8719b09746302c84e0c6f941c585fbfeb58324969b54ba4b54e6  0.15.0  x86_64
+ba462c163e2128da43f624da240b91976da684f7be18d6f0e6acc65968b33d13  0.16.0  x86_64

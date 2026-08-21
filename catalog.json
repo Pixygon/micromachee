@@ -8,7 +8,7 @@
       "id": "breakout",
       "sha256": "d79cc1328f38fd6b02aa47185647f882e49a9a6269a6e69fd4506f5563153c90",
       "title": "Breakout",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.15.0/breakout.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.16.0/breakout.lua"
     },
     {
       "about": "plant, wait, sell. it grows while you are away",
@@ -18,7 +18,7 @@
       "id": "farm",
       "sha256": "3ea536fb8db07d888260e24280318cffcd4a90a7d7b1cef670f819daf79a021c",
       "title": "Farm",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.15.0/farm.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.16.0/farm.lua"
     },
     {
       "about": "fall forever, hit nothing",
@@ -28,7 +28,7 @@
       "id": "meteor",
       "sha256": "f295bd5930e41e2a12b3188617ba92a6e89e70f67c6da66663b928b133d5c302",
       "title": "Meteor",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.15.0/meteor.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.16.0/meteor.lua"
     },
     {
       "about": "fill the squares the numbers describe",
@@ -38,7 +38,7 @@
       "id": "picross",
       "sha256": "1c3ada7fd24a0f40859397699b40e720f13b9342b36d0dc9ca2131bf8c6ba355",
       "title": "Picross",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.15.0/picross.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.16.0/picross.lua"
     },
     {
       "about": "first to seven, and the machine does not blink",
@@ -48,7 +48,7 @@
       "id": "pong",
       "sha256": "028b137880876aeacc1cd1563a208f6ae902c26820a00738a270763426933b9b",
       "title": "Pong",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.15.0/pong.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.16.0/pong.lua"
     },
     {
       "about": "down as far as you can get",
@@ -58,7 +58,7 @@
       "id": "rogue",
       "sha256": "eaebeac8d00f8a0e64586ddd2c024b4156868e0b4c6b369de4feed2ff9dce3f0",
       "title": "Rogue",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.15.0/rogue.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.16.0/rogue.lua"
     },
     {
       "about": "eat, grow, do not bite yourself",
@@ -68,7 +68,7 @@
       "id": "snake",
       "sha256": "c2b17e282862fcfc98bedf1ca5d26c027efe82cb65fd004440a9efb5bbe1e420",
       "title": "Snake",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.15.0/snake.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.16.0/snake.lua"
     },
     {
       "about": "fly the cave. do not touch the walls.",
@@ -78,7 +78,7 @@
       "id": "tunnel",
       "sha256": "bb560ab192e23cbfc1d55322b35c4d8ed94771966d487ff6cfcda3d60bb90d27",
       "title": "Tunnel",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.15.0/tunnel.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.16.0/tunnel.lua"
     }
   ],
   "micromachee": 1
