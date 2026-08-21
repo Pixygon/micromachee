@@ -37,8 +37,8 @@ cargo test  --manifest-path helper/Cargo.toml
 # Writing a cart
 
 This is the part most sessions are here for. A cart is **one Lua file, at most
-24K**. It needs `_draw()`. `_init()` and `_update()` are optional. 30 frames a
-second.
+24K**. It needs `_draw()`. `_init()`, `_update()` and `_cover()` are optional.
+30 frames a second.
 
 ```lua
 -- title: Dodge
@@ -69,7 +69,7 @@ a `_draw`, it is a cart.
 ```
 cls(c)  pset(x,y,c)  pget(x,y)
 rect(x,y,w,h,c)  rectb(x,y,w,h,c)  line(x0,y0,x1,y1,c)
-circ(x,y,r,c)  circb(x,y,r,c)  print(text,x,y,c)
+circ(x,y,r,c)  circb(x,y,r,c)  print(text,x,y,c,scale)
 btn(i)  btnp(i)  t()  rnd(n)  flr(n)  mid(lo,v,hi)  score(n)
 ```
 
@@ -99,6 +99,39 @@ point.
 - `pget(x,y)` reads the framebuffer back, so you can collide against what you
   drew last frame instead of keeping a parallel model. Very effective for cave,
   tunnel and maze games.
+- `print`'s fifth argument is an optional **scale**, defaulting to 1: every
+  pixel of the glyph becomes a block that many wide. It is how you get a title
+  worth looking at out of a 3x5 font. A scaled line is `#text * 4 * scale`
+  pixels wide, so centring is `(128 - #text * 4 * scale) / 2`.
+
+## Give it a cover
+
+`_cover()` draws the picture the shelf shows, and the one that comes up full
+size before the game starts. It runs once, after `_init()`, on the same 128x128
+screen with the same eight colours:
+
+```lua
+function _cover()
+  cls(0)
+  print("SNAKE", 34, 106, 5, 3)   -- scale 3, so it reads at thumbnail size
+end
+```
+
+That is the whole mechanism. **A cover is a thing the cart draws, not a file
+beside it** — which is what keeps a game one Lua file, needs no asset pipeline,
+and means covers follow the colour mode like everything else.
+
+Without `_cover()` a cart still gets a cover: forty-five frames of itself being
+played, which is honest but rarely flattering. Look at yours:
+
+```bash
+micromachee cover mygame.lua -o /tmp/cover.png
+```
+
+Design it for the **small** size first. On the shelf it is a thumbnail, and the
+title is already written beside it in ordinary text — so a bold shape carries
+further than clever detail, and a scale-3 title reads where a scale-1 one is
+mush.
 
 ## Colours are indexes, never names
 
@@ -206,3 +239,5 @@ The shipped carts in `carts/` each demonstrate one thing:
 | `pong.lua` | an opponent worth playing — imperfect on purpose |
 | `picross.lua` | dense layout, a cursor, clue gutters that fit |
 | `rogue.lua` | generated levels, turn order, remembered map, stats |
+
+All seven draw their own `_cover()`, so they double as worked examples of that.

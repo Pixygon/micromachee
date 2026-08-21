@@ -481,6 +481,105 @@ fn cmd_catalog(args: &[String]) -> i32 {
     0
 }
 
+
+/// Frames of real play to use when a cart draws no cover of its own. Enough for
+/// a title screen to settle or a game to have something on it.
+const COVER_FALLBACK_FRAMES: u32 = 45;
+
+/// The picture the shelf shows for a cart.
+///
+/// Drawn by the cart, through `_cover()`, on the same 128x128 screen with the
+/// same eight colours — so a cover is one more thing a Lua file does, not an
+/// asset beside it, and it follows the colour mode like everything else does.
+/// A cart with no `_cover()` gets a frame of itself being played, which is at
+/// least honest about what it looks like.
+fn render_cover(cart: &Cart, palette: &theme::Palette) -> Result<Vec<u8>, String> {
+    let machine = Machine::load(cart)?;
+    machine.init()?;
+    if machine.has_cover() {
+        machine.cover()?;
+    } else {
+        for _ in 0..COVER_FALLBACK_FRAMES {
+            machine.update()?;
+            machine.draw()?;
+        }
+    }
+    let png = machine.screen.borrow().to_png(palette);
+    Ok(png)
+}
+
+/// Every cover at once, as one line of JSON. Deliberately NOT part of `status`:
+/// the bar polls that on a timer and this is ~10K a cart, so it is asked for
+/// once when the shelf is opened instead.
+fn cmd_covers() -> i32 {
+    let palette = theme::active(shelf::saved_theme().as_deref()).palette;
+    let mut out = serde_json::Map::new();
+    for entry in shelf::list() {
+        let Some(path) = shelf::find(&entry.id) else { continue };
+        let Ok(cart) = Cart::load(&path) else { continue };
+        // One broken cart must not cost the shelf every other cover.
+        if let Ok(png) = render_cover(&cart, &palette) {
+            out.insert(entry.id.clone(), serde_json::Value::String(base64(&png)));
+        }
+    }
+    println!("{}", serde_json::Value::Object(out));
+    0
+}
+
+/// One cover, as a PNG, so you can look at it.
+fn cmd_cover(args: &[String]) -> i32 {
+    let mut id = None;
+    let mut out = None;
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "-o" => {
+                i += 1;
+                out = args.get(i).cloned();
+            }
+            other => id = Some(other.to_string()),
+        }
+        i += 1;
+    }
+    let Some(id) = id else {
+        eprintln!("✗ cover of what? try: micromachee cover snake -o cover.png");
+        return 2;
+    };
+    // A path works as well as a shelf id, so you can look at a cart you are
+    // still writing.
+    let path = shelf::find(&id).unwrap_or_else(|| std::path::PathBuf::from(&id));
+    let cart = match Cart::load(&path) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("✗ {e}");
+            return 1;
+        }
+    };
+    let palette = theme::active(shelf::saved_theme().as_deref()).palette;
+    let png = match render_cover(&cart, &palette) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("✗ {e}");
+            return 1;
+        }
+    };
+    let out = out.unwrap_or_else(|| format!("{}-cover.png", cart.id));
+    if let Err(e) = std::fs::write(&out, &png) {
+        eprintln!("✗ could not write {out}: {e}");
+        return 1;
+    }
+    println!(
+        "wrote {out} — {} ({})",
+        cart.title,
+        if Machine::load(&cart).map(|m| m.has_cover()).unwrap_or(false) {
+            "its own cover"
+        } else {
+            "a frame of play, no _cover()"
+        }
+    );
+    0
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let cmd = args.first().map(String::as_str).unwrap_or("status");
@@ -541,6 +640,8 @@ fn main() {
                 0
             }
         },
+        "covers" => cmd_covers(),
+        "cover" => cmd_cover(&rest),
         "catalog" => cmd_catalog(&rest),
         "sync" => shelf::sync(),
         "doctor" => cmd_doctor(),

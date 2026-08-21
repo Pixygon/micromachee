@@ -111,3 +111,33 @@ function _draw()
     print("PRESS O", 50, 66, 3)
   end
 end
+
+-- The shelf picture. Drawn with the same eight colours and the same screen the
+-- game uses, so it follows the colour mode like everything else does.
+function _cover()
+  cls(0)
+  for i = 0, 127, 12 do
+    line(0, i, 127, i, 1)
+    line(i, 0, i, 127, 1)
+  end
+
+  local body = {
+    {1,2},{2,2},{3,2},{4,2},{5,2},
+    {5,3},{5,4},
+    {4,4},{3,4},
+    {3,5},{3,6},
+    {4,6},{5,6},{6,6},{7,6},
+  }
+  for i = 1, #body do
+    rect(body[i][1] * 12 + 2, body[i][2] * 12 + 2, 10, 10, 5)
+  end
+  local h = body[#body]
+  rect(h[1] * 12 + 2, h[2] * 12 + 2, 10, 10, 4)
+  pset(h[1] * 12 + 8, h[2] * 12 + 5, 0)
+
+  circ(8 * 12 + 6, 2 * 12 + 6, 5, 2)
+
+  rect(0, 98, 128, 30, 0)
+  line(0, 98, 127, 98, 5)
+  print("SNAKE", 34, 106, 5, 3)
+end

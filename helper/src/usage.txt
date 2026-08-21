@@ -3,6 +3,7 @@ micromachee — a 128x128, eight-colour console that lives in your bar
 PLAYING
   micromachee status          one line of JSON for the bar
   micromachee list            the shelf, as JSON
+  micromachee covers          every cart's cover art, as JSON
   micromachee tty <id>        play it here, in this terminal
   micromachee play <id>       run a cart (frames on stdout, buttons on stdin)
   micromachee sync            fetch carts from the catalog
@@ -12,6 +13,7 @@ PLAYING
 MAKING A GAME
   micromachee new "<name>"    write a starting cart that already plays
   micromachee check <file>    does it load, and survive a minute of play?
+  micromachee cover <id|file> [-o out.png]   look at its cover
   micromachee shot <file> [--frames N] [--hold 2,4] [-o out.png]
                               look at it, with buttons held down
 
@@ -19,7 +21,7 @@ A cart is one Lua file, at most 24K. It needs _draw(); _init() and _update()
 are optional. 30 frames a second.
 
   cls(c) pset(x,y,c) pget(x,y) rect(x,y,w,h,c) rectb(x,y,w,h,c)
-  line(x0,y0,x1,y1,c) circ(x,y,r,c) circb(x,y,r,c) print(text,x,y,c)
+  line(x0,y0,x1,y1,c) circ(x,y,r,c) circb(x,y,r,c) print(text,x,y,c,scale)
   btn(i) btnp(i) t() rnd(n) flr(n) mid(lo,v,hi) score(n)
 
 Colours 0-7: black navy red orange yellow green blue white

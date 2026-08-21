@@ -126,3 +126,20 @@ function _draw()
     print("O TO LAUNCH", 42, 100, 3)
   end
 end
+
+function _cover()
+  cls(0)
+  local rows = { 2, 3, 4, 5, 6 }
+  for r = 1, 5 do
+    for c = 0, 7 do
+      rect(4 + c * 15, 8 + (r - 1) * 9, 14, 8, rows[r])
+    end
+  end
+
+  rect(46, 108, 36, 5, 7)
+  rect(60, 96, 5, 5, 4)
+
+  rect(0, 58, 128, 30, 0)
+  print("BREAK", 34, 60, 7, 3)
+  print("OUT", 46, 76, 2, 3)
+end

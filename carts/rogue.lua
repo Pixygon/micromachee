@@ -350,3 +350,30 @@ function _draw()
     print(msg, 4, 121, 1)
   end
 end
+
+function _cover()
+  cls(0)
+  -- A room, remembered in dim and lit where you are standing.
+  for x = 2, 13 do
+    rect(x * 9, 18, 9, 9, 1)
+    rect(x * 9, 81, 9, 9, 1)
+  end
+  for y = 2, 9 do
+    rect(18, y * 9, 9, 9, 1)
+    rect(117, y * 9, 9, 9, 1)
+  end
+  for x = 3, 12 do
+    for y = 3, 8 do
+      pset(x * 9 + 4, y * 9 + 4, 1)
+    end
+  end
+
+  print("@", 60, 46, 7, 2)
+  print("R", 33, 37, 2, 2)
+  print("K", 93, 64, 2, 2)
+  print(">", 99, 28, 4, 2)
+  print("+", 33, 70, 5, 2)
+
+  rect(0, 94, 128, 34, 0)
+  print("ROGUE", 34, 102, 2, 3)
+end

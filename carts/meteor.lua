@@ -115,3 +115,23 @@ function _draw()
     print("PRESS O", 50, 66, 3)
   end
 end
+
+function _cover()
+  cls(0)
+  for i = 0, 39 do
+    pset((i * 53) % 128, (i * 37) % 128, 1)
+  end
+
+  rect(18, 18, 22, 9, 2)
+  rect(84, 34, 16, 7, 3)
+  rect(52, 56, 26, 10, 2)
+  rect(96, 74, 14, 6, 4)
+
+  rect(60, 96, 5, 7, 6)
+  rect(56, 102, 13, 4, 6)
+  pset(62, 107, 4)
+  pset(62, 109, 3)
+
+  rect(0, 108, 128, 20, 0)
+  print("METEOR", 22, 111, 3, 3)
+end

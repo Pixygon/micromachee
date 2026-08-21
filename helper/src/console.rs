@@ -161,26 +161,35 @@ impl Screen {
     /// Text, 3×5 with a pixel of air — four pixels per character, so a full
     /// line is 32 characters. Lower case is folded to upper: one case is a
     /// smaller font table and, at this size, the only legible option.
-    pub fn print(&mut self, text: &str, x: i32, y: i32, c: i32) {
+    /// Text, with every pixel drawn as a `scale`-sized block. One font at any
+    /// size — which is what a title screen and a cover both need, and the
+    /// alternative was seven carts each reinventing it.
+    pub fn print(&mut self, text: &str, x: i32, y: i32, c: i32, scale: i32) {
+        let s = scale.max(1);
         let (mut cx, mut cy) = (x, y);
         for ch in text.chars() {
             if ch == '\n' {
                 cx = x;
-                cy += LINE_HEIGHT;
+                cy += LINE_HEIGHT * s;
                 continue;
             }
             if let Some(rows) = glyph(ch.to_ascii_uppercase()) {
                 for (ry, bits) in rows.iter().enumerate() {
                     for rx in 0..3 {
                         if bits & (0b100 >> rx) != 0 {
-                            self.pset(cx + rx, cy + ry as i32, c);
+                            if s == 1 {
+                                self.pset(cx + rx, cy + ry as i32, c);
+                            } else {
+                                self.rect(cx + rx * s, cy + ry as i32 * s, s, s, c);
+                            }
                         }
                     }
                 }
             }
-            cx += CHAR_WIDTH;
+            cx += CHAR_WIDTH * s;
         }
     }
+
 
     /// The palette arrives here and nowhere else. A cart names slots; only
     /// this call turns a slot into a colour, which is why swapping a theme
@@ -290,7 +299,7 @@ mod tests {
         s.rect(W + 5, H + 5, 20, 20, 7);
         s.line(-500, -500, -400, -400, 7);
         s.circ(-60, 64, 10, 7);
-        s.print("OFF THE EDGE ENTIRELY", -400, -400, 7);
+        s.print("OFF THE EDGE ENTIRELY", -400, -400, 7, 1);
         assert!(s.px.iter().all(|&p| p == 0), "something drew off-screen onto the screen");
     }
 
@@ -341,12 +350,42 @@ mod tests {
     #[test]
     fn text_is_readable_and_fits() {
         let mut s = Screen::new();
-        s.print("SCORE 100", 0, 0, 7);
+        s.print("SCORE 100", 0, 0, 7, 1);
         assert!(s.px.iter().any(|&p| p == 7), "text drew nothing");
         // 32 characters is a full line at four pixels each.
         let mut wide = Screen::new();
-        wide.print(&"M".repeat(32), 0, 0, 7);
+        wide.print(&"M".repeat(32), 0, 0, 7, 1);
         assert_eq!(wide.pget(127, 2), 0, "the 32nd character must end at the edge");
+    }
+
+    #[test]
+    fn scaled_text_is_the_same_shape_only_bigger() {
+        let mut one = Screen::new();
+        one.print("AB", 0, 0, 7, 1);
+        let mut three = Screen::new();
+        three.print("AB", 0, 0, 7, 3);
+        // Every lit pixel at 1x must be a lit 3x3 block at 3x, and nothing else
+        // may be lit — that is what "the same shape, bigger" has to mean.
+        for y in 0..5 {
+            for x in 0..8 {
+                let lit = one.pget(x, y) == 7;
+                for dy in 0..3 {
+                    for dx in 0..3 {
+                        let got = three.pget(x * 3 + dx, y * 3 + dy) == 7;
+                        assert_eq!(got, lit, "pixel {x},{y} block {dx},{dy}");
+                    }
+                }
+            }
+        }
+    }
+
+
+    #[test]
+    fn a_scale_of_zero_or_less_still_draws() {
+        // A cart doing `print(t, x, y, c, n - 1)` must not silently vanish.
+        let mut s = Screen::new();
+        s.print("A", 4, 4, 7, 0);
+        assert!(s.px.iter().any(|&p| p == 7));
     }
 
     #[test]
@@ -354,18 +393,18 @@ mod tests {
         // It used to reset the column without moving down, so a second line
         // landed on top of the first and read as corrupted text.
         let mut s = Screen::new();
-        s.print("AB\nCD", 0, 0, 7);
+        s.print("AB\nCD", 0, 0, 7, 1);
         let mut apart = Screen::new();
-        apart.print("AB", 0, 0, 7);
-        apart.print("CD", 0, LINE_HEIGHT, 7);
+        apart.print("AB", 0, 0, 7, 1);
+        apart.print("CD", 0, LINE_HEIGHT, 7, 1);
         assert_eq!(s.px, apart.px);
     }
 
     #[test]
     fn lower_case_prints_as_upper() {
         let (mut a, mut b) = (Screen::new(), Screen::new());
-        a.print("hello", 4, 4, 7);
-        b.print("HELLO", 4, 4, 7);
+        a.print("hello", 4, 4, 7, 1);
+        b.print("HELLO", 4, 4, 7, 1);
         assert_eq!(a.px, b.px);
     }
 }

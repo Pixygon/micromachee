@@ -95,3 +95,25 @@ function _draw()
     print("HOLD UP OR Z TO FLY", 22, 30, 6)
   end
 end
+
+function _cover()
+  cls(0)
+  -- The cave, as a mouth narrowing to the right.
+  for x = 0, 127 do
+    local mid = 64 + 18 * math.sin(x / 26)
+    local gap = 46 - x * 0.22
+    rect(x, 0, 1, mid - gap / 2, 1)
+    rect(x, mid + gap / 2, 1, 128, 1)
+    pset(x, mid - gap / 2, 6)
+    pset(x, mid + gap / 2, 6)
+  end
+
+  local sy = 64 + 18 * math.sin(96 / 26)
+  rect(90, sy - 4, 14, 8, 7)
+  rect(96, sy - 2, 6, 4, 6)
+  rect(80, sy - 2, 10, 4, 3)
+  rect(74, sy - 1, 6, 2, 4)
+
+  rect(0, 100, 128, 28, 0)
+  print("TUNNEL", 22, 106, 6, 3)
+end

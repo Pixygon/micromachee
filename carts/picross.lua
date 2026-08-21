@@ -180,3 +180,35 @@ function _draw()
     print("O FILL   X RULE OUT", 20, 115, 1)
   end
 end
+
+function _cover()
+  cls(0)
+  -- A solved little picture: the numbers describe it, so the cover shows both.
+  local grid = {
+    "..####..",
+    ".#....#.",
+    "#.#..#.#",
+    "#......#",
+    "#.#..#.#",
+    "#..##..#",
+    ".#....#.",
+    "..####..",
+  }
+  for r = 1, 8 do
+    for c = 1, 8 do
+      local x, y = 28 + (c - 1) * 10, 8 + (r - 1) * 10
+      if grid[r]:sub(c, c) == "#" then
+        rect(x, y, 9, 9, 7)
+      else
+        rectb(x, y, 10, 10, 1)
+      end
+    end
+  end
+  print("4", 20, 11, 6)
+  print("1 1", 12, 21, 6)
+  print("1 1 1", 4, 31, 6)
+  print("1 1", 12, 41, 6)
+
+  rect(0, 96, 128, 32, 0)
+  print("PICROSS", 16, 104, 4, 3)
+end

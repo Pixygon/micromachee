@@ -118,3 +118,17 @@ function _draw()
     print("UP AND DOWN", 42, 100, 1)
   end
 end
+
+function _cover()
+  cls(0)
+  for y = 4, 124, 10 do
+    rect(63, y, 2, 6, 1)
+  end
+
+  rect(10, 34, 5, 30, 7)
+  rect(113, 62, 5, 30, 6)
+  rect(58, 52, 6, 6, 4)
+
+  rect(0, 96, 128, 32, 0)
+  print("PONG", 40, 102, 7, 3)
+end

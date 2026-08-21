@@ -57,6 +57,17 @@ visual bug in the seven above passed one and was caught by looking. See
 [`../CLAUDE.md`](../CLAUDE.md) for how to drive a game `--hold` cannot reach —
 turn-based and menu games need taps, not held buttons.
 
+## They all draw their own covers
+
+Each has a `_cover()` — the picture the shelf shows and the one that fills the
+screen before the game starts. It is drawn with the same primitives and the
+same eight colours the game uses, so a cover is one more thing a Lua file does
+rather than an asset beside it.
+
+```bash
+micromachee cover rogue -o /tmp/cover.png
+```
+
 ## One thing that is true of all seven
 
 None of them names a colour. They ask for slot 0 through 7, dark to light, and

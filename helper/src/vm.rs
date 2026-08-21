@@ -171,7 +171,7 @@ impl Machine {
         }
         {
             let s = screen.clone();
-            api!("print", move |_, (t, x, y, c): (mlua::Value, f64, f64, Option<f64>)| {
+            api!("print", move |_, (t, x, y, c, scale): (mlua::Value, f64, f64, Option<f64>, Option<f64>)| {
                 let text = match t {
                     mlua::Value::String(s) => s.to_string_lossy().to_string(),
                     mlua::Value::Integer(i) => i.to_string(),
@@ -182,7 +182,10 @@ impl Machine {
                     mlua::Value::Boolean(b) => b.to_string(),
                     _ => "?".into(),
                 };
-                s.borrow_mut().print(&text, n(x), n(y), c.map(n).unwrap_or(7));
+                // The fifth argument is optional and defaults to 1, so every
+                // cart written before it existed prints exactly as it did.
+                s.borrow_mut()
+                    .print(&text, n(x), n(y), c.map(n).unwrap_or(7), scale.map(n).unwrap_or(1));
                 Ok(())
             });
         }
@@ -263,6 +266,18 @@ impl Machine {
         r
     }
 
+    /// Whether the cart draws its own cover.
+    pub fn has_cover(&self) -> bool {
+        self.lua.globals().get::<Function>("_cover").is_ok()
+    }
+
+    /// Draw the shelf picture. `_init` is expected to have run first, so a
+    /// cover can use the same state and helpers the game does — it is the same
+    /// machine, with the same eight colours, not a separate asset pipeline.
+    pub fn cover(&self) -> Result<(), String> {
+        self.call("_cover")
+    }
+
     pub fn set_held(&self, held: u8) {
         self.input.borrow_mut().held = held;
     }
@@ -303,6 +318,21 @@ mod tests {
         m.update().unwrap();
         m.draw().unwrap();
         assert_eq!(m.screen.borrow().pget(1, 0), 5, "n should be 2 by draw time");
+    }
+
+    #[test]
+    fn a_cart_can_draw_its_own_cover() {
+        let m = machine("function _cover() cls(6) end function _draw() cls(0) end");
+        assert!(m.has_cover());
+        m.init().unwrap();
+        m.cover().unwrap();
+        assert!(m.screen.borrow().px.iter().all(|&p| p == 6), "the cover drew, not _draw");
+    }
+
+    #[test]
+    fn a_cart_without_a_cover_says_so() {
+        let m = machine("function _draw() cls(1) end");
+        assert!(!m.has_cover(), "nothing to fall back from otherwise");
     }
 
     #[test]
@@ -412,6 +442,19 @@ mod tests {
         assert_eq!(g.get::<f64>("a").unwrap(), 123.0);
         assert_eq!(g.get::<f64>("b").unwrap(), 4.0);
         assert_eq!(g.get::<f64>("c").unwrap(), 60.0);
+    }
+
+    #[test]
+    fn print_takes_an_optional_scale_and_old_carts_are_unaffected() {
+        let m = machine(
+            "function _draw() cls(0) print('A', 0, 0, 7) print('A', 40, 0, 7, 3) end",
+        );
+        m.draw().unwrap();
+        let s = m.screen.borrow();
+        // 1x: the glyph is five rows tall. 3x: fifteen.
+        assert_eq!(s.pget(1, 0), 7, "1x drew");
+        assert_eq!(s.pget(1, 6), 0, "1x stopped at five rows");
+        assert_eq!(s.pget(41, 13), 7, "3x is still drawing at row four (y 12-14)");
     }
 
     #[test]

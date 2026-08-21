@@ -79,6 +79,23 @@ can photograph a game mid-play rather than only its title card.
 That is the whole loop: write, check, look, fix. Three of the four carts here
 were written by an agent working exactly that way.
 
+## The panel
+
+Two states and almost no chrome: the shelf, and a console. Each cart on the
+shelf shows its cover; choosing one raises that cover full size with **press X
+to start**, so there is a beat to look at it and get your hands on the keys
+before anything moves.
+
+The console has a d-pad and two buttons under the screen. They light when you
+hold the key and they can be pressed with the mouse — both routes end at the
+same button bitmask the cart reads, so there is only one notion of "held".
+Each carries the key that works it, because a cart printing `PRESS O` has no
+way to tell you that O is the `z` key.
+
+Covers are drawn by the cart, in `_cover()`, on the same screen with the same
+eight colours — see [CLAUDE.md](CLAUDE.md). A cart without one gets a frame of
+itself being played.
+
 ## Playing without installing
 
 The bar widget is one front end. `play` is a protocol — one base64 PNG per line

@@ -43,12 +43,51 @@ Item {
   property int best: 0
   property string lastError: ""
 
+  // Cover art, id -> base64 PNG, fetched once when the shelf is opened rather
+  // than on the poll timer: it is ~10K a cart, and `status` has to stay cheap.
+  property var covers: ({})
+
+  // A cart chosen but not yet started. The cover gets a moment on screen and
+  // the player gets a beat to put their hands on the keys.
+  property string armedId: ""
+  property string armedTitle: ""
+
   readonly property bool playing: playingId !== ""
+  readonly property bool arming: armedId !== "" && playingId === ""
+
+  function coverFor(id) {
+    return covers && covers[id] !== undefined ? covers[id] : ""
+  }
   readonly property string bin: "omarchy-micromachee"
 
   // Button bits: 0 left, 1 right, 2 up, 3 down, 4 O, 5 X — the same order the
   // helper and every cart use.
   property int held: 0
+
+  function loadCovers() {
+    if (coversProcess.running) return
+    coversProcess.command = [bin, "covers"]
+    coversProcess.running = true
+  }
+
+  function arm(id, title) {
+    lastError = ""
+    armedId = id
+    armedTitle = title
+  }
+
+  function disarm() {
+    armedId = ""
+    armedTitle = ""
+  }
+
+  function startArmed() {
+    if (armedId === "") return
+    var id = armedId
+    var title = armedTitle
+    disarm()
+    play(id, title)
+  }
 
   function refresh() {
     if (statusProcess.running) return
@@ -89,6 +128,7 @@ Item {
     playingTitle = ""
     frame = ""
     held = 0
+    disarm()
     refresh()
   }
 
@@ -150,6 +190,20 @@ Item {
         root.stop()
         root.play(id, title)
       }
+    }
+  }
+
+  Process {
+    id: coversProcess
+    running: false
+    command: []
+    stdout: StdioCollector { id: coversOut; waitForEnd: true }
+    stderr: StdioCollector { id: coversErr; waitForEnd: true }
+    onExited: function(exitCode) {
+      if (exitCode !== 0) return
+      // A cart whose cover will not render is simply absent from the map, and
+      // the shelf falls back to drawing its initial instead of nothing.
+      try { root.covers = JSON.parse(String(coversOut.text || "{}")) } catch (e) {}
     }
   }
 

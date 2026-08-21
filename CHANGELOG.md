@@ -4,6 +4,21 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.8.0] — 2026-08-21
+
+### Added
+- Carts can now draw their own cover art with an optional _cover() function, giving each game a proper thumbnail on the shelf and a full-size splash screen before it starts, drawn with the same primitives and eight-colour palette as the game itself. Carts without a _cover() still get a cover automatically, generated from a few seconds of real gameplay.
+- New micromachee cover <id|file> [-o out.png] command lets you preview a cart's cover art (or its auto-generated fallback) as a PNG.
+- print() now accepts an optional scale argument, letting carts render text at larger sizes — handy for bold titles on cover art and title screens. Existing calls without the argument behave exactly as before.
+- The panel now shows an on-screen d-pad and O/X buttons under the game screen, each labeled with the keyboard key that triggers it. They can be clicked with the mouse and light up in sync with keyboard input.
+- Every cart on the shelf list now shows a small thumbnail of its cover art (or an initial letter as a fallback) instead of just text.
+- All seven bundled carts (breakout, meteor, picross, pong, rogue, snake, tunnel) now ship with hand-drawn cover art.
+
+### Changed
+- Choosing a cart on the shelf now raises its cover art full-size with a "PRESS X TO START" prompt instead of jumping straight into play, giving you a moment to see the game and get your hands on the controls first.
+- Escape now backs out one step at a time: it stops a running game, then returns from the cover prompt to the shelf, then closes the panel — rather than closing immediately.
+
+
 ## [0.7.0] — 2026-08-21
 
 ### Added
