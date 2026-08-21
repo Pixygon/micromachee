@@ -1,0 +1,11 @@
+omarchy-micromachee — the helper behind the micromachee bar widget
+
+USAGE
+  omarchy-micromachee status     one line of JSON for the bar (the default)
+  omarchy-micromachee set <text>  write the headline the bar shows
+  omarchy-micromachee doctor     what is installed and where state lives
+  omarchy-micromachee help       this
+
+The bar polls `status` on a timer, so it stays cheap and never blocks. Other
+commands print a sentence to stderr and exit non-zero on failure; the panel
+shows that last line to the user exactly as written.
