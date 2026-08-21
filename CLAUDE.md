@@ -164,6 +164,45 @@ through a green `check` and was caught by looking: rocks falling through the
 score, a game-over message landing on a moving object, `"SCORE " .. flr(n)`
 rendering as `30.0`. Look at the death and start screens too, not just frame 90.
 
-The four shipped carts in `carts/` are the worked examples — `snake.lua` for
-grid movement, `breakout.lua` for float physics and per-axis collision,
-`meteor.lua` for spawning and HUD layering, `tunnel.lua` for `pget` collision.
+## Driving a game you cannot play
+
+`shot` renders one frame with buttons held down. That is enough for anything
+driven by `btn` — `breakout.lua`, `pong.lua`, `meteor.lua` all play themselves
+under `--hold`. It is **useless for anything driven by `btnp`**: holding a button
+fires `btnp` exactly once, so a menu never moves and a turn-based game never
+takes its second turn. `picross.lua` and `rogue.lua` need *taps* — press,
+release, press — which means alternating the held mask frame by frame.
+
+To reach a state that is many correct moves away — a solved puzzle, depth four,
+a death — do not make the cart's internals global and do not edit the cart.
+**Copy it and append to the copy.** Appended code is in the same file, so the
+cart's `local`s are still in lexical scope:
+
+```lua
+-- appended to a COPY of rogue.lua, for testing only
+local real_update, n = _update, 0
+function _update()
+  n = n + 1
+  if n == 4 then descend() end                    -- a local function, still visible
+  if n == 40 then hp = 0; over = true end         -- a local variable, still visible
+  real_update()
+end
+```
+
+That reaches the game-over screen in forty frames instead of a lucky hour, and
+the shipped cart never learns it was tested. Every end screen in `carts/` was
+checked this way, and two were wrong the first time.
+
+## The worked examples
+
+The shipped carts in `carts/` each demonstrate one thing:
+
+| cart | for |
+|---|---|
+| `snake.lua` | grid movement, queued turns |
+| `breakout.lua` | float physics, per-axis collision |
+| `meteor.lua` | spawning, difficulty ramp, HUD layering |
+| `tunnel.lua` | `pget` collision against the framebuffer |
+| `pong.lua` | an opponent worth playing — imperfect on purpose |
+| `picross.lua` | dense layout, a cursor, clue gutters that fit |
+| `rogue.lua` | generated levels, turn order, remembered map, stats |
