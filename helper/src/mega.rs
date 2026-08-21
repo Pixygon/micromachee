@@ -72,9 +72,13 @@ fn centre(text: &str, scale: i32) -> i32 {
 
 impl Mega {
     pub fn new() -> Result<Mega, String> {
-        let carts: Vec<Cart> = shelf::list().into_iter().filter(|c| c.id != MEGA_ID).collect();
+        // Only carts that work as a few seconds. Everything else stays on the shelf.
+        let carts: Vec<Cart> = shelf::list()
+            .into_iter()
+            .filter(|c| c.id != MEGA_ID && c.in_mega)
+            .collect();
         if carts.is_empty() {
-            return Err("there are no carts to play — try `micromachee sync`".into());
+            return Err("no cart on the shelf is short enough for this".into());
         }
         let seed = SystemTime::now()
             .duration_since(UNIX_EPOCH)

@@ -108,6 +108,12 @@ Lower case prints as upper case. The font has A-Z, 0-9 and
     -- author: you
     -- about: one short line
 
+`about` is cut at 48 characters, so write one that fits.
+
+Add `-- mega: no` if a few seconds of the game would not be a game — a nonogram
+or a farm is a fine cart and a terrible ten seconds. Mega Micromachee then never
+deals it out. Leave the line off and it plays there like everything else.
+
     local x, alive
 
     function _init()

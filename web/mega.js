@@ -33,7 +33,10 @@ const centre = (text, scale) => Math.floor((W - text.length * CHAR_WIDTH * scale
 export class Mega {
   constructor(factory, carts) {
     this.factory = factory;
-    this.carts = carts.filter((c) => c.id !== MEGA_ID);
+    // A cart can say it is no good in a few seconds — a nonogram or a farm is a
+    // fine game and a terrible ten seconds — and Mega then never deals it out.
+    // `helper/src/mega.rs` filters on the same flag; `megacheck.mjs` checks it.
+    this.carts = carts.filter((c) => c.id !== MEGA_ID && c.mega !== false);
     this.order = this.carts.map((_, i) => i);
     this.at = 0;
     this.round = 0;

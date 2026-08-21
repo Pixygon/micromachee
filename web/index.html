@@ -45,7 +45,8 @@
   .round { width: 44px; height: 44px; border-radius: 50%; font-size: 16px; }
   .roundwrap { display: flex; flex-direction: column; align-items: center; gap: 2px; }
   .roundwrap small { color: var(--dim); font-size: 11px; }
-  .brand { color: #55556a; letter-spacing: 3px; font-size: 11px; }
+  .brand { color: #55556a; letter-spacing: 3px; font-size: 11px; text-align: center; }
+  .brand small { display: block; letter-spacing: 1px; font-size: 9px; opacity: 0.75; }
 
   #meta { display: flex; justify-content: space-between; width: 100%;
           max-width: 420px; color: var(--dim); font-size: 13px; }
@@ -98,7 +99,7 @@
         <button class="key" data-bit="0">A</button><span></span><button class="key" data-bit="1">D</button>
         <span></span><button class="key" data-bit="3">S</button><span></span>
       </div>
-      <div class="brand">MICROMACHEE</div>
+      <div class="brand">MICROMACHEE<small>by Pixygon</small></div>
       <div style="display:flex; gap:10px">
         <div class="roundwrap"><button class="key round" data-bit="4">O</button><small>Z</small></div>
         <div class="roundwrap"><button class="key round" data-bit="5">X</button><small>X</small></div>

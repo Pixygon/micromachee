@@ -4,6 +4,24 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.19.0] — 2026-08-21
+
+### Added
+- Press X on a highlighted cart to see more about it — full title, author, description, best score, and whether it's fast enough to appear in Mega Micromachee — before deciding to play.
+- Cart authors can now add `-- mega: no` to opt a game out of Mega Micromachee, for games (like nonograms or slow-paced sims) that don't work well as a quick few-second round. This applies consistently across the desktop app and the web player.
+- Added a small 'by Pixygon' credit to the panel and the web player.
+
+### Changed
+- The game shelf is now drawn by the console itself, in the same 128x128 screen and with the same six buttons a game uses — no more mouse-driven grid outside the screen. Browse covers, see best scores and details, and launch a game entirely from the keyboard. **(BREAKING)**
+- The cart 'about' description is now capped at 48 characters, so write a short one-liner.
+
+### Improved
+- Pixiel has been reworked into a proper platformer: acceleration-based movement, coyote time and jump buffering, ledges and floating platforms, coins, patrolling enemies you can stomp, and an endless generated pit instead of a simple side-scrolling runner.
+
+### Fixed
+- Opening the panel now correctly resumes the shelf or game you left, and closing it pauses activity instead of letting it run unattended in the background.
+
+
 ## [0.18.0] — 2026-08-21
 
 ### Added

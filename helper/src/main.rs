@@ -12,6 +12,7 @@
 //! compositor, or a person watching. An agent can write a cart, run `check`,
 //! read the error, fix it, run `shot`, and look at what it made.
 
+mod browse;
 mod cart;
 mod console;
 mod make;
@@ -271,6 +272,90 @@ fn cmd_play_mega() -> i32 {
             let _ = writeln!(out, "S {score}");
             let _ = out.flush();
             shelf::record_score(mega::MEGA_ID, score);
+        }
+
+        next += step;
+        let now = Instant::now();
+        if next > now {
+            std::thread::sleep(next - now);
+        } else {
+            next = now;
+        }
+    }
+    0
+}
+
+/// The shelf, as a program the console runs.
+///
+/// Same protocol as `play`, with one line added: `G <id>` when the player picks
+/// something, after which this exits and the panel starts that cart. Picking is
+/// a handover rather than a mode inside one process, so a game that falls over
+/// cannot take the shelf down with it.
+fn cmd_browse() -> i32 {
+    if std::io::stdout().is_terminal() {
+        eprintln!("note: `browse` prints a frame protocol for the bar, not a menu for a terminal.");
+    }
+    let mut shelf_screen = browse::Browse::new();
+
+    let held = Arc::new(AtomicU8::new(0));
+    let quit = Arc::new(AtomicBool::new(false));
+    let paused = Arc::new(AtomicBool::new(false));
+    let want_theme: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+    {
+        let (held, quit, paused, want_theme) =
+            (held.clone(), quit.clone(), paused.clone(), want_theme.clone());
+        std::thread::spawn(move || {
+            let stdin = std::io::stdin();
+            for line in stdin.lock().lines() {
+                let Ok(line) = line else { break };
+                let line = line.trim();
+                if let Some(bits) = line.strip_prefix("B ") {
+                    if let Ok(v) = bits.trim().parse::<u8>() {
+                        held.store(v, Ordering::Relaxed);
+                    }
+                } else if let Some(id) = line.strip_prefix("T ") {
+                    *want_theme.lock().unwrap() = Some(id.trim().to_string());
+                } else if line == "P" {
+                    paused.store(true, Ordering::Relaxed);
+                    held.store(0, Ordering::Relaxed);
+                } else if line == "R" {
+                    paused.store(false, Ordering::Relaxed);
+                } else if line == "Q" {
+                    break;
+                }
+            }
+            quit.store(true, Ordering::Relaxed);
+        });
+    }
+
+    let mut palette = theme::active(shelf::saved_theme().as_deref()).palette;
+    let out = std::io::stdout();
+    let mut out = out.lock();
+
+    let step = Duration::from_micros(1_000_000 / FPS as u64);
+    let mut next = Instant::now();
+    while !quit.load(Ordering::Relaxed) {
+        if let Some(id) = want_theme.lock().unwrap().take() {
+            if let Some(t) = theme::get(&id) {
+                palette = t.palette;
+                shelf::set_theme(&id);
+            }
+        }
+        // A shelf nobody is looking at costs nothing to stop drawing.
+        if paused.load(Ordering::Relaxed) {
+            next = Instant::now();
+            std::thread::sleep(Duration::from_millis(120));
+            continue;
+        }
+
+        let frame = shelf_screen.frame(held.load(Ordering::Relaxed)).to_png(&palette);
+        if writeln!(out, "F {}", base64(&frame)).is_err() || out.flush().is_err() {
+            break;
+        }
+        if let Some(id) = shelf_screen.picked() {
+            let _ = writeln!(out, "G {id}");
+            let _ = out.flush();
+            return 0;
         }
 
         next += step;
@@ -612,6 +697,9 @@ fn cmd_catalog(args: &[String]) -> i32 {
             "author": cart.author,
             "about": cart.about,
             "bytes": cart.bytes,
+            // Whether a few seconds of it is a game, which Mega needs to know
+            // before it deals the cart out.
+            "mega": cart.in_mega,
             "sha256": sha256::hex(text.as_bytes()),
             "url": format!("{base}/{id}.lua"),
             // The source travels inside the catalog as well as beside it. The
@@ -765,6 +853,7 @@ fn main() {
             println!("{}", serde_json::to_string(&shelf::shelf_json()).unwrap_or_else(|_| "[]".into()));
             0
         }
+        "browse" => cmd_browse(),
         "play" => match rest.first() {
             Some(id) => cmd_play(id),
             None => {

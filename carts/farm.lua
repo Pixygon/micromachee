@@ -1,6 +1,7 @@
 -- title: Farm of Arra
 -- author: pixygon
 -- about: a plate that carries a whole world. grow it
+-- mega: no
 
 -- The one game here that uses the clock on the wall rather than the frame
 -- counter. `now()` is real seconds since 1970 and `save()` outlives the widget,

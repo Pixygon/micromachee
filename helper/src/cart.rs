@@ -46,6 +46,9 @@ pub struct Cart {
     pub title: String,
     pub author: String,
     pub about: String,
+    /// Whether a few seconds of this makes a round in Mega Micromachee. A
+    /// nonogram or a farm is a fine game and a terrible ten seconds.
+    pub in_mega: bool,
     pub code: String,
     pub bytes: usize,
 }
@@ -101,6 +104,7 @@ impl Cart {
             title: meta("title").unwrap_or_else(|| id.to_string()),
             author: meta("author").unwrap_or_else(|| "anonymous".into()),
             about: meta("about").unwrap_or_default(),
+            in_mega: meta("mega").map(|v| v != "no").unwrap_or(true),
             code: source.to_string(),
             bytes,
         })

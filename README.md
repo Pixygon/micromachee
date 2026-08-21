@@ -33,7 +33,8 @@ A cart looks like this, and this is the complete API:
 ```lua
 -- title: My Game
 -- author: you
--- about: one line about it
+-- about: one line about it     -- 48 characters, and it is cut there
+-- mega: no                     -- optional; keeps it out of Mega Micromachee
 
 function _init()   end     -- once, at the start   (optional)
 function _update() end     -- 30 times a second    (optional)

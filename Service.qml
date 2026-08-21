@@ -3,6 +3,9 @@
 // Two processes, and they are deliberately different shapes.
 //
 //   `status`  — short-lived, polled. What carts exist, what the records are.
+//   `browse`  — long-lived. The shelf, drawn by the console itself, in the same
+//               128×128 and driven by the same six buttons. It prints `G <id>`
+//               when the player picks something and then gets out of the way.
 //   `play`    — long-lived, one per game. It prints a base64 PNG per line and
 //               reads a button bitmask on stdin. It only exists while the panel
 //               is open, because a game running behind a closed panel is a
@@ -67,6 +70,14 @@ Item {
 
   readonly property bool playing: playingId !== ""
   readonly property bool arming: armedId !== "" && playingId === ""
+  /// The shelf is a program the console runs, so it is on screen like a game.
+  readonly property bool browsing: browseProcess.running
+
+  /// Whether the panel is open. Nothing draws frames behind a closed bar.
+  property bool active: false
+  /// Set across the moment between stopping the shelf and starting a game, so
+  /// a process exiting in that gap does not start the shelf back up underneath.
+  property bool starting: false
 
   function isDraft(id) {
     for (var i = 0; i < carts.length; i++)
@@ -95,17 +106,44 @@ Item {
   // helper and every cart use.
   property int held: 0
 
+  function startBrowse() {
+    if (!active || starting || creating || playing || armedId !== "") return
+    if (browseProcess.running) return
+    frame = ""
+    held = 0
+    paused = false
+    browseProcess.command = [bin, "browse"]
+    browseProcess.running = true
+  }
+
+  function stopBrowse() {
+    if (!browseProcess.running) return
+    try { browseProcess.write("Q\n") } catch (e) {}
+    browseProcess.running = false
+    frame = ""
+  }
+
+  /// The shelf reads the carts once, when it starts. Anything that changes what
+  /// is on the shelf has to stand it up again.
+  function refreshBrowse() {
+    if (!browseProcess.running) return
+    stopBrowse()
+    Qt.callLater(function() { root.startBrowse() })
+  }
+
   function openCreate() {
     creating = true
     makeStatus = ""
     lastError = ""
     disarm()
     stop()
+    stopBrowse()
   }
 
   function closeCreate() {
     creating = false
     makeStatus = ""
+    startBrowse()
   }
 
   // Both making and revising speak the same little protocol on stdout:
@@ -152,6 +190,7 @@ Item {
 
   function arm(id, title) {
     lastError = ""
+    stopBrowse()
     armedId = id
     armedTitle = title
   }
@@ -159,6 +198,7 @@ Item {
   function disarm() {
     armedId = ""
     armedTitle = ""
+    startBrowse()
   }
 
   function startArmed() {
@@ -176,7 +216,9 @@ Item {
   }
 
   function play(id, title) {
+    starting = true
     stop()
+    stopBrowse()
     paused = false
     lastError = ""
     frame = ""
@@ -188,6 +230,7 @@ Item {
       if (carts[i].id === id) best = Number(carts[i].best || 0)
     gameProcess.command = [bin, "play", id]
     gameProcess.running = true
+    starting = false
   }
 
   function nextTheme() {
@@ -202,6 +245,10 @@ Item {
       // dropping you to the shelf and leaving everything stuck there. A palette
       // is eight bytes in the next frame's PLTE; the cart never needs to know.
       try { gameProcess.write("T " + next + "\n") } catch (e) {}
+      refresh()
+    } else if (browseProcess.running) {
+      // The shelf takes a palette live for the same reason a game does.
+      try { browseProcess.write("T " + next + "\n") } catch (e) {}
       refresh()
     } else {
       themeProcess.command = [bin, "theme", next]
@@ -228,16 +275,19 @@ Item {
 
   /// Closing the panel pauses; it does not throw the game away.
   function pause() {
-    if (!gameProcess.running || paused) return
+    if (paused) return
+    if (!gameProcess.running && !browseProcess.running) return
     paused = true
     held = 0
-    try { gameProcess.write("P\n") } catch (e) {}
+    try { if (gameProcess.running) gameProcess.write("P\n") } catch (e) {}
+    try { if (browseProcess.running) browseProcess.write("P\n") } catch (e) {}
   }
 
   function resume() {
-    if (!gameProcess.running || !paused) return
+    if (!paused) return
     paused = false
-    try { gameProcess.write("R\n") } catch (e) {}
+    try { if (gameProcess.running) gameProcess.write("R\n") } catch (e) {}
+    try { if (browseProcess.running) browseProcess.write("R\n") } catch (e) {}
   }
 
   function stop() {
@@ -255,12 +305,16 @@ Item {
     refresh()
   }
 
+  /// The same six bits go to whatever is on screen. The shelf and a game are
+  /// the same kind of thing to this function, which is the point of the change.
   function setButton(bit, down) {
     var next = down ? (held | (1 << bit)) : (held & ~(1 << bit))
     if (next === held) return
     held = next
-    if (gameProcess.running) {
-      try { gameProcess.write("B " + held + "\n") } catch (e) {}
+    var target = gameProcess.running ? gameProcess
+               : (browseProcess.running ? browseProcess : null)
+    if (target) {
+      try { target.write("B " + held + "\n") } catch (e) {}
     }
   }
 
@@ -309,6 +363,7 @@ Item {
     onExited: function() {
       root.refresh()
       root.loadCovers()
+      root.refreshBrowse()   // the shelf's own labels are in the old tongue too
       // A running cart is printing in the old tongue; restart it so the change
       // is visible at once. Safe here — unlike the theme, this one is rare.
       if (root.playing) {
@@ -386,6 +441,7 @@ Item {
       }
       root.refresh()
       root.loadCovers()
+      root.refreshBrowse()
     }
   }
 
@@ -400,6 +456,37 @@ Item {
       // A cart whose cover will not render is simply absent from the map, and
       // the shelf falls back to drawing its initial instead of nothing.
       try { root.covers = JSON.parse(String(coversOut.text || "{}")) } catch (e) {}
+    }
+  }
+
+  Process {
+    id: browseProcess
+    running: false
+    command: []
+    stdinEnabled: true
+    stdout: SplitParser {
+      onRead: function(line) {
+        var s = String(line)
+        if (s.length < 2) return
+        var kind = s.charAt(0)
+        if (kind === "F") root.frame = s.substring(2)
+        else if (kind === "G") {
+          var id = s.substring(2)
+          var title = id
+          for (var i = 0; i < root.carts.length; i++)
+            if (root.carts[i].id === id) title = String(root.carts[i].title || id)
+          // A draft is not ready to just start: picking one opens the panel
+          // where you say what to change, publish it, or throw it away.
+          if (root.isDraft(id)) root.arm(id, title)
+          else root.play(id, title)
+        }
+      }
+    }
+    stderr: StdioCollector { id: browseErr; waitForEnd: true }
+    onExited: function() {
+      // Only ever restarts itself when nothing else wants the screen; the
+      // guards live in startBrowse so every caller gets the same answer.
+      Qt.callLater(function() { root.startBrowse() })
     }
   }
 
@@ -434,6 +521,7 @@ Item {
       root.playingId = ""
       root.playingTitle = ""
       root.refresh()
+      root.startBrowse()
     }
   }
 }

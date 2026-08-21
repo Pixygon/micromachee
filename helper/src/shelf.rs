@@ -107,6 +107,7 @@ pub fn shelf_json() -> Value {
         "bytes": 0,
         "best": best(crate::mega::MEGA_ID),
         "draft": false,
+        "mega": false,
     })];
     if let Value::Array(rest) = list_json() {
         carts.extend(rest);
@@ -123,6 +124,7 @@ pub fn list_json() -> Value {
             // A draft is playable like anything else; the shelf just says so,
             // and offers to publish or throw it away.
             "draft": is_draft(&c.id),
+            "mega": c.in_mega,
         }))
         .collect::<Vec<_>>())
 }

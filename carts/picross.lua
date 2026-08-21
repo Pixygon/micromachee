@@ -1,6 +1,7 @@
 -- title: Signcarver
 -- author: pixygon
 -- about: the numbers describe a sign. carve it
+-- mega: no
 
 -- A nonogram. The clues along a row say how many squares are filled and in what
 -- runs, so "3 1" means three together, a gap, then one.

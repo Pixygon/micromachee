@@ -47,10 +47,6 @@ Panel {
   /// The last few buttons pressed on the shelf. Nothing advertises this.
   property string secret: ""
 
-  /// Which cart the shelf has highlighted, and how wide the grid is.
-  property int shelfIndex: 0
-  readonly property int shelfColumns: 3
-
   readonly property string glyph: "▦"
   readonly property string barLabel: mm.carts.length > 0 ? glyph + " " + mm.carts.length : glyph
 
@@ -69,11 +65,14 @@ Panel {
     if (opened) {
       mm.refresh()
       mm.loadCovers()          // once per opening, not on the poll timer
+      mm.active = true
       mm.resume()              // a closed panel paused it; pick it back up
+      mm.startBrowse()         // and the shelf is the thing it comes back to
       Qt.callLater(function() { keys.forceActiveFocus() })
     } else {
       // Not `stop()`. Closing the bar to look at something else should cost you
       // a moment, not the run you were in the middle of.
+      mm.active = false
       mm.pause()
     }
   }
@@ -83,14 +82,9 @@ Panel {
     settings: root.settings
   }
 
-  // Carts come and go — syncing, publishing, discarding — and a selection that
-  // points past the end of the shelf highlights nothing.
   Connections {
     target: mm
     function onArmedIdChanged() { root.showInfo = false }
-    function onCartsChanged() {
-      root.shelfIndex = Math.max(0, Math.min(root.shelfIndex, mm.carts.length - 1))
-    }
   }
 
   IpcHandler {
@@ -143,10 +137,9 @@ Panel {
       // The controller. Arrows or WASD, z and x — held, not typed, so a game
       // sees a button going down and coming up rather than a key repeat.
       Keys.onPressed: function(event) {
-        if (root.typing) return
+        if (root.typing || mm.creating) return
         // On the cover, X is the only button that does anything: it starts.
         if (mm.arming) {
-          // X plays. O is the alt button: it says what the game is.
           if (event.key === Qt.Key_X) { mm.startArmed(); event.accepted = true }
           else if (event.key === Qt.Key_Z || event.key === Qt.Key_Space) {
             root.showInfo = !root.showInfo
@@ -154,39 +147,25 @@ Panel {
           }
           return
         }
-        // On the shelf the same buttons move a selection and pick one, so the
-        // whole console is usable without ever touching the mouse.
-        if (!mm.playing) {
-          if (mm.creating) return
-          var n = mm.carts.length
-          if (n === 0) return
-          var s = buttonFor(event.key)
-          if (s >= 0) {
-            // up up down down left right left right X O
-            root.secret = (root.secret + s).slice(-10)
-            if (root.secret === "2233010154") {
-              root.secret = ""
-              mm.toggleTongue()
-              event.accepted = true
-              return
-            }
-          }
-          if (s === 0)      root.shelfIndex = Math.max(0, root.shelfIndex - 1)
-          else if (s === 1) root.shelfIndex = Math.min(n - 1, root.shelfIndex + 1)
-          else if (s === 2) root.shelfIndex = Math.max(0, root.shelfIndex - root.shelfColumns)
-          else if (s === 3) root.shelfIndex = Math.min(n - 1, root.shelfIndex + root.shelfColumns)
-          else if (s === 4 || s === 5) {
-            var pick = mm.carts[root.shelfIndex]
-            if (pick) mm.arm(pick.id, pick.title)
-          } else return
-          event.accepted = true
-          return
-        }
         var b = buttonFor(event.key)
-        if (b >= 0) { mm.setButton(b, true); event.accepted = true }
+        if (b < 0) return
+        // The shelf is a program the console runs, so its buttons are the
+        // console's buttons: nothing here decides what they mean any more.
+        if (!mm.playing) {
+          // up up down down left right left right X O
+          root.secret = (root.secret + b).slice(-10)
+          if (root.secret === "2233010154") {
+            root.secret = ""
+            mm.toggleTongue()
+            event.accepted = true
+            return
+          }
+        }
+        mm.setButton(b, true)
+        event.accepted = true
       }
       Keys.onReleased: function(event) {
-        if (!mm.playing) return
+        if (root.typing || mm.creating || mm.arming) return
         var b = buttonFor(event.key)
         if (b >= 0) { mm.setButton(b, false); event.accepted = true }
       }
@@ -216,7 +195,7 @@ Panel {
           id: deck
           width: parent.width
           height: screenBox.height + pad.height + Style.space(12)
-          visible: mm.playing || mm.arming
+          visible: mm.playing || mm.arming || mm.browsing
           color: mm.shellBody
           radius: Style.space(10)
           Behavior on color { ColorAnimation { duration: 180 } }
@@ -259,10 +238,13 @@ Panel {
               width: 128 * screenBox.pixelScale
               height: width
 
-              readonly property string src: mm.playing
-                ? (mm.frame !== "" ? "data:image/png;base64," + mm.frame : "")
-                : (mm.coverFor(mm.armedId) !== ""
+              // The shelf and a game arrive the same way — as frames — so this
+              // only has to know about the one case that does not: a chosen
+              // cart sitting on its cover, waiting to be started.
+              readonly property string src: mm.arming
+                ? (mm.coverFor(mm.armedId) !== ""
                    ? "data:image/png;base64," + mm.coverFor(mm.armedId) : "")
+                : (mm.frame !== "" ? "data:image/png;base64," + mm.frame : "")
 
               property bool showA: true
 
@@ -301,7 +283,7 @@ Panel {
 
             Text {
               anchors.centerIn: parent
-              visible: mm.playing && mm.frame === "" && mm.lastError === ""
+              visible: (mm.playing || mm.browsing) && mm.frame === "" && mm.lastError === ""
               text: "LOADING"
               color: root.dim
               font.family: root.fontFamily
@@ -476,6 +458,15 @@ Panel {
                 opacity: 0.7
               }
 
+              Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                text: "by Pixygon"
+                color: mm.shellDim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                opacity: 0.55
+              }
+
               Row {
                 anchors.horizontalCenter: parent.horizontalCenter
                 spacing: Style.space(4)
@@ -596,10 +587,11 @@ Panel {
         }
 
         Text {
-          visible: mm.playing || mm.arming
+          visible: mm.playing || mm.arming || mm.browsing
           width: parent.width
           text: mm.arming ? "X STARTS · O TELLS YOU MORE · ESC BACK"
-                          : "ARROWS OR WASD · Z AND X · T THEME · ESC BACK"
+              : (mm.browsing ? "ARROWS OR WASD · Z PLAYS · X TELLS YOU MORE · T THEME"
+                             : "ARROWS OR WASD · Z AND X · T THEME · ESC BACK")
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.bodySmall
@@ -983,118 +975,9 @@ Panel {
           }
         }
 
-        Text {
-          visible: !mm.playing && !mm.arming && !mm.creating && mm.carts.length > 0
-          width: parent.width
-          text: "ARROWS OR WASD TO CHOOSE · Z OR X TO PICK · T THEME"
-          color: root.dim
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.bodySmall
-          horizontalAlignment: Text.AlignHCenter
-        }
-
-        // ── the shelf, as a grid ────────────────────────────────────────
-        // Covers are the point, so they get the room. It is navigable with the
-        // same buttons a game uses — arrows or WASD to move, O or X to pick —
-        // because reaching for the mouse in a console is a jarring thing to
-        // have to do.
-        Grid {
-          visible: !mm.playing && !mm.arming && !mm.creating
-          width: parent.width
-          columns: root.shelfColumns
-          spacing: Style.space(6)
-
-          Repeater {
-            model: (mm.playing || mm.arming || mm.creating) ? [] : mm.carts
-
-            delegate: Item {
-              required property var modelData
-              required property int index
-              readonly property bool picked: index === root.shelfIndex
-              width: (body.width - Style.space(6) * (root.shelfColumns - 1)) / root.shelfColumns
-              height: width + Style.space(16)
-
-              Rectangle {
-                anchors.fill: parent
-                radius: Style.cornerRadius
-                color: picked || tileHover.containsMouse
-                  ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.12)
-                  : "transparent"
-                border.width: picked ? 1 : 0
-                border.color: mm.shellAccent
-              }
-
-              Rectangle {
-                id: art
-                anchors.top: parent.top
-                anchors.horizontalCenter: parent.horizontalCenter
-                anchors.topMargin: Style.space(3)
-                width: parent.width - Style.space(6)
-                height: width
-                radius: Style.space(3)
-                color: mm.shellBezel
-                clip: true
-
-                Image {
-                  anchors.fill: parent
-                  anchors.margins: 1
-                  source: mm.coverFor(modelData.id) !== ""
-                    ? "data:image/png;base64," + mm.coverFor(modelData.id) : ""
-                  smooth: false
-                  mipmap: false
-                  fillMode: Image.PreserveAspectFit
-                  cache: false
-                }
-
-                Text {
-                  anchors.centerIn: parent
-                  visible: mm.coverFor(modelData.id) === ""
-                  text: String(modelData.title || "?").substring(0, 1).toUpperCase()
-                  color: mm.shellDim
-                  font.family: root.fontFamily
-                  font.pixelSize: Style.font.body
-                  font.bold: true
-                }
-              }
-
-              Text {
-                anchors.top: art.bottom
-                anchors.topMargin: 1
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: parent.width - Style.space(6)
-                horizontalAlignment: Text.AlignHCenter
-                text: modelData.title
-                color: modelData.draft === true ? mm.shellAccent : root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.bodySmall
-                elide: Text.ElideRight
-              }
-
-              MouseArea {
-                id: tileHover
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onEntered: root.shelfIndex = index
-                onClicked: {
-                  root.shelfIndex = index
-                  mm.arm(modelData.id, modelData.title)
-                  Qt.callLater(function() { keys.forceActiveFocus() })
-                }
-              }
-            }
-          }
-        }
-
-        Text {
-          visible: !mm.playing && !mm.arming && mm.installed && mm.carts.length === 0
-          width: parent.width
-          text: "No carts on the shelf. `micromachee sync` fetches them, or drop a .lua file in the carts folder — that is all installing a game is."
-          color: root.dim
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.bodySmall
-          wrapMode: Text.WordWrap
-        }
+        // The shelf itself is gone from here on purpose. It is drawn by the
+        // console now — `micromachee browse`, same 128x128, same six buttons —
+        // so choosing a game is made of the same pixels as playing one.
       }
     }
   }

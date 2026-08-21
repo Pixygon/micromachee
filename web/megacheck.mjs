@@ -37,6 +37,22 @@ same("FLOOR_SECONDS", FLOOR_SECONDS, constant("FLOOR_SECONDS"));
 same("SPEED_STEP", SPEED_STEP, constant("SPEED_STEP"));
 same("MAX_SPEED", MAX_SPEED, constant("MAX_SPEED"));
 
+// Which carts are dealt at all. Both sides drop the meta-game itself and
+// anything that opted out; a shelf that differs here is two different games.
+{
+  const rustFilters = /c\.id != MEGA_ID && c\.in_mega/.test(rust);
+  const shelf = [
+    { id: "mega", title: "Mega" },
+    { id: "quick", title: "Quick" },
+    { id: "slow", title: "Slow", mega: false },
+    { id: "silent", title: "Silent" },
+  ];
+  const dealt = new Mega(null, shelf).carts.map((c) => c.id).join(",");
+  console.log("shelf:");
+  same("rust filters on in_mega", true, rustFilters);
+  same("dealt", dealt, "quick,silent");
+}
+
 // The curves, walked round by round against the Rust formulas restated here.
 // If someone changes the shape in one place, this is where it shows up.
 const rustSeconds = (r) => Math.max(FLOOR_SECONDS, START_SECONDS - Math.floor(r / STEP_EVERY));
