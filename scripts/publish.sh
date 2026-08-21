@@ -121,6 +121,10 @@ same "$cdn/catalog.json" catalog.json || { echo "  ✗ catalog.json is not what 
 [ "$bad" = 0 ] && echo "  ✓ all $(( ${#carts[@]} + 1 )) files are live and are the bytes we sent"
 
 echo
+echo "publish AFTER every ship: the catalog url carries the version, so a new"
+echo "release points at a shelf that does not exist until this has run. If the"
+echo "version moved, web/console-data.js changed with it — commit that too."
+echo
 echo "now try it the way a stranger would, into an empty shelf:"
 echo "  MICROMACHEE_CARTS=\"\$(mktemp -d)\" $bin sync"
 exit "$bad"
