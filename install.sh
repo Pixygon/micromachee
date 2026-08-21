@@ -83,10 +83,25 @@ case ":$PATH:" in
   *) echo "  note: $prefix/bin is not on your PATH" ;;
 esac
 
-if [ "$here" != "$HOME/.config/omarchy/plugins/$id" ]; then
+# Put the plugin where Omarchy looks. Done here rather than printed as an
+# instruction, because "now run this one other command" is where an install
+# stops being an install. Idempotent, and it never clobbers a link that points
+# somewhere else — that would silently swap out someone's own checkout.
+plugins="$HOME/.config/omarchy/plugins"
+link="$plugins/$id"
+if [ "$here" = "$link" ]; then
+  :                                   # already living in the right place
+elif [ ! -d "$plugins" ]; then
   echo
-  echo "To load the plugin, put this directory where Omarchy looks:"
-  echo "  ln -s '$here' ~/.config/omarchy/plugins/$id"
+  echo "No $plugins here — not an Omarchy machine? To load the plugin there:"
+  echo "  ln -s '$here' '$link'"
+elif [ -L "$link" ] && [ "$(readlink -f "$link")" = "$(readlink -f "$here")" ]; then
+  echo "✓ already linked into Omarchy"
+elif [ -e "$link" ]; then
+  echo "⚠ $link already exists and is not this directory — leaving it alone."
+  echo "  Replace it yourself if you meant to: rm '$link' && ln -s '$here' '$link'"
+else
+  ln -s "$here" "$link" && echo "✓ linked into Omarchy: $link"
 fi
 echo "Then add the micromachee widget to your bar."
 echo

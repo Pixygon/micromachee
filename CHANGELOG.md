@@ -4,6 +4,12 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.20.0] — 2026-08-21
+
+### Improved
+- The installer now automatically links the plugin into Omarchy's plugins directory instead of just printing a command to run yourself. It's safe to re-run and won't touch an existing link or file that points somewhere else — you'll get a clear warning instead.
+
+
 ## [0.19.0] — 2026-08-21
 
 ### Added
