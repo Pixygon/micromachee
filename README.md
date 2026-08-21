@@ -109,12 +109,19 @@ because key-repeat keeps renewing the press.
 ln -s "$PWD" ~/.config/omarchy/plugins/io.pixygon.micromachee
 ```
 
-Then add the **Micromachee** widget to your bar. `install.sh` needs no root.
+Then add the **Micromachee** widget to your bar. `install.sh` needs no root, and
+it copies the shipped carts across as well as building the helper.
+
+That copy matters: the shelf looks in `./carts` and then in the data directory,
+and the widget is started by Quickshell from wherever Quickshell happens to be,
+which is never this repo. Without the carts in the data directory the widget
+comes up with an empty shelf while `micromachee tty` in the repo works fine.
 
 Carts live in `~/.local/share/omarchy-micromachee/carts/`. Installing a game is
 copying a `.lua` file there — there is no install step, no index to rebuild, no
-registry to tell. `micromachee sync` pulls carts from a catalog on the internet,
-but that is only one way for a file to travel, not how carts work.
+registry to tell. `micromachee sync` pulls carts from a catalog on the internet;
+**no catalog is published yet**, so it will tell you it could not fetch one.
+That is one way for a file to travel, not how carts work.
 
 ## What is in the box
 
