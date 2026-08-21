@@ -26,6 +26,20 @@ Panel {
   readonly property color dim: Qt.darker(foreground, 1.55)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
 
+  // How many screen pixels one console pixel gets. A WHOLE number, always: at
+  // 2.05x some console pixels are two screen pixels wide and some are three,
+  // and the whole screen shimmers as anything moves across it. That is the one
+  // thing an eight-colour console cannot afford, and it gets worse the bigger
+  // the screen is — so growing it and squaring it up are the same job.
+  readonly property int pixelSize: {
+    var n = parseInt(String(settings && settings.screenScale !== undefined
+                            ? settings.screenScale : 3), 10)
+    if (!isFinite(n)) n = 3
+    return Math.max(2, Math.min(6, n))
+  }
+  readonly property int screenInset: Style.space(7)
+  readonly property int consoleWidth: 128 * pixelSize + screenInset * 2
+
   readonly property string glyph: "▦"
   readonly property string barLabel: mm.carts.length > 0 ? glyph + " " + mm.carts.length : glyph
 
@@ -79,8 +93,8 @@ Panel {
     bar: root.bar
     open: root.opened
     focusTarget: keys
-    contentWidth: panel.fittedContentWidth(Style.space(276))
-    contentHeight: panel.fittedContentHeight(body.implicitHeight, Style.space(520))
+    contentWidth: panel.fittedContentWidth(Math.max(Style.space(276), root.consoleWidth))
+    contentHeight: panel.fittedContentHeight(body.implicitHeight, Style.space(900))
 
     PanelKeyCatcher {
       id: keys
@@ -125,9 +139,20 @@ Panel {
 
         // ── the screen ──────────────────────────────────────────────────
         Item {
+          id: screenBox
           width: parent.width
           height: width          // square, always
           visible: mm.playing
+
+          // Ask for the configured size, but never more than actually fits —
+          // `fittedContentWidth` may have given us less than we wanted on a
+          // small display, and an image wider than its bezel looks broken.
+          //
+          // Not called `scale`: Item already has one, for visual transforms.
+          // QML shadows it rather than complaining, which is worse than an
+          // error — it would work until something animated the real one.
+          readonly property int pixelScale: Math.max(1, Math.min(root.pixelSize,
+            Math.floor((width - root.screenInset * 2) / 128)))
 
           // The console body. Its colours come from the helper with the
           // palette, so the shell and the screen can never drift apart.
@@ -150,14 +175,15 @@ Panel {
 
           Image {
             id: screen
-            anchors.fill: parent
-            anchors.margins: Style.space(7)
+            anchors.centerIn: parent
+            width: 128 * screenBox.pixelScale
+            height: width
             source: mm.frame !== "" ? "data:image/png;base64," + mm.frame : ""
             // 128 pixels blown up: never interpolate, or the whole point of an
             // eight-colour console is lost to a blur.
             smooth: false
             mipmap: false
-            fillMode: Image.PreserveAspectFit
+            fillMode: Image.Stretch
             cache: false
             asynchronous: false
           }

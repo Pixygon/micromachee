@@ -4,6 +4,18 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.7.0] — 2026-08-21
+
+### Added
+- Added a Screen Size setting for the console panel, letting you choose how large the emulated screen renders (2x–6x console pixels) to suit your display.
+
+### Changed
+- The panel now resizes to fit the selected screen size, with a taller maximum panel height to accommodate larger console displays.
+
+### Fixed
+- The console screen now scales in whole-pixel steps and renders at crisp integer sizes, eliminating the shimmering/blurring that occurred when the display didn't line up evenly with screen pixels.
+
+
 ## [0.6.1] — 2026-08-21
 
 ### Added
