@@ -249,9 +249,16 @@ those paths.
 
 Stated plainly, because a plugin runs unsandboxed:
 
-- **It builds and runs a helper binary.** `install.sh` compiles `helper/` with
-  cargo and installs it to `~/.local/bin`. Nothing is downloaded and piped to a
-  shell, and no prebuilt binary is bundled — you build what you can read.
+- **It builds and runs a helper binary.** With cargo present — the normal case —
+  `install.sh` compiles `helper/` and installs it to `~/.local/bin`. Nothing is
+  downloaded and piped to a shell, and no binary is committed to this repository.
+- **Without cargo it downloads one instead**, and only then. The expected
+  SHA-256 is **committed here** in [`helper/prebuilt.sha256`](helper/prebuilt.sha256),
+  so the download is checked against this repository rather than against the
+  server that served it — a hash fetched alongside the file it describes
+  verifies nothing. A mismatch installs nothing and tells you to install Rust.
+  If you would rather not trust a binary at all, install Rust first and the
+  download never happens.
 - **It runs Lua that you may not have written.** That is the product: a cart is
   a program. Carts get `math`, `string` and `table` and nothing else — no `io`,
   no `os`, no `require` — plus a per-frame instruction budget and a memory

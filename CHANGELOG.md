@@ -4,6 +4,16 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.15.0] — 2026-08-21
+
+### Added
+- install.sh can now install micromachee even without Rust/cargo installed: it will fetch a prebuilt helper binary and verify it against a checksum committed in this repository before installing it. If the checksum doesn't match, nothing is installed and you're told to install Rust instead.
+
+### Changed
+- Building from source with cargo remains the preferred install path and is used automatically whenever cargo is available; the prebuilt-binary download only happens as a fallback.
+- README now explains the install security model in more detail, including how the prebuilt binary download is verified and how to avoid it entirely by installing Rust first.
+
+
 ## [0.14.0] — 2026-08-21
 
 ### Added
