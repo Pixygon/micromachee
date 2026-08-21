@@ -36,12 +36,20 @@ wants both. `_cover()` is optional and draws the shelf picture.
     save(key, value)            remember a number, string or boolean
     load(key)                   read it back, or nil the first time
     now()                       real seconds since 1970 (wall clock)
+    lose()                      the player has failed
+    win()                       the player has succeeded
 
 That is all of it. There is no sprite sheet, no sound, no file access, no
 `require`. Lua's `math`, `string` and `table` are available. `io` and `os` are
 NOT — do not use them.
 
 Buttons: 0 left, 1 right, 2 up, 3 down, 4 O, 5 X.
+
+Call `lose()` at the moment the player fails — the same line where you already
+set your own `alive = false`. Nothing in a normal game changes, but it is what
+lets the console put your game inside something bigger (Mega Micromachee runs
+every cart for a few seconds each and needs to know whether you got through it).
+A cart that never calls it simply always survives.
 
 `save`/`load` survive the console being closed, so a game can pick up where it
 was left. `t()` is seconds since THIS run started; `now()` is the clock on the

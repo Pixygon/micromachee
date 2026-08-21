@@ -36,6 +36,19 @@ const MEMORY_LIMIT: usize = 16 * 1024 * 1024;
 
 pub const FPS: u32 = 30;
 
+/// What a cart has said about how the player is doing. Every cart tracks this
+/// already — as `alive`, `over`, `dead`, `lives`, a different local each time —
+/// and none of it is visible from out here. So a cart that wants to be playable
+/// inside something bigger says so once, and the console can finally tell the
+/// difference between a game being lost and a game merely being watched.
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
+pub enum Outcome {
+    #[default]
+    Playing,
+    Lost,
+    Won,
+}
+
 #[derive(Default)]
 pub struct Input {
     /// Bit i set = button i held. 0 left, 1 right, 2 up, 3 down, 4 O, 5 X.
@@ -60,6 +73,7 @@ pub struct Machine {
     /// the time it was last looked at.
     pub saved: Rc<RefCell<serde_json::Map<String, serde_json::Value>>>,
     pub dirty: Rc<Cell<bool>>,
+    pub outcome: Rc<Cell<Outcome>>,
     budget: Rc<Cell<u32>>,
 }
 
@@ -102,6 +116,7 @@ impl Machine {
         let budget = Rc::new(Cell::new(FRAME_INSTRUCTION_BUDGET));
         let saved = Rc::new(RefCell::new(saved_in));
         let dirty = Rc::new(Cell::new(false));
+        let outcome = Rc::new(Cell::new(Outcome::Playing));
         let rng = Rc::new(Cell::new(0x2545_f491_4f6c_dd1du64));
 
         {
@@ -297,6 +312,20 @@ impl Machine {
                 })
             });
         }
+        {
+            let o = outcome.clone();
+            api!("lose", move |_, ()| {
+                o.set(Outcome::Lost);
+                Ok(())
+            });
+        }
+        {
+            let o = outcome.clone();
+            api!("win", move |_, ()| {
+                o.set(Outcome::Won);
+                Ok(())
+            });
+        }
         // Wall-clock seconds. `t()` is time inside this run; this is time in the
         // world, so a crop can grow while nobody is looking at it.
         api!("now", |_, ()| {
@@ -318,7 +347,7 @@ impl Machine {
             .exec()
             .map_err(|e| tidy(&e.to_string()))?;
 
-        Ok(Machine { lua, screen, input, frame, score, saved, dirty, budget })
+        Ok(Machine { lua, screen, input, frame, score, saved, dirty, outcome, budget })
     }
 
     fn call(&self, name: &str) -> Result<(), String> {
@@ -331,6 +360,9 @@ impl Machine {
     }
 
     pub fn init(&self) -> Result<(), String> {
+        // Starting over is starting over: a cart that restarts itself after a
+        // game over must not still be reported as lost.
+        self.clear_outcome();
         self.call("_init")
     }
 
@@ -357,6 +389,11 @@ impl Machine {
     /// machine, with the same eight colours, not a separate asset pipeline.
     pub fn cover(&self) -> Result<(), String> {
         self.call("_cover")
+    }
+
+    /// Back to Playing, so a cart that restarts itself is not still "lost".
+    pub fn clear_outcome(&self) {
+        self.outcome.set(Outcome::Playing);
     }
 
     pub fn set_held(&self, held: u8) {
@@ -399,6 +436,33 @@ mod tests {
         m.update().unwrap();
         m.draw().unwrap();
         assert_eq!(m.screen.borrow().pget(1, 0), 5, "n should be 2 by draw time");
+    }
+
+    #[test]
+    fn a_cart_can_say_it_lost() {
+        let m = machine(
+            "n = 0\nfunction _update() n = n + 1 if n > 2 then lose() end end\n\
+             function _draw() cls(0) end",
+        );
+        m.init().unwrap();
+        assert_eq!(m.outcome.get(), Outcome::Playing);
+        m.update().unwrap();
+        m.update().unwrap();
+        assert_eq!(m.outcome.get(), Outcome::Playing, "not lost yet");
+        m.update().unwrap();
+        assert_eq!(m.outcome.get(), Outcome::Lost);
+        m.clear_outcome();
+        assert_eq!(m.outcome.get(), Outcome::Playing);
+    }
+
+    #[test]
+    fn a_cart_that_never_says_anything_is_simply_playing() {
+        // Every cart written before `lose()` existed has to keep working.
+        let m = machine("function _draw() cls(0) end");
+        m.init().unwrap();
+        m.update().unwrap();
+        m.draw().unwrap();
+        assert_eq!(m.outcome.get(), Outcome::Playing);
     }
 
     #[test]

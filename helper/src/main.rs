@@ -15,6 +15,7 @@
 mod cart;
 mod console;
 mod make;
+mod mega;
 mod palettes;
 mod png;
 mod sha256;
@@ -50,6 +51,9 @@ fn base64(data: &[u8]) -> String {
 /// Long-lived. One line per frame: `F <base64 png>`; `E <message>` and exit if
 /// the cart dies. Reads `B <bitmask>` on stdin for buttons, `Q` to stop.
 fn cmd_play(id: &str) -> i32 {
+    if id == mega::MEGA_ID {
+        return cmd_play_mega();
+    }
     // `play` prints eleven kilobytes of base64 thirty times a second. Nobody
     // typing it at a prompt wants that, and the fix is one word away.
     if std::io::stdout().is_terminal() {
@@ -186,6 +190,96 @@ fn cmd_play(id: &str) -> i32 {
         }
     }
     flush_save(&cart.id, &machine);
+    0
+}
+
+/// The same protocol as `play`, driving the meta-game instead of one cart.
+fn cmd_play_mega() -> i32 {
+    let mut mega = match mega::Mega::new() {
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("✗ {e}");
+            return 1;
+        }
+    };
+
+    let held = Arc::new(AtomicU8::new(0));
+    let quit = Arc::new(AtomicBool::new(false));
+    let paused = Arc::new(AtomicBool::new(false));
+    let want_theme: Arc<Mutex<Option<String>>> = Arc::new(Mutex::new(None));
+    {
+        let (held, quit, paused, want_theme) =
+            (held.clone(), quit.clone(), paused.clone(), want_theme.clone());
+        std::thread::spawn(move || {
+            let stdin = std::io::stdin();
+            for line in stdin.lock().lines() {
+                let Ok(line) = line else { break };
+                let line = line.trim();
+                if let Some(bits) = line.strip_prefix("B ") {
+                    if let Ok(v) = bits.trim().parse::<u8>() {
+                        held.store(v, Ordering::Relaxed);
+                    }
+                } else if let Some(id) = line.strip_prefix("T ") {
+                    *want_theme.lock().unwrap() = Some(id.trim().to_string());
+                } else if line == "P" {
+                    paused.store(true, Ordering::Relaxed);
+                    held.store(0, Ordering::Relaxed);
+                } else if line == "R" {
+                    paused.store(false, Ordering::Relaxed);
+                } else if line == "Q" {
+                    break;
+                }
+            }
+            quit.store(true, Ordering::Relaxed);
+        });
+    }
+
+    let mut palette = theme::active(shelf::saved_theme().as_deref()).palette;
+    let out = std::io::stdout();
+    let mut out = out.lock();
+
+    let step = Duration::from_micros(1_000_000 / FPS as u64);
+    let mut next = Instant::now();
+    let mut last_score = i64::MIN;
+    while !quit.load(Ordering::Relaxed) {
+        if let Some(id) = want_theme.lock().unwrap().take() {
+            if let Some(t) = theme::get(&id) {
+                palette = t.palette;
+                shelf::set_theme(&id);
+            }
+        }
+        if paused.load(Ordering::Relaxed) {
+            next = Instant::now();
+            std::thread::sleep(Duration::from_millis(120));
+            continue;
+        }
+
+        if let Err(e) = mega.step(held.load(Ordering::Relaxed)) {
+            let _ = writeln!(out, "E {e}");
+            let _ = out.flush();
+            return 1;
+        }
+
+        let frame = mega.out.to_png(&palette);
+        if writeln!(out, "F {}", base64(&frame)).is_err() || out.flush().is_err() {
+            break;
+        }
+        let score = mega.score();
+        if score != last_score {
+            last_score = score;
+            let _ = writeln!(out, "S {score}");
+            let _ = out.flush();
+            shelf::record_score(mega::MEGA_ID, score);
+        }
+
+        next += step;
+        let now = Instant::now();
+        if next > now {
+            std::thread::sleep(next - now);
+        } else {
+            next = now;
+        }
+    }
     0
 }
 
@@ -416,14 +510,9 @@ fn cmd_status() {
                 "body": th.shell.body, "bezel": th.shell.bezel,
                 "text": th.shell.text, "dim": th.shell.dim, "accent": th.shell.accent,
             },
-            "carts": carts.iter().map(|c| serde_json::json!({
-                "id": c.id,
-                "title": c.title,
-                "author": c.author,
-                "about": c.about,
-                "bytes": c.bytes,
-                "best": shelf::best(&c.id),
-            })).collect::<Vec<_>>(),
+            // One shelf for everybody. Building it here by hand is how the
+            // panel ended up without the `draft` flag it reads.
+            "carts": shelf::shelf_json(),
         })
     );
 }
@@ -575,6 +664,10 @@ fn render_cover(cart: &Cart, palette: &theme::Palette) -> Result<Vec<u8>, String
 fn cmd_covers() -> i32 {
     let palette = theme::active(shelf::saved_theme().as_deref()).palette;
     let mut out = serde_json::Map::new();
+    out.insert(
+        mega::MEGA_ID.to_string(),
+        serde_json::Value::String(base64(&mega::Mega::cover().to_png(&palette))),
+    );
     for entry in shelf::list() {
         let Some(path) = shelf::find(&entry.id) else { continue };
         let Ok(cart) = Cart::load(&path) else { continue };
@@ -608,6 +701,20 @@ fn cmd_cover(args: &[String]) -> i32 {
     };
     // A path works as well as a shelf id, so you can look at a cart you are
     // still writing.
+    if id == mega::MEGA_ID {
+        let palette = theme::active(shelf::saved_theme().as_deref()).palette;
+        let out = out.unwrap_or_else(|| format!("{}-cover.png", mega::MEGA_ID));
+        return match std::fs::write(&out, mega::Mega::cover().to_png(&palette)) {
+            Ok(()) => {
+                println!("wrote {out} — {}", mega::MEGA_TITLE);
+                0
+            }
+            Err(e) => {
+                eprintln!("✗ could not write {out}: {e}");
+                1
+            }
+        };
+    }
     let path = shelf::find(&id).unwrap_or_else(|| std::path::PathBuf::from(&id));
     let cart = match Cart::load(&path) {
         Ok(c) => c,
@@ -657,7 +764,7 @@ fn main() {
             0
         }
         "list" => {
-            println!("{}", serde_json::to_string(&shelf::list_json()).unwrap_or_else(|_| "[]".into()));
+            println!("{}", serde_json::to_string(&shelf::shelf_json()).unwrap_or_else(|_| "[]".into()));
             0
         }
         "play" => match rest.first() {

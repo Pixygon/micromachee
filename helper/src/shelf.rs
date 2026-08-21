@@ -88,7 +88,30 @@ pub fn list() -> Vec<Cart> {
         }
     }
     out.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+
     out
+}
+
+/// What a front end shows: the carts on disk, led by the meta-game.
+///
+/// The meta-game is not a file and never will be — there is nothing for a
+/// `mega.lua` to contain — so it is added here rather than given a special case
+/// in every shelf that gets drawn. `list()` itself stays exactly what it says:
+/// the carts that exist.
+pub fn shelf_json() -> Value {
+    let mut carts = vec![json!({
+        "id": crate::mega::MEGA_ID,
+        "title": crate::mega::MEGA_TITLE,
+        "author": "pixygon",
+        "about": crate::mega::MEGA_ABOUT,
+        "bytes": 0,
+        "best": best(crate::mega::MEGA_ID),
+        "draft": false,
+    })];
+    if let Value::Array(rest) = list_json() {
+        carts.extend(rest);
+    }
+    Value::Array(carts)
 }
 
 pub fn list_json() -> Value {

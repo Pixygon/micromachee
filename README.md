@@ -79,6 +79,27 @@ can photograph a game mid-play rather than only its title card.
 That is the whole loop: write, check, look, fix. Three of the four carts here
 were written by an agent working exactly that way.
 
+## Mega Micromachee
+
+The whole shelf, a few seconds at a time. Ten seconds of Pong; survive and you
+move on, fail and it costs a life. Every fifth round the clock loses a second
+and every game runs faster, down to five seconds at 2.5x — the cart you handled
+comfortably at round two is a scramble at round twenty.
+
+It is the first entry on the shelf and there is no `mega.lua`: a cart cannot
+load another cart, and should not be able to. The helper already loads carts and
+runs frames, so the meta-game is a state machine wrapped around what it does
+anyway.
+
+**Speed is more updates, not a bigger step.** Running `_update` twice as often
+makes a game faster while every cart's own arithmetic stays exactly as its
+author wrote it. Scaling a delta would need every cart to have been written in
+terms of one, and none of them were.
+
+The one thing it needed from carts was a way to know you had failed — every
+cart tracked that already, as `alive` or `over` or `dead`, and none of it was
+visible from outside. So carts call **`lose()`** at the point they already knew.
+
 ## The panel
 
 Two states and almost no chrome: the shelf, and a console. Each cart on the

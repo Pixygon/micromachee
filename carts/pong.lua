@@ -83,6 +83,7 @@ function _update()
 
   if bx < -2 then
     sr = sr + 1
+    lose()
     if sr >= TARGET then over = true else launch(1) end
   elseif bx > 130 then
     sl = sl + 1

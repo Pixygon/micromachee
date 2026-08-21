@@ -92,6 +92,7 @@ function _update()
 
   if by > 127 then
     lives = lives - 1
+    lose()
     if lives > 0 then reset_ball() end
   end
 end

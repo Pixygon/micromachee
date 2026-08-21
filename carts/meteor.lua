@@ -72,6 +72,7 @@ function _update()
     elseif r.y + r.h >= SHIPY - 2 and r.y <= SHIPY + 2
        and shipx + 2 >= r.x and shipx - 2 <= r.x + r.w then
       alive = false
+      lose()
     end
   end
 end

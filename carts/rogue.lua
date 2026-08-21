@@ -191,6 +191,7 @@ local function monsters_move()
       if hp <= 0 then
         hp = 0
         over = true
+        lose()
         say("YOU DIE ON DEPTH " .. depth)
         return
       end

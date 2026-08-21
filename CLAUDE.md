@@ -71,7 +71,7 @@ cls(c)  pset(x,y,c)  pget(x,y)
 rect(x,y,w,h,c)  rectb(x,y,w,h,c)  line(x0,y0,x1,y1,c)
 circ(x,y,r,c)  circb(x,y,r,c)  print(text,x,y,c,scale)
 btn(i)  btnp(i)  t()  rnd(n)  flr(n)  mid(lo,v,hi)  score(n)
-save(key,value)  load(key)  now()
+save(key,value)  load(key)  now()  lose()  win()
 ```
 
 That is all of it. There is no sprite sheet and no sound. Lua's `math.*`,
@@ -100,6 +100,11 @@ point.
 - `pget(x,y)` reads the framebuffer back, so you can collide against what you
   drew last frame instead of keeping a parallel model. Very effective for cave,
   tunnel and maze games.
+- **`lose()`** at the moment the player fails — the same line where you already
+  set `alive = false`. It changes nothing in normal play, and it is the only
+  thing that lets **Mega Micromachee** tell whether you survived your few
+  seconds of your game. A cart that never calls it always survives its round.
+  `win()` is the mirror, for a game that can be finished.
 - `save(k,v)` / `load(k)` persist across runs — numbers, strings and booleans
   only. `now()` is wall-clock seconds since 1970, where `t()` is seconds since
   this run began. Together they make time pass while the console is closed:

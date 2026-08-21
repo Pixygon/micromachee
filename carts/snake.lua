@@ -68,6 +68,7 @@ function _update()
 
   if nx < 0 or ny < 0 or nx >= COLS or ny >= ROWS then
     alive = false
+    lose()
     return
   end
   -- The last segment is skipped: it moves out of the way this same step, so
@@ -75,6 +76,7 @@ function _update()
   for i = 1, #snake - 1 do
     if snake[i].x == nx and snake[i].y == ny then
       alive = false
+      lose()
       return
     end
   end

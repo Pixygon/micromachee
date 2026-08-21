@@ -58,6 +58,14 @@ visual bug in the seven above passed one and was caught by looking. See
 [`../CLAUDE.md`](../CLAUDE.md) for how to drive a game `--hold` cannot reach —
 turn-based and menu games need taps, not held buttons.
 
+## They all say when you lost
+
+Each calls `lose()` at the point it already knew — the same line that sets its
+own `alive = false`. It changes nothing in normal play; it is what lets **Mega
+Micromachee** run the whole shelf a few seconds at a time and tell whether you
+got through your turn. `picross.lua` and `farm.lua` have no fail state, so a
+round of either is simply survived.
+
 ## They all draw their own covers
 
 Each has a `_cover()` — the picture the shelf shows and the one that fills the

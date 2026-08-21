@@ -181,6 +181,13 @@ end
 
 function now() return __now() end
 
+-- How the player is doing, for anything wrapping this console. A cart that
+-- never calls either simply keeps playing.
+__outcome = 0   -- 0 playing, 1 lost, 2 won
+
+function lose() __outcome = 1 end
+function win() __outcome = 2 end
+
 
 function mid(a, b, c)
   local lo, hi = a, c
@@ -241,6 +248,7 @@ export async function loadCart(factory, code, { onScore, storage } = {}) {
   const call = (name) => { const f = g.get(name); if (typeof f === "function") f(); };
 
   let held = 0, last = 0, frame = 0;
+  const outcome = () => Number(g.get("__outcome") || 0);
   const sync = () => g.get("__set_input")(held, last, frame);
 
   return {
@@ -248,7 +256,9 @@ export async function loadCart(factory, code, { onScore, storage } = {}) {
     get score() { return score; },
     hasCover: () => has("_cover"),
     setHeld(mask) { held = mask & 0b111111; },
-    init() { sync(); call("_init"); },
+    /// 0 playing, 1 lost, 2 won — what the cart has said about the player.
+    get outcome() { return outcome(); },
+    init() { sync(); g.set("__outcome", 0); call("_init"); },
     update() { sync(); call("_update"); last = held; },
     draw() { sync(); call("_draw"); frame += 1; },
     cover() { sync(); call("_cover"); },

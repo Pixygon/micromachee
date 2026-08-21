@@ -4,6 +4,19 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.12.0] — 2026-08-21
+
+### Added
+- Introduced Mega Micromachee, a meta-game that runs through every cart on the shelf a few seconds at a time. Survive each round to move on, but every fifth round the timer shortens and the games speed up, making later rounds a real scramble. You get three lives and the game tracks how many rounds you've survived.
+- Carts can now call lose() and win() to report whether the player succeeded or failed at the moment it happens. This is what powers Mega Micromachee's pass/fail detection, and all bundled games (breakout, meteor, pong, rogue, snake, tunnel) have been updated to call lose() at their existing fail points.
+
+### Changed
+- The shelf and cart listing now always show Mega Micromachee as the first entry, alongside the regular carts.
+
+### Improved
+- Cover art generation and viewing (covers/cover commands) now support Mega Micromachee, rendering its own generated cover image.
+
+
 ## [0.11.0] — 2026-08-21
 
 ### Added
