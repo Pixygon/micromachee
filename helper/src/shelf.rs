@@ -13,11 +13,26 @@ use serde_json::{json, Value};
 
 use crate::cart::{Cart, MAX_CART_BYTES};
 
-const DEFAULT_CATALOG: &str = "https://pixygontech.b-cdn.net/releases/micromachee/shelf/catalog.json";
+/// The published shelf, at a path that carries this build's version.
+///
+/// The CDN caches for thirty days and there is no purge in the factory, so a
+/// stable url is a url that keeps serving whatever was first uploaded to it —
+/// a republished catalog simply never arrives. Versioned paths are immutable
+/// instead: every release publishes to its own, nothing is ever overwritten,
+/// and an older binary keeps seeing the shelf it shipped with, which is honest
+/// rather than broken.
+const DEFAULT_CATALOG: &str = concat!(
+    "https://pixygontech.b-cdn.net/releases/micromachee/",
+    env!("CARGO_PKG_VERSION"),
+    "/catalog.json"
+);
 
 /// Where the cart files themselves live. Only used when generating a catalog —
 /// `sync` follows whatever url each entry carries.
-pub const DEFAULT_CART_BASE: &str = "https://pixygontech.b-cdn.net/releases/micromachee/shelf";
+pub const DEFAULT_CART_BASE: &str = concat!(
+    "https://pixygontech.b-cdn.net/releases/micromachee/",
+    env!("CARGO_PKG_VERSION")
+);
 
 fn xdg(var: &str, fallback: &str) -> PathBuf {
     std::env::var(var).map(PathBuf::from).unwrap_or_else(|_| {
@@ -203,13 +218,21 @@ pub fn sync() -> i32 {
     let (mut got, mut skipped, mut failed) = (0, 0, 0);
     for entry in carts {
         let Some(id) = entry.get("id").and_then(|v| v.as_str()) else { continue };
-        let Some(cart_url) = entry.get("url").and_then(|v| v.as_str()) else { continue };
         let dest = dir.join(format!("{id}.lua"));
         if dest.exists() {
             skipped += 1;
             continue;
         }
-        match fetch(cart_url) {
+        // A catalog may carry the source inline; if it does there is nothing to
+        // fetch. Older catalogs only have a url, so both still work.
+        let fetched = match entry.get("code").and_then(|v| v.as_str()) {
+            Some(code) => Ok(code.as_bytes().to_vec()),
+            None => match entry.get("url").and_then(|v| v.as_str()) {
+                Some(u) => fetch(u),
+                None => continue,
+            },
+        };
+        match fetched {
             Ok(bytes) => {
                 // The size limit is enforced here too. A catalog is somebody
                 // else's file; it does not get to raise our ceiling.

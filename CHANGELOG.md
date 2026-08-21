@@ -4,6 +4,20 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.10.0] — 2026-08-21
+
+### Added
+- Micromachee now runs entirely in a browser: open web/index.html to browse the shelf and play every cart with a real Lua 5.4 engine, no server or build step needed.
+- A verification tool (web/check.mjs) compares every pixel drawn by the browser player against the official console for all carts, guaranteeing the two renderers stay visually identical.
+
+### Changed
+- Published carts and catalogs now live at versioned URLs instead of a shared 'shelf' path, so each release's content is immutable and never overwritten by CDN caching issues. **(BREAKING)**
+- The catalog now embeds each cart's full Lua source directly, so tools like the browser player and sync can fetch everything from one file instead of one request per cart.
+
+### Improved
+- The publish script now verifies uploaded files by comparing actual byte content rather than just HTTP status codes, catching stale CDN caches that would otherwise silently serve outdated carts.
+
+
 ## [0.9.0] — 2026-08-21
 
 ### Added

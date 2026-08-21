@@ -1,0 +1,12 @@
+{
+  "name": "micromachee-web",
+  "private": true,
+  "type": "module",
+  "description": "The console, in a browser. See check.mjs for how it is kept honest.",
+  "dependencies": {
+    "wasmoon": "^1.16.0"
+  },
+  "scripts": {
+    "check": "node check.mjs"
+  }
+}

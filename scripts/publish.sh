@@ -54,10 +54,16 @@ bin="$here/helper/target/release/omarchy-micromachee"
 # segments is not a shorter version of it, it is a 404, which is what publishing
 # to `releases/micromachee/` gets you. `shelf` is the channel: a fixed name, not
 # a version, so the catalog url stays put across releases.
-remote="${MICROMACHEE_REMOTE:-releases/micromachee/shelf}"
+# Versioned, and never reused: the CDN caches for thirty days with no purge
+# available, so publishing twice to one path means the second time is invisible.
+version="$(sed -n '/^\[package\]/,/^\[dependencies\]/ s/^version = "\(.*\)"/\1/p' helper/Cargo.toml | head -1)"
+[ -n "$version" ] || { echo "✗ could not read the version from helper/Cargo.toml" >&2; exit 1; }
+# The release API's route is <slug>/<channel>/<file> — exactly three segments,
+# so the version IS the channel. A fourth segment is a 404, not a subfolder.
+remote="${MICROMACHEE_REMOTE:-releases/micromachee/$version}"
 cdn="https://pixygontech.b-cdn.net/$remote"
 
-echo "regenerating catalog for $cdn"
+echo "publishing $version to $cdn"
 "$bin" catalog --base "$cdn" >/dev/null
 
 carts=(carts/*.lua)
@@ -95,17 +101,24 @@ if [ "$failed" != 0 ]; then
 fi
 
 # ── prove it, rather than assume it ─────────────────────────────────────────
+# Compare BYTES, not status codes. A stale edge-cached file answers 200 just as
+# cheerfully as a fresh one, which is exactly how a republished catalog went
+# unnoticed for a whole afternoon.
 echo "checking what is actually served"
 sleep 3
 bad=0
+same() { # same <url> <local-file>
+  local got want
+  got="$(curl -sS --max-time 30 "$1" | sha256sum | cut -d" " -f1)"
+  want="$(sha256sum < "$2" | cut -d" " -f1)"
+  [ "$got" = "$want" ]
+}
 for f in "${carts[@]}"; do
   name="$(basename "$f")"
-  code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$cdn/$name")"
-  [ "$code" = 200 ] || { echo "  ✗ $name → HTTP $code"; bad=1; }
+  same "$cdn/$name" "$f" || { echo "  ✗ $name is not what we uploaded"; bad=1; }
 done
-code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$cdn/catalog.json")"
-[ "$code" = 200 ] || { echo "  ✗ catalog.json → HTTP $code"; bad=1; }
-[ "$bad" = 0 ] && echo "  ✓ all $(( ${#carts[@]} + 1 )) files are live"
+same "$cdn/catalog.json" catalog.json || { echo "  ✗ catalog.json is not what we uploaded"; bad=1; }
+[ "$bad" = 0 ] && echo "  ✓ all $(( ${#carts[@]} + 1 )) files are live and are the bytes we sent"
 
 echo
 echo "now try it the way a stranger would, into an empty shelf:"

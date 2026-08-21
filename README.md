@@ -125,6 +125,30 @@ with anyone else is `scripts/publish.sh`, which is a separate, deliberate act.
 It needs Anthropic credentials: `ANTHROPIC_API_KEY`, or an `ant auth login`
 profile. Without either, the panel says so rather than failing quietly.
 
+## In a browser
+
+`web/` is the whole console again, in JavaScript: it fetches the published
+catalog, runs the carts with real Lua 5.4 (wasmoon, the same version the helper
+embeds) and draws to a canvas. No server, no build step — open `web/index.html`
+from any static host.
+
+A second implementation of a renderer is a liability unless something checks it,
+and "looks right" is not a check at 128x128:
+
+```bash
+cd web && npm install && node check.mjs
+```
+
+That runs every cart to the same frame in the browser console and in the real
+helper and compares **all 16384 pixels**. It reports the first coordinate that
+differs and both colour indexes, because that is what tells you which primitive
+is wrong. All seven carts are identical at frames 1, 90, 300, 600 and 900, with
+and without buttons held.
+
+Nothing is copied by hand: `web/console-data.js` — the font, the palettes and
+the catalog url — is generated from the Rust source by a test that fails if the
+committed copy is stale.
+
 ## Playing without installing
 
 The bar widget is one front end. `play` is a protocol — one base64 PNG per line

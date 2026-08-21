@@ -1,0 +1,288 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Micromachee</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="A tiny 8-bit fantasy console. 128x128, eight colours, one Lua file per game.">
+
+<style>
+  :root { --body: #101014; --ink: #e8e8ee; --dim: #8a8a99; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--body); color: var(--ink);
+    font: 14px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 24px 16px 48px; min-height: 100vh;
+  }
+  h1 { font-size: 20px; letter-spacing: 3px; margin: 0 0 2px; font-weight: 600; }
+  .sub { color: var(--dim); margin-bottom: 22px; text-align: center; }
+  .hidden { display: none !important; }
+
+  /* ── the shelf ───────────────────────────────────────────────────────── */
+  #shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+           gap: 14px; width: 100%; max-width: 620px; }
+  .cart { background: none; border: 1px solid #2a2a34; border-radius: 8px; padding: 8px;
+          cursor: pointer; color: inherit; font: inherit; text-align: left; }
+  .cart:hover { border-color: #4a4a5c; background: #16161c; }
+  .cart canvas { width: 100%; image-rendering: pixelated; border-radius: 4px; display: block; }
+  .cart .name { margin-top: 6px; font-weight: 600; }
+  .cart .about { color: var(--dim); font-size: 12px; line-height: 1.35;
+                 overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ── the console ─────────────────────────────────────────────────────── */
+  #deck { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  #body { background: #1c1c24; border-radius: 14px; padding: 14px; }
+  #bezel { background: #000; border-radius: 8px; padding: 6px; line-height: 0; }
+  canvas#screen { image-rendering: pixelated; display: block; }
+
+  #pad { display: flex; align-items: center; justify-content: space-between;
+         width: 100%; margin-top: 12px; gap: 12px; }
+  .dpad { display: grid; grid-template-columns: repeat(3, 34px); grid-template-rows: repeat(3, 34px); gap: 3px; }
+  .key { background: #33333f; color: #0d0d12; border: none; border-radius: 5px;
+         font: 600 13px/1 ui-monospace, monospace; cursor: pointer; user-select: none;
+         -webkit-user-select: none; touch-action: none; }
+  .key.down { background: #ff004d; }
+  .round { width: 44px; height: 44px; border-radius: 50%; font-size: 16px; }
+  .roundwrap { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .roundwrap small { color: var(--dim); font-size: 11px; }
+  .brand { color: #55556a; letter-spacing: 3px; font-size: 11px; }
+
+  #meta { display: flex; justify-content: space-between; width: 100%;
+          max-width: 420px; color: var(--dim); font-size: 13px; }
+  #meta b { color: var(--ink); font-weight: 600; }
+  #hint { color: var(--dim); font-size: 12px; text-align: center; }
+  #start { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
+           background: rgba(0,0,0,.75); border: 1px solid #ff004d; border-radius: 20px;
+           padding: 5px 14px; font-size: 12px; animation: blink 1.3s infinite; }
+  @keyframes blink { 0%,100% { opacity: 1 } 50% { opacity: .45 } }
+  #screenwrap { position: relative; }
+
+  button.plain { background: none; border: 1px solid #2a2a34; color: var(--dim);
+                 border-radius: 6px; padding: 5px 12px; cursor: pointer; font: inherit; }
+  button.plain:hover { color: var(--ink); border-color: #4a4a5c; }
+  #topbar { display: flex; gap: 8px; margin-bottom: 18px; }
+  #err { color: #ff6a86; max-width: 520px; text-align: center; }
+</style>
+
+<h1>MICROMACHEE</h1>
+<div class="sub">128&times;128 · eight colours · one Lua file per game</div>
+
+<div id="topbar">
+  <button class="plain" id="theme">theme: micromachee</button>
+  <button class="plain hidden" id="back">← shelf</button>
+</div>
+
+<div id="err"></div>
+<div id="shelf"></div>
+
+<div id="deck" class="hidden">
+  <div id="body">
+    <div id="screenwrap">
+      <div id="bezel"><canvas id="screen" width="128" height="128"></canvas></div>
+      <div id="start" class="hidden">PRESS X TO START</div>
+    </div>
+    <div id="pad">
+      <div class="dpad">
+        <span></span><button class="key" data-bit="2">W</button><span></span>
+        <button class="key" data-bit="0">A</button><span></span><button class="key" data-bit="1">D</button>
+        <span></span><button class="key" data-bit="3">S</button><span></span>
+      </div>
+      <div class="brand">MICROMACHEE</div>
+      <div style="display:flex; gap:10px">
+        <div class="roundwrap"><button class="key round" data-bit="4">O</button><small>Z</small></div>
+        <div class="roundwrap"><button class="key round" data-bit="5">X</button><small>X</small></div>
+      </div>
+    </div>
+  </div>
+  <div id="meta"><span id="title"></span><span>SCORE <b id="score">0</b></span></div>
+  <div id="hint">arrows or WASD · Z and X · Esc for the shelf</div>
+</div>
+
+<script src="./vendor/wasmoon.js"></script>
+<script type="module">
+import { loadCart, blit, THEMES, W, H } from "./micromachee.js";
+// One request for the whole shelf: the catalog carries each cart's source, and
+// .json is the only thing the CDN sends CORS headers for anyway. The url is
+// generated from the helper, so the page always asks for a shelf that exists.
+import { CATALOG } from "./console-data.js";
+const FPS = 30;
+
+const $ = (id) => document.getElementById(id);
+const factory = new window.wasmoon.LuaFactory("./vendor/glue.wasm");
+
+let themeIds = Object.keys(THEMES);
+let theme = themeIds[0];
+let carts = [];
+let running = null;      // the cart being played
+let armed = null;        // chosen, waiting for X
+let held = 0;
+let timer = null;
+
+const palette = () => THEMES[theme];
+
+// ── the shelf ──────────────────────────────────────────────────────────────
+async function buildShelf() {
+  let list;
+  try {
+    list = await (await fetch(CATALOG)).json();
+  } catch (e) {
+    $("err").textContent = "could not reach the shelf: " + e.message;
+    return;
+  }
+  carts = list.carts || [];
+  $("shelf").innerHTML = "";
+  for (const entry of carts) {
+    const el = document.createElement("button");
+    el.className = "cart";
+    el.innerHTML = `<canvas width="${W}" height="${H}"></canvas>
+                    <div class="name"></div><div class="about"></div>`;
+    el.querySelector(".name").textContent = entry.title;
+    el.querySelector(".about").textContent = entry.about || ("by " + entry.author);
+    el.onclick = () => choose(entry);
+    $("shelf").appendChild(el);
+    entry._canvas = el.querySelector("canvas");
+    drawCover(entry);   // fetched and drawn per cart, so one slow one blocks nothing
+  }
+}
+
+/// The cover is drawn by running the cart's own `_cover()` — the same thing the
+/// console does, because it is the same console.
+async function drawCover(entry) {
+  try {
+    const cart = await loadCart(factory, entry.code);
+    cart.init();
+    if (cart.hasCover()) cart.cover();
+    else for (let i = 0; i < 45; i++) { cart.update(); cart.draw(); }
+    blit(cart.screen, entry._canvas.getContext("2d"), palette(), 1);
+    cart.close();
+  } catch (e) {
+    /* a cart that will not load simply has no picture */
+  }
+}
+
+// ── playing ────────────────────────────────────────────────────────────────
+async function choose(entry) {
+  stop();
+  $("err").textContent = "";
+  $("shelf").classList.add("hidden");
+  $("deck").classList.remove("hidden");
+  $("back").classList.remove("hidden");
+  $("title").textContent = entry.title;
+  $("score").textContent = "0";
+  fitScreen();
+
+  const cart = await loadCart(factory, entry.code, {
+    onScore: (n) => ($("score").textContent = String(n)),
+  });
+  cart.init();
+  if (cart.hasCover()) cart.cover();
+  else cart.draw();
+  paint(cart);
+  armed = { entry, cart };
+  $("start").classList.remove("hidden");
+}
+
+function start() {
+  if (!armed) return;
+  $("start").classList.add("hidden");
+  // A fresh engine, so a cover drawn from `_init` never leaks into the game.
+  const { entry } = armed;
+  armed.cart.close();
+  armed = null;
+  loadCart(factory, entry.code, { onScore: (n) => ($("score").textContent = String(n)) })
+    .then((cart) => {
+      running = cart;
+      cart.init();
+      timer = setInterval(() => {
+        cart.setHeld(held);
+        try { cart.update(); cart.draw(); }
+        catch (e) { $("err").textContent = String(e.message || e); stop(); return; }
+        paint(cart);
+      }, 1000 / FPS);
+    });
+}
+
+function stop() {
+  if (timer) { clearInterval(timer); timer = null; }
+  if (running) { running.close(); running = null; }
+  if (armed) { armed.cart.close(); armed = null; }
+  held = 0;
+  paintKeys();
+}
+
+function toShelf() {
+  stop();
+  $("deck").classList.add("hidden");
+  $("back").classList.add("hidden");
+  $("shelf").classList.remove("hidden");
+  $("start").classList.add("hidden");
+}
+
+function paint(cart) {
+  blit(cart.screen, $("screen").getContext("2d"), palette(), 1);
+}
+
+/// One console pixel is a whole number of screen pixels, always: at a
+/// fractional scale some pixels are wider than others and the screen shimmers.
+function fitScreen() {
+  const room = Math.min(window.innerWidth - 80, 420);
+  const scale = Math.max(1, Math.floor(room / W));
+  const c = $("screen");
+  c.style.width = W * scale + "px";
+  c.style.height = H * scale + "px";
+}
+
+// ── buttons ────────────────────────────────────────────────────────────────
+const KEYS = {
+  ArrowLeft: 0, a: 0, A: 0, ArrowRight: 1, d: 1, D: 1,
+  ArrowUp: 2, w: 2, W: 2, ArrowDown: 3, s: 3, S: 3,
+  z: 4, Z: 4, " ": 4, x: 5, X: 5,
+};
+
+function paintKeys() {
+  for (const el of document.querySelectorAll(".key")) {
+    el.classList.toggle("down", (held & (1 << Number(el.dataset.bit))) !== 0);
+  }
+}
+
+function setBit(bit, down) {
+  const next = down ? held | (1 << bit) : held & ~(1 << bit);
+  if (next === held) return;
+  held = next;
+  paintKeys();
+  if (armed && down && bit === 5) start();
+}
+
+addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { toShelf(); return; }
+  const bit = KEYS[e.key];
+  if (bit === undefined) return;
+  e.preventDefault();
+  setBit(bit, true);
+});
+addEventListener("keyup", (e) => {
+  const bit = KEYS[e.key];
+  if (bit !== undefined) { e.preventDefault(); setBit(bit, false); }
+});
+
+for (const el of document.querySelectorAll(".key")) {
+  const bit = Number(el.dataset.bit);
+  const down = (e) => { e.preventDefault(); setBit(bit, true); };
+  const up = (e) => { e.preventDefault(); setBit(bit, false); };
+  el.addEventListener("pointerdown", down);
+  el.addEventListener("pointerup", up);
+  el.addEventListener("pointerleave", up);
+  el.addEventListener("pointercancel", up);
+}
+
+$("back").onclick = toShelf;
+$("theme").onclick = () => {
+  theme = themeIds[(themeIds.indexOf(theme) + 1) % themeIds.length];
+  $("theme").textContent = "theme: " + theme;
+  for (const entry of carts) if (entry._canvas) drawCover(entry);
+  if (running) paint(running);
+  else if (armed) paint(armed.cart);
+};
+addEventListener("resize", fitScreen);
+
+buildShelf();
+</script>

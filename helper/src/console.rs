@@ -199,6 +199,19 @@ impl Screen {
     }
 }
 
+/// Every character the font can draw. The web player exports its font from
+/// this, so the two renderers cannot drift apart. Test-only: the export runs
+/// from a test, and the console itself asks `glyph` directly.
+#[cfg(test)]
+pub const PRINTABLE: &str =
+    " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.,:;!?-_+=*/\\'\"()[]<>%#@&^";
+
+/// The font as data: each drawable character with its five rows of three bits.
+#[cfg(test)]
+pub fn font_table() -> Vec<(char, [u8; 5])> {
+    PRINTABLE.chars().filter_map(|c| glyph(c).map(|rows| (c, rows))).collect()
+}
+
 /// Whether `print` would draw this character rather than skip it. The cart
 /// rules check titles against this, so a name the menu cannot draw is refused
 /// at load rather than showing up as a gap on screen.

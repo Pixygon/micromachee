@@ -468,6 +468,11 @@ fn cmd_catalog(args: &[String]) -> i32 {
             "bytes": cart.bytes,
             "sha256": sha256::hex(text.as_bytes()),
             "url": format!("{base}/{id}.lua"),
+            // The source travels inside the catalog as well as beside it. The
+            // CDN only sends CORS headers for .json, so a browser can read this
+            // file and nothing else — and one request for the whole shelf beats
+            // one per cart anyway.
+            "code": text,
         }));
     }
 
