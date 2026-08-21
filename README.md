@@ -298,6 +298,15 @@ scripts/publish.sh --dry-run # what would go up, and where
 scripts/publish.sh           # upload the carts and the catalog, then check
 ```
 
+Shipping bumps the version, and the catalog url, the web player's data and the
+binary pin are all keyed to it. `scripts/release.sh` does all three in order and
+verifies each, because any one of them missed leaves a release that looks fine
+and is broken in a way only the next person to install it discovers:
+
+```bash
+pearl ship && scripts/release.sh
+```
+
 `catalog.json` is **generated**, never hand-edited: the hand-kept one went stale
 the moment a cart was added, listing four of seven with byte counts for versions
 that no longer existed. `publish.sh` regenerates it from the very carts it is
