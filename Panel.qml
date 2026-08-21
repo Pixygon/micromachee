@@ -40,6 +40,11 @@ Panel {
   readonly property int screenInset: Style.space(7)
   readonly property int consoleWidth: 128 * pixelSize + screenInset * 2
 
+  // True while a text field has the keyboard. The panel's letter shortcuts have
+  // to stand down, or typing a game called "Retro" cycles the theme twice.
+  readonly property bool typing: nameField.activeFocus || promptField.activeFocus
+                                 || reviseField.activeFocus
+
   readonly property string glyph: "▦"
   readonly property string barLabel: mm.carts.length > 0 ? glyph + " " + mm.carts.length : glyph
 
@@ -103,7 +108,8 @@ Panel {
       // Escape steps back one level at a time: out of a game to the shelf, off
       // a chosen cart back to the shelf, and only then out of the panel.
       onCloseRequested: {
-        if (mm.playing) mm.stop()
+        if (mm.creating) mm.closeCreate()
+        else if (mm.playing) mm.stop()
         else if (mm.arming) mm.disarm()
         else root.close()
       }
@@ -111,12 +117,14 @@ Panel {
       // T cycles the colour mode. It works on the shelf and mid-game, and a
       // running cart is restarted so the change is visible at once.
       onTextKey: function(ch) {
+        if (root.typing) return
         if (ch === "t" || ch === "T") mm.nextTheme()
       }
 
       // The controller. Arrows or WASD, z and x — held, not typed, so a game
       // sees a button going down and coming up rather than a key repeat.
       Keys.onPressed: function(event) {
+        if (root.typing) return
         // On the cover, X is the only button that does anything: it starts.
         if (mm.arming) {
           if (event.key === Qt.Key_X) { mm.startArmed(); event.accepted = true }
@@ -413,6 +421,134 @@ Panel {
           horizontalAlignment: Text.AlignHCenter
         }
 
+        // ── a game you made ─────────────────────────────────────────────
+        // Only on the cover, not mid-play: this is where you look at it and
+        // decide, rather than something to fumble at while it is running.
+        Column {
+          visible: mm.arming && mm.isDraft(mm.armedId)
+          width: parent.width
+          spacing: Style.space(6)
+
+          Text {
+            width: parent.width
+            text: "Not on the shelf yet. Say what to change, or keep it."
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            wrapMode: Text.WordWrap
+          }
+
+          Rectangle {
+            width: parent.width
+            height: Style.space(26)
+            radius: Style.cornerRadius
+            color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+            border.width: reviseField.activeFocus ? 1 : 0
+            border.color: mm.shellAccent
+
+            TextInput {
+              id: reviseField
+              anchors.fill: parent
+              anchors.leftMargin: Style.space(8)
+              anchors.rightMargin: Style.space(8)
+              verticalAlignment: TextInput.AlignVCenter
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              selectByMouse: true
+              enabled: !mm.working
+              onAccepted: if (text !== "") { mm.revise(mm.armedId, text); text = "" }
+
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: reviseField.text === ""
+                text: mm.working && mm.makeStatus !== "" ? mm.makeStatus : "make it harder"
+                color: root.dim
+                font: reviseField.font
+              }
+            }
+          }
+
+          RowLayout {
+            width: parent.width
+            spacing: Style.space(6)
+
+            Rectangle {
+              Layout.fillWidth: true
+              height: Style.space(26)
+              radius: Style.cornerRadius
+              color: "transparent"
+              border.width: 1
+              border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.25)
+              opacity: (!mm.working && reviseField.text !== "") ? 1 : 0.4
+
+              Text {
+                anchors.centerIn: parent
+                text: "CHANGE IT"
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                enabled: !mm.working && reviseField.text !== ""
+                cursorShape: Qt.PointingHandCursor
+                onClicked: { mm.revise(mm.armedId, reviseField.text); reviseField.text = "" }
+              }
+            }
+
+            Rectangle {
+              Layout.fillWidth: true
+              height: Style.space(26)
+              radius: Style.cornerRadius
+              color: mm.shellAccent
+              opacity: mm.working ? 0.4 : 1
+
+              Text {
+                anchors.centerIn: parent
+                text: "KEEP IT"
+                color: mm.shellBezel
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                font.bold: true
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                enabled: !mm.working
+                cursorShape: Qt.PointingHandCursor
+                onClicked: mm.publishDraft(mm.armedId)
+              }
+            }
+
+            Rectangle {
+              width: Style.space(30)
+              height: Style.space(26)
+              radius: Style.cornerRadius
+              color: "transparent"
+              border.width: 1
+              border.color: Qt.rgba(root.urgent.r, root.urgent.g, root.urgent.b, 0.45)
+              opacity: mm.working ? 0.4 : 1
+
+              Text {
+                anchors.centerIn: parent
+                text: "✕"
+                color: root.urgent
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                enabled: !mm.working
+                cursorShape: Qt.PointingHandCursor
+                onClicked: mm.discardDraft(mm.armedId)
+              }
+            }
+          }
+        }
+
         // ── the shelf ───────────────────────────────────────────────────
         PanelHero {
           visible: !mm.playing && !mm.arming
@@ -498,6 +634,170 @@ Panel {
           wrapMode: Text.WordWrap
         }
 
+        // ── make one ────────────────────────────────────────────────────
+        Rectangle {
+          visible: !mm.playing && !mm.arming && !mm.creating && mm.installed
+          width: parent.width
+          height: Style.space(30)
+          radius: Style.cornerRadius
+          color: makeHover.containsMouse
+            ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.13)
+            : "transparent"
+          border.width: 1
+          border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.25)
+
+          Text {
+            anchors.centerIn: parent
+            text: "+  MAKE A GAME"
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+          }
+
+          MouseArea {
+            id: makeHover
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+              mm.openCreate()
+              Qt.callLater(function() { nameField.forceActiveFocus() })
+            }
+          }
+        }
+
+        Column {
+          visible: mm.creating
+          width: parent.width
+          spacing: Style.space(8)
+
+          Text {
+            width: parent.width
+            text: "Say what the game is. It gets written, checked, and if it does "
+                  + "not run it gets fixed and checked again."
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+            wrapMode: Text.WordWrap
+          }
+
+          Rectangle {
+            width: parent.width
+            height: Style.space(26)
+            radius: Style.cornerRadius
+            color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+            border.width: nameField.activeFocus ? 1 : 0
+            border.color: mm.shellAccent
+
+            TextInput {
+              id: nameField
+              anchors.fill: parent
+              anchors.leftMargin: Style.space(8)
+              anchors.rightMargin: Style.space(8)
+              verticalAlignment: TextInput.AlignVCenter
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              selectByMouse: true
+              enabled: !mm.working
+              maximumLength: 24
+              onAccepted: promptField.forceActiveFocus()
+
+              Text {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: nameField.text === ""
+                text: "name"
+                color: root.dim
+                font: nameField.font
+              }
+            }
+          }
+
+          Rectangle {
+            width: parent.width
+            height: Style.space(58)
+            radius: Style.cornerRadius
+            color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+            border.width: promptField.activeFocus ? 1 : 0
+            border.color: mm.shellAccent
+
+            TextEdit {
+              id: promptField
+              anchors.fill: parent
+              anchors.margins: Style.space(8)
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+              selectByMouse: true
+              enabled: !mm.working
+              wrapMode: TextEdit.Wrap
+
+              Text {
+                visible: promptField.text === ""
+                text: "a snake that speeds up as it eats"
+                color: root.dim
+                font: promptField.font
+              }
+            }
+          }
+
+          RowLayout {
+            width: parent.width
+            spacing: Style.space(8)
+
+            Rectangle {
+              Layout.fillWidth: true
+              height: Style.space(28)
+              radius: Style.cornerRadius
+              color: mm.working
+                ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.10)
+                : mm.shellAccent
+              opacity: (nameField.text !== "" && promptField.text !== "") || mm.working ? 1 : 0.4
+
+              Text {
+                anchors.centerIn: parent
+                text: mm.working ? (mm.makeStatus !== "" ? mm.makeStatus.toUpperCase() : "WORKING")
+                                 : "MAKE IT"
+                color: mm.working ? root.foreground : mm.shellBezel
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+                font.bold: !mm.working
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                enabled: !mm.working && nameField.text !== "" && promptField.text !== ""
+                cursorShape: Qt.PointingHandCursor
+                onClicked: mm.make(nameField.text, promptField.text)
+              }
+            }
+
+            Rectangle {
+              width: Style.space(64)
+              height: Style.space(28)
+              radius: Style.cornerRadius
+              color: "transparent"
+              border.width: 1
+              border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.25)
+
+              Text {
+                anchors.centerIn: parent
+                text: "CANCEL"
+                color: root.dim
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.bodySmall
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                enabled: !mm.working
+                cursorShape: Qt.PointingHandCursor
+                onClicked: mm.closeCreate()
+              }
+            }
+          }
+        }
+
         Repeater {
           model: (mm.playing || mm.arming) ? [] : mm.carts
           delegate: Item {
@@ -564,8 +864,10 @@ Panel {
               }
               Text {
                 width: parent.width
-                text: modelData.about !== "" ? modelData.about : ("by " + modelData.author)
-                color: root.dim
+                text: modelData.draft === true
+                  ? "draft — not kept yet"
+                  : (modelData.about !== "" ? modelData.about : ("by " + modelData.author))
+                color: modelData.draft === true ? mm.shellAccent : root.dim
                 font.family: root.fontFamily
                 font.pixelSize: Style.font.bodySmall
                 elide: Text.ElideRight

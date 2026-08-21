@@ -182,6 +182,17 @@ stray `-1` is `7`.
 - **Restart on a button, not a timer.** `if btnp(4) then _init() end` in
   `_update` when dead is the convention all the shipped carts use.
 
+## The rules are also the generator's contract
+
+`micromachee make "<name>" "<what it is>"` has Claude write a cart from
+`helper/src/cart-rules.md` — a tighter restatement of this document, aimed at a
+model rather than a person. It is embedded in the binary and covered by a test
+that fails if the essentials go missing.
+
+**If you change the API or the limits, change that file too.** The generator
+depends on it being true, and a rule that is documented here but absent there
+produces carts that fail validation for reasons nobody can see.
+
 ## Verify it, then look at it
 
 ```bash

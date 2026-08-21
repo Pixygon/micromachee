@@ -4,6 +4,20 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.9.0] — 2026-08-21
+
+### Added
+- You can now generate a whole new game from a sentence: use "+ MAKE A GAME" in the panel or `micromachee make "<name>" "<what it is>"` on the command line. Claude writes a cart, checks that it actually loads and survives play, and automatically fixes and re-checks it if it doesn't — what comes back is playable right away.
+- New games start as drafts you can play immediately without publishing. Revise them with a follow-up instruction ("make it harder"), keep them to add them to your shelf, or discard them — all from the panel or via `micromachee revise/publish/discard`.
+- Generating a game requires Anthropic credentials (an API key or an `ant auth login` profile); the panel now tells you clearly if none are configured instead of failing silently. Nothing you make leaves your machine unless you explicitly publish it with the separate sharing script.
+
+### Improved
+- The panel now shows a clear status message while a game is being generated or revised, and reports what went wrong if generation fails.
+
+### Fixed
+- Typing in a name, prompt, or revision text field no longer triggers panel keyboard shortcuts (like the theme-cycling "T" key) as you type.
+
+
 ## [0.8.0] — 2026-08-21
 
 ### Added

@@ -12,6 +12,10 @@ PLAYING
 
 MAKING A GAME
   micromachee new "<name>"    write a starting cart that already plays
+  micromachee make "<name>" "<what it is>"   have Claude write one
+  micromachee revise <id> "<change>"         change one it wrote
+  micromachee publish <id>    move a draft onto the shelf
+  micromachee discard <id>    throw a draft away
   micromachee check <file>    does it load, and survive a minute of play?
   micromachee cover <id|file> [-o out.png]   look at its cover
   micromachee shot <file> [--frames N] [--hold 2,4] [-o out.png]

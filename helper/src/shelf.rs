@@ -47,6 +47,10 @@ pub fn catalog_url() -> String {
 fn search_paths() -> Vec<PathBuf> {
     let mut v = vec![PathBuf::from("carts")];
     v.push(carts_dir());
+    // Drafts are ordinary carts in a different folder. Looking here means a
+    // just-made game is playable with no publishing step and nothing special
+    // anywhere in the player.
+    v.push(crate::make::drafts_dir());
     v
 }
 
@@ -78,8 +82,16 @@ pub fn list_json() -> Value {
         .map(|c| json!({
             "id": c.id, "title": c.title, "author": c.author,
             "about": c.about, "bytes": c.bytes, "best": best(&c.id),
+            // A draft is playable like anything else; the shelf just says so,
+            // and offers to publish or throw it away.
+            "draft": is_draft(&c.id),
         }))
         .collect::<Vec<_>>())
+}
+
+/// Whether this cart is still a draft — made here and not yet put on the shelf.
+pub fn is_draft(id: &str) -> bool {
+    crate::make::drafts_dir().join(format!("{id}.lua")).exists()
 }
 
 pub fn find(id: &str) -> Option<PathBuf> {

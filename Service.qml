@@ -52,8 +52,21 @@ Item {
   property string armedId: ""
   property string armedTitle: ""
 
+  // Making a game. `makeStatus` is the helper's last progress line, shown while
+  // a request that takes tens of seconds is in flight.
+  property bool creating: false
+  property bool working: false
+  property string makeStatus: ""
+  property string madeId: ""
+
   readonly property bool playing: playingId !== ""
   readonly property bool arming: armedId !== "" && playingId === ""
+
+  function isDraft(id) {
+    for (var i = 0; i < carts.length; i++)
+      if (carts[i].id === id) return carts[i].draft === true
+    return false
+  }
 
   function coverFor(id) {
     return covers && covers[id] !== undefined ? covers[id] : ""
@@ -63,6 +76,55 @@ Item {
   // Button bits: 0 left, 1 right, 2 up, 3 down, 4 O, 5 X — the same order the
   // helper and every cart use.
   property int held: 0
+
+  function openCreate() {
+    creating = true
+    makeStatus = ""
+    lastError = ""
+    disarm()
+    stop()
+  }
+
+  function closeCreate() {
+    creating = false
+    makeStatus = ""
+  }
+
+  // Both making and revising speak the same little protocol on stdout:
+  //   P <what is happening>   D <draft id, done>   E <what went wrong>
+  function make(name, prompt) {
+    if (working) return
+    working = true
+    madeId = ""
+    lastError = ""
+    makeStatus = "starting"
+    makeProcess.command = [bin, "make", String(name), String(prompt)]
+    makeProcess.running = true
+  }
+
+  function revise(id, prompt) {
+    if (working) return
+    working = true
+    lastError = ""
+    makeStatus = "starting"
+    makeProcess.command = [bin, "revise", String(id), String(prompt)]
+    makeProcess.running = true
+  }
+
+  function publishDraft(id) {
+    if (working) return
+    working = true
+    actProcess.command = [bin, "publish", String(id)]
+    actProcess.running = true
+  }
+
+  function discardDraft(id) {
+    if (working) return
+    working = true
+    disarm()
+    actProcess.command = [bin, "discard", String(id)]
+    actProcess.running = true
+  }
 
   function loadCovers() {
     if (coversProcess.running) return
@@ -190,6 +252,60 @@ Item {
         root.stop()
         root.play(id, title)
       }
+    }
+  }
+
+  Process {
+    id: makeProcess
+    running: false
+    command: []
+    // Line by line, because the whole point is showing progress during a wait.
+    stdout: SplitParser {
+      onRead: function(line) {
+        var s = String(line)
+        if (s.length < 2) return
+        var kind = s.charAt(0)
+        if (kind === "P") root.makeStatus = s.substring(2)
+        else if (kind === "D") root.madeId = s.substring(2)
+        else if (kind === "E") root.lastError = s.substring(2)
+      }
+    }
+    stderr: StdioCollector { id: makeErr; waitForEnd: true }
+    onExited: function(exitCode) {
+      root.working = false
+      if (exitCode !== 0 && root.lastError === "") {
+        var err = String(makeErr.text || "").trim()
+        var lines = err.split("\n").filter(function(l) { return l.trim() !== "" })
+        root.lastError = lines.length ? lines[lines.length - 1].replace(/^✗ /, "") : "that did not work"
+      }
+      root.makeStatus = ""
+      root.refresh()
+      root.loadCovers()
+      // A game that came out works: show it, with its cover, ready to start.
+      if (exitCode === 0 && root.madeId !== "") {
+        root.closeCreate()
+        for (var i = 0; i < root.carts.length; i++)
+          if (root.carts[i].id === root.madeId) root.arm(root.madeId, root.carts[i].title)
+        if (root.armedId === "") root.arm(root.madeId, root.madeId)
+      }
+    }
+  }
+
+  Process {
+    id: actProcess
+    running: false
+    command: []
+    stdout: StdioCollector { id: actOut; waitForEnd: true }
+    stderr: StdioCollector { id: actErr; waitForEnd: true }
+    onExited: function(exitCode) {
+      root.working = false
+      if (exitCode !== 0) {
+        var err = String(actErr.text || "").trim()
+        var lines = err.split("\n").filter(function(l) { return l.trim() !== "" })
+        root.lastError = lines.length ? lines[lines.length - 1].replace(/^✗ /, "") : "that did not work"
+      }
+      root.refresh()
+      root.loadCovers()
     }
   }
 

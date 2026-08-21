@@ -96,6 +96,35 @@ Covers are drawn by the cart, in `_cover()`, on the same screen with the same
 eight colours — see [CLAUDE.md](CLAUDE.md). A cart without one gets a frame of
 itself being played.
 
+## Making a game from a sentence
+
+On the shelf: **+ MAKE A GAME**. Give it a name and a sentence, and a cart gets
+written, checked, and — if it does not run — fixed and checked again. What comes
+back is playable immediately; it sits as a **draft** until you keep it.
+
+```bash
+micromachee make "Space Rocks" "dodge falling rocks, faster over time"
+micromachee revise space-rocks "make the ship smaller and add a shield"
+micromachee publish space-rocks      # onto your shelf
+micromachee discard space-rocks
+```
+
+**The strict rules are what make this work.** A generated cart is never
+trusted — it has to parse, load, and survive six hundred frames of button
+mashing before it is written anywhere. When it fails, the console can say
+exactly what went wrong (`_update failed on frame 41: attempt to index a nil
+value`) and that goes back to the model, so the next attempt is informed rather
+than another guess. The rules are not a constraint on generation; they are the
+thing that makes it reliable.
+
+Drafts live in their own folder and the shelf looks there too, so a new game is
+playable with no publishing step and nothing special anywhere in the player.
+Keeping one is a file move. **Nothing leaves your machine** — sharing a cart
+with anyone else is `scripts/publish.sh`, which is a separate, deliberate act.
+
+It needs Anthropic credentials: `ANTHROPIC_API_KEY`, or an `ant auth login`
+profile. Without either, the panel says so rather than failing quietly.
+
 ## Playing without installing
 
 The bar widget is one front end. `play` is a protocol — one base64 PNG per line

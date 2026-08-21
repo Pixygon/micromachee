@@ -14,6 +14,7 @@
 
 mod cart;
 mod console;
+mod make;
 mod palettes;
 mod png;
 mod sha256;
@@ -638,6 +639,34 @@ fn main() {
                     theme::rank().iter().map(|n| n.to_string()).collect::<Vec<_>>().join(" ")
                 );
                 0
+            }
+        },
+        "make" => match (rest.first(), rest.get(1)) {
+            (Some(name), Some(prompt)) => make::make(name, prompt),
+            _ => {
+                eprintln!("✗ try: micromachee make \"Space Rocks\" \"dodge falling rocks\"");
+                2
+            }
+        },
+        "revise" => match (rest.first(), rest.get(1)) {
+            (Some(id), Some(prompt)) => make::revise(id, prompt),
+            _ => {
+                eprintln!("✗ try: micromachee revise space-rocks \"make it faster\"");
+                2
+            }
+        },
+        "publish" => match rest.first() {
+            Some(id) => make::publish(id),
+            None => {
+                eprintln!("✗ publish what? try: micromachee drafts");
+                2
+            }
+        },
+        "discard" => match rest.first() {
+            Some(id) => make::discard(id),
+            None => {
+                eprintln!("✗ discard what? try: micromachee drafts");
+                2
             }
         },
         "covers" => cmd_covers(),
