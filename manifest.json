@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.pixygon.micromachee",
   "name": "Micromachee",
-  "version": "0.1.0",
+  "version": "0.6.1",
   "author": "Pixygon",
   "license": "MIT",
   "description": "A tiny 8-bit console in your bar. 128x128, eight colours, one Lua file per game.",

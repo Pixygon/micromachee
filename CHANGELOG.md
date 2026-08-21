@@ -4,6 +4,17 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.6.1] — 2026-08-21
+
+### Added
+- `micromachee sync` now verifies each cart's SHA-256 checksum as it downloads, so a cart that arrives corrupted or tampered with is refused rather than saved.
+- New `micromachee catalog` command generates catalog.json directly from the carts/ folder, so the published shelf listing can never go stale or drift from what's actually there.
+- The shelf catalog is now published for real, with five new carts available via `micromachee sync`: Picross, Pong, Rogue, plus the existing Breakout, Meteor, Snake, and Tunnel.
+
+### Changed
+- Carts and the catalog are now served from a new URL path. Existing setups will pick this up automatically the next time they sync.
+
+
 ## [0.6.0] — 2026-08-21
 
 ### Changed

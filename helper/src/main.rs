@@ -16,6 +16,7 @@ mod cart;
 mod console;
 mod palettes;
 mod png;
+mod sha256;
 mod shelf;
 mod theme;
 mod tty;
@@ -395,6 +396,91 @@ fn which(bin: &str) -> Option<String> {
     })
 }
 
+
+/// The catalog `sync` reads. Generated from `carts/` rather than kept by hand,
+/// because the hand-kept one went stale the moment a cart was added — it listed
+/// four of seven, with byte counts for versions that no longer existed.
+fn cmd_catalog(args: &[String]) -> i32 {
+    let mut base = shelf::DEFAULT_CART_BASE.to_string();
+    let mut out = "catalog.json".to_string();
+    let mut i = 0;
+    while i < args.len() {
+        match args[i].as_str() {
+            "--base" => {
+                i += 1;
+                match args.get(i) {
+                    Some(v) => base = v.trim_end_matches('/').to_string(),
+                    None => {
+                        eprintln!("✗ --base needs a url");
+                        return 2;
+                    }
+                }
+            }
+            "-o" => {
+                i += 1;
+                match args.get(i) {
+                    Some(v) => out = v.clone(),
+                    None => {
+                        eprintln!("✗ -o needs a path");
+                        return 2;
+                    }
+                }
+            }
+            other => {
+                eprintln!("✗ don't know the option {other}");
+                return 2;
+            }
+        }
+        i += 1;
+    }
+
+    let dir = std::path::Path::new("carts");
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        eprintln!("✗ no carts/ directory here — run this from the repo");
+        return 2;
+    };
+    let mut files: Vec<std::path::PathBuf> = entries
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.extension().and_then(|e| e.to_str()) == Some("lua"))
+        .collect();
+    files.sort();
+
+    let mut carts = Vec::new();
+    for path in &files {
+        let Some(id) = path.file_stem().and_then(|s| s.to_str()) else { continue };
+        let Ok(text) = std::fs::read_to_string(path) else {
+            eprintln!("✗ could not read {}", path.display());
+            return 1;
+        };
+        let cart = match Cart::parse(id, &text) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("✗ {id}: {e}");
+                return 1;
+            }
+        };
+        carts.push(serde_json::json!({
+            "id": cart.id,
+            "title": cart.title,
+            "author": cart.author,
+            "about": cart.about,
+            "bytes": cart.bytes,
+            "sha256": sha256::hex(text.as_bytes()),
+            "url": format!("{base}/{id}.lua"),
+        }));
+    }
+
+    let doc = serde_json::json!({ "micromachee": 1, "carts": carts });
+    let body = serde_json::to_string_pretty(&doc).unwrap_or_default() + "\n";
+    if let Err(e) = std::fs::write(&out, &body) {
+        eprintln!("✗ could not write {out}: {e}");
+        return 1;
+    }
+    println!("wrote {out} — {} cart(s), urls under {base}", files.len());
+    println!("upload the carts and this file, then `micromachee sync` finds them.");
+    0
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let cmd = args.first().map(String::as_str).unwrap_or("status");
@@ -455,6 +541,7 @@ fn main() {
                 0
             }
         },
+        "catalog" => cmd_catalog(&rest),
         "sync" => shelf::sync(),
         "doctor" => cmd_doctor(),
         "-h" | "--help" | "help" => {
@@ -471,6 +558,25 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    /// manifest.json is what Omarchy reads; Cargo.toml is what the binary
+    /// reports. They are copies of a version that lives in the Changelog API,
+    /// and copies drift — this one sat at 0.1.0 through six releases. Kept
+    /// honest by `scripts/version.sh`, and by this failing when it is not run.
+    #[test]
+    fn the_manifest_version_matches_the_binary() {
+        const MANIFEST: &str = include_str!("../../manifest.json");
+        let want = env!("CARGO_PKG_VERSION");
+        let line = MANIFEST
+            .lines()
+            .find(|l| l.trim_start().starts_with("\"version\""))
+            .expect("manifest.json has no version field");
+        let got = line.split('"').nth(3).unwrap_or("");
+        assert_eq!(
+            got, want,
+            "manifest.json says {got} and the crate says {want} — run scripts/version.sh"
+        );
+    }
+
     use super::*;
 
     #[test]

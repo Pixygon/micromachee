@@ -119,9 +119,27 @@ comes up with an empty shelf while `micromachee tty` in the repo works fine.
 
 Carts live in `~/.local/share/omarchy-micromachee/carts/`. Installing a game is
 copying a `.lua` file there — there is no install step, no index to rebuild, no
-registry to tell. `micromachee sync` pulls carts from a catalog on the internet;
-**no catalog is published yet**, so it will tell you it could not fetch one.
-That is one way for a file to travel, not how carts work.
+registry to tell.
+
+`micromachee sync` pulls the published shelf from a catalog on the internet.
+Every entry carries a SHA-256 and `sync` checks it, so a cart that arrived
+mangled is refused rather than saved. That is one way for a file to travel, not
+how carts work — copying a file into that directory still does the same job.
+
+## Publishing
+
+```bash
+micromachee catalog          # write catalog.json from carts/
+scripts/publish.sh --dry-run # what would go up, and where
+scripts/publish.sh           # upload the carts and the catalog, then check
+```
+
+`catalog.json` is **generated**, never hand-edited: the hand-kept one went stale
+the moment a cart was added, listing four of seven with byte counts for versions
+that no longer existed. `publish.sh` regenerates it from the very carts it is
+about to upload, so the two cannot disagree, uploads the catalog last so nothing
+ever points at a half-published shelf, and then fetches back what is actually
+served rather than trusting the upload's own reply.
 
 ## What is in the box
 

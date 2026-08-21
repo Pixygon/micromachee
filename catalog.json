@@ -1,41 +1,68 @@
 {
-  "micromachee": 1,
   "carts": [
     {
-      "id": "breakout",
-      "title": "Breakout",
-      "author": "pixygon",
       "about": "clear the wall, keep the ball alive",
+      "author": "pixygon",
       "bytes": 2929,
+      "id": "breakout",
       "sha256": "854e2c157cfecb20649dc1d35eda7b2dca7600705686457cd8a02313ebd470b6",
-      "url": "https://pixygontech.b-cdn.net/thread/micromachee/breakout.lua"
+      "title": "Breakout",
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/shelf/breakout.lua"
     },
     {
-      "id": "meteor",
-      "title": "Meteor",
-      "author": "pixygon",
       "about": "fall forever, hit nothing",
-      "bytes": 2932,
-      "sha256": "3c5da4a6776aed12ddda9f6da260af583786a80579f065fc931dc4803d847212",
-      "url": "https://pixygontech.b-cdn.net/thread/micromachee/meteor.lua"
+      "author": "pixygon",
+      "bytes": 2925,
+      "id": "meteor",
+      "sha256": "be74503f98976bcf898ebc60357754076151ed9bcd0c9b48e87963ae77058b6c",
+      "title": "Meteor",
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/shelf/meteor.lua"
     },
     {
-      "id": "snake",
-      "title": "Snake",
+      "about": "fill the squares the numbers describe",
       "author": "pixygon",
+      "bytes": 5007,
+      "id": "picross",
+      "sha256": "c761f55f495814053aa4477028012a43b6dbaf9482f912abe4200aa21ed7da76",
+      "title": "Picross",
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/shelf/picross.lua"
+    },
+    {
+      "about": "first to seven, and the machine does not blink",
+      "author": "pixygon",
+      "bytes": 3138,
+      "id": "pong",
+      "sha256": "5c4575376bd5dfaf7878a4394d1f73ad3070ac8b3e043eadbd9821f194d3863a",
+      "title": "Pong",
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/shelf/pong.lua"
+    },
+    {
+      "about": "down as far as you can get",
+      "author": "pixygon",
+      "bytes": 9815,
+      "id": "rogue",
+      "sha256": "1e00e27288277c9eaef1b171de9a9082e7aff8e2b6890b627ca2ff05aa38c88e",
+      "title": "Rogue",
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/shelf/rogue.lua"
+    },
+    {
       "about": "eat, grow, do not bite yourself",
+      "author": "pixygon",
       "bytes": 2891,
+      "id": "snake",
       "sha256": "acd65f6c12c8e83fdcef905a2a341731a2bdfbc0ba8540f56e79c088ea82837a",
-      "url": "https://pixygontech.b-cdn.net/thread/micromachee/snake.lua"
+      "title": "Snake",
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/shelf/snake.lua"
     },
     {
-      "id": "tunnel",
-      "title": "Tunnel",
-      "author": "pixygon",
       "about": "fly the cave. do not touch the walls.",
-      "bytes": 2331,
-      "sha256": "8399a39b9dbe7561a1748017479596ef465c9a72fc6a1c3dd00f20cdc696baaa",
-      "url": "https://pixygontech.b-cdn.net/thread/micromachee/tunnel.lua"
+      "author": "pixygon",
+      "bytes": 2525,
+      "id": "tunnel",
+      "sha256": "4c2a23d1a61e0f05cb1372b7b340b8c07a3cd69cc87151c84f9959b52113d825",
+      "title": "Tunnel",
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/shelf/tunnel.lua"
     }
-  ]
+  ],
+  "micromachee": 1
 }

@@ -31,6 +31,18 @@ No install, no bar, no compositor — the cart runs in the process and its
 framebuffer is drawn to the terminal in half-blocks. Arrows or WASD, `z` and
 `x`, `q` to quit.
 
+## Publishing them
+
+The shelf on the internet is generated, not hand-kept:
+
+```bash
+scripts/publish.sh
+```
+
+That regenerates `catalog.json` from these files, uploads both, and checks what
+is actually being served. `micromachee sync` then pulls them onto any machine,
+verifying each cart's SHA-256 on the way in.
+
 ## Adding one
 
 ```bash

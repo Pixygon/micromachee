@@ -13,7 +13,11 @@ use serde_json::{json, Value};
 
 use crate::cart::{Cart, MAX_CART_BYTES};
 
-const DEFAULT_CATALOG: &str = "https://pixygontech.b-cdn.net/micromachee/catalog.json";
+const DEFAULT_CATALOG: &str = "https://pixygontech.b-cdn.net/releases/micromachee/shelf/catalog.json";
+
+/// Where the cart files themselves live. Only used when generating a catalog —
+/// `sync` follows whatever url each entry carries.
+pub const DEFAULT_CART_BASE: &str = "https://pixygontech.b-cdn.net/releases/micromachee/shelf";
 
 fn xdg(var: &str, fallback: &str) -> PathBuf {
     std::env::var(var).map(PathBuf::from).unwrap_or_else(|_| {
@@ -201,6 +205,17 @@ pub fn sync() -> i32 {
                     println!("  ✗ {id} is {} bytes — over the {MAX_CART_BYTES} limit", bytes.len());
                     failed += 1;
                     continue;
+                }
+                // A catalog that publishes a hash is taken at its word about
+                // it. Without this the field is decoration, and decoration in a
+                // manifest is worse than no field at all.
+                if let Some(want) = entry.get("sha256").and_then(|v| v.as_str()) {
+                    let got = crate::sha256::hex(&bytes);
+                    if !got.eq_ignore_ascii_case(want) {
+                        println!("  ✗ {id} did not match its checksum — not saved");
+                        failed += 1;
+                        continue;
+                    }
                 }
                 let text = String::from_utf8_lossy(&bytes).to_string();
                 match Cart::parse(id, &text) {

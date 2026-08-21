@@ -6,6 +6,7 @@ PLAYING
   micromachee tty <id>        play it here, in this terminal
   micromachee play <id>       run a cart (frames on stdout, buttons on stdin)
   micromachee sync            fetch carts from the catalog
+  micromachee catalog         write catalog.json from carts/ (for publishing)
   micromachee doctor          where everything lives
 
 MAKING A GAME
