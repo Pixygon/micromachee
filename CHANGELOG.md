@@ -4,6 +4,16 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.24.0] — 2026-08-21
+
+### Added
+- `sync` now detects when a cart already on your shelf has changed from the published version and tells you which ones differ, instead of silently treating them as up to date.
+- New `sync --update` flag lets you pull the latest version of a changed cart. Your existing copy is preserved as a `.lua.bak` file rather than being overwritten, so any local edits are never lost.
+
+### Changed
+- The `sync` summary line now reports how many carts were updated, alongside the counts of new, already-here, and failed carts.
+
+
 ## [0.23.0] — 2026-08-21
 
 ### Added

@@ -1015,7 +1015,7 @@ fn main() {
             println!("{n}");
             0
         }
-        "sync" => shelf::sync(),
+        "sync" => shelf::sync(rest.iter().any(|a| a == "--update")),
         "doctor" => cmd_doctor(),
         "-h" | "--help" | "help" => {
             print!("{}", include_str!("usage.txt"));

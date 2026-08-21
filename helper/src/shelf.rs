@@ -265,7 +265,46 @@ fn fetch(url: &str) -> Result<Vec<u8>, String> {
 }
 
 /// Pull the catalog and any carts named in it that are not already here.
-pub fn sync() -> i32 {
+/// What is already on disk, relative to what the catalog is offering.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Local {
+    /// Nothing here yet.
+    Absent,
+    /// Here and byte-identical to the shelf.
+    Current,
+    /// Here and different. Might be an old copy; might be one you changed.
+    Stale,
+}
+
+/// The whole of the decision, kept out of `sync` so it can be tested without a
+/// network. A catalog entry with no checksum is taken as "leave it alone" — an
+/// absent hash must never be read as a mismatch, or every cart on an old
+/// catalog would report itself stale.
+pub fn compare(local: Option<&[u8]>, want_sha: Option<&str>) -> Local {
+    match local {
+        None => Local::Absent,
+        Some(bytes) => match want_sha {
+            None => Local::Current,
+            Some(want) if crate::sha256::hex(bytes).eq_ignore_ascii_case(want) => Local::Current,
+            Some(_) => Local::Stale,
+        },
+    }
+}
+
+/// Fetch the published shelf.
+///
+/// A cart already on disk is never quietly replaced — yours might be a cart you
+/// wrote, or one you edited, and losing that to a routine `sync` would be
+/// unforgivable. But "already here" said nothing about whether the copy was
+/// still current, so a machine that installed early sat on the old shelf
+/// forever with nothing anywhere saying so: the titles had changed underneath
+/// it and the only symptom was a shelf that looked subtly wrong.
+///
+/// So a cart whose bytes differ from the catalog is now counted separately and
+/// reported, and `--update` replaces those — keeping a `.lua.bak` beside each
+/// one, because the whole reason for not overwriting was that the file might
+/// have been yours.
+pub fn sync(update: bool) -> i32 {
     let url = catalog_url();
     println!("→ {url}");
     let body = match fetch(&url) {
@@ -293,13 +332,28 @@ pub fn sync() -> i32 {
         return 1;
     }
 
-    let (mut got, mut skipped, mut failed) = (0, 0, 0);
+    let (mut got, mut skipped, mut failed, mut replaced) = (0, 0, 0, 0);
+    let mut stale: Vec<String> = Vec::new();
+
     for entry in carts {
         let Some(id) = entry.get("id").and_then(|v| v.as_str()) else { continue };
         let dest = dir.join(format!("{id}.lua"));
-        if dest.exists() {
-            skipped += 1;
-            continue;
+
+        // What is already here, and is it the same thing the catalog is
+        // offering? Without the second half of that question, "already here" is
+        // indistinguishable from "already up to date".
+        let local = std::fs::read(&dest).ok();
+        match compare(local.as_deref(), entry.get("sha256").and_then(|v| v.as_str())) {
+            Local::Absent => {}
+            Local::Current => {
+                skipped += 1;
+                continue;
+            }
+            Local::Stale if !update => {
+                stale.push(id.to_string());
+                continue;
+            }
+            Local::Stale => {}
         }
         // A catalog may carry the source inline; if it does there is nothing to
         // fetch. Older catalogs only have a url, so both still work.
@@ -333,9 +387,31 @@ pub fn sync() -> i32 {
                 let text = String::from_utf8_lossy(&bytes).to_string();
                 match Cart::parse(id, &text) {
                     Ok(c) => {
+                        // Keep whatever was there. It may have been edited, and
+                        // this is the one command that would have eaten it.
+                        let was = local.as_ref().map(|b| {
+                            let old = String::from_utf8_lossy(b).to_string();
+                            let title = Cart::parse(id, &old)
+                                .map(|o| o.title)
+                                .unwrap_or_else(|_| id.to_string());
+                            let _ = std::fs::write(dir.join(format!("{id}.lua.bak")), b);
+                            title
+                        });
                         if std::fs::write(&dest, &text).is_ok() {
-                            println!("  ✓ {id} — {} by {}", c.title, c.author);
-                            got += 1;
+                            match was {
+                                Some(old) if old != c.title => {
+                                    println!("  ↻ {id} — {} by {} (was {old}, old copy kept as {id}.lua.bak)", c.title, c.author);
+                                    replaced += 1;
+                                }
+                                Some(_) => {
+                                    println!("  ↻ {id} — {} by {} (old copy kept as {id}.lua.bak)", c.title, c.author);
+                                    replaced += 1;
+                                }
+                                None => {
+                                    println!("  ✓ {id} — {} by {}", c.title, c.author);
+                                    got += 1;
+                                }
+                            }
                         } else {
                             failed += 1;
                         }
@@ -352,8 +428,63 @@ pub fn sync() -> i32 {
             }
         }
     }
-    println!("{got} new, {skipped} already here, {failed} failed → {}", dir.display());
+    print!("{got} new");
+    if replaced > 0 {
+        print!(", {replaced} updated");
+    }
+    println!(", {skipped} already here, {failed} failed → {}", dir.display());
+
+    // The sentence that was missing. A shelf can be silently a version behind
+    // and look like nothing more than a shelf.
+    if !stale.is_empty() {
+        println!(
+            "\n{} cart(s) here differ from the shelf: {}",
+            stale.len(),
+            stale.join(", ")
+        );
+        println!("`micromachee sync --update` replaces them and keeps your copies as .lua.bak");
+    }
     i32::from(failed > 0 && got == 0)
+}
+
+#[cfg(test)]
+mod sync_tests {
+    use super::*;
+
+    const BODY: &[u8] = b"-- title: Signcarver\nfunction _draw() end\n";
+
+    fn sha_of(b: &[u8]) -> String {
+        crate::sha256::hex(b)
+    }
+
+    #[test]
+    fn a_cart_that_is_not_here_is_fetched() {
+        assert_eq!(compare(None, Some(&sha_of(BODY))), Local::Absent);
+    }
+
+    #[test]
+    fn a_cart_that_matches_the_shelf_is_left_alone() {
+        assert_eq!(compare(Some(BODY), Some(&sha_of(BODY))), Local::Current);
+        // and the comparison must not care how the hash was cased
+        assert_eq!(compare(Some(BODY), Some(&sha_of(BODY).to_uppercase())), Local::Current);
+    }
+
+    #[test]
+    fn an_old_copy_is_stale_rather_than_current() {
+        // Exactly the case that left a shelf reading "Picross" months after the
+        // cart became "Signcarver", with `sync` cheerfully saying "already here".
+        let old = b"-- title: Picross\nfunction _draw() end\n";
+        assert_eq!(compare(Some(old), Some(&sha_of(BODY))), Local::Stale);
+    }
+
+    #[test]
+    fn a_catalog_without_hashes_never_calls_anything_stale() {
+        // Older catalogs carry only urls. Reading a missing hash as a mismatch
+        // would offer to replace every cart on the shelf, every time.
+        assert_eq!(compare(Some(BODY), None), Local::Current);
+        let anything = b"-- title: Something Else\n";
+        assert_eq!(compare(Some(anything), None), Local::Current);
+    }
 }
 
 #[cfg(test)]

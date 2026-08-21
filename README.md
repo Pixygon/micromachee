@@ -233,6 +233,24 @@ Every entry carries a SHA-256 and `sync` checks it, so a cart that arrived
 mangled is refused rather than saved. That is one way for a file to travel, not
 how carts work — copying a file into that directory still does the same job.
 
+**A cart already on the shelf is never quietly replaced.** It might be one you
+wrote, or one of these that you changed, and a routine `sync` eating that would
+be unforgivable. But the same checksum that catches a mangled download also says
+whether your copy is still the published one, so `sync` now names the ones that
+differ:
+
+```
+0 new, 13 already here, 0 failed
+
+1 cart(s) here differ from the shelf: picross
+`micromachee sync --update` replaces them and keeps your copies as .lua.bak
+```
+
+`sync --update` takes the shelf's version and writes yours to `<id>.lua.bak`
+beside it, which the console ignores because it only reads `.lua`. Without that
+line a machine that installed early sits on the old shelf indefinitely and the
+only symptom is a cart with a name nobody uses any more.
+
 ## Removing it
 
 ```bash
