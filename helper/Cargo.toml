@@ -8,6 +8,7 @@ repository = "https://github.com/Pixygon/micromachee"
 
 [dependencies]
 serde_json = "1"
+mlua = { version = "0.10", features = ["lua54", "vendored"] }
 
 # A bar widget is running on someone's desktop all day. Keep it small.
 [profile.release]

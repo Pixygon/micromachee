@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "id": "io.pixygon.micromachee",
-  "name": "micromachee",
+  "name": "Micromachee",
   "version": "0.1.0",
   "author": "Pixygon",
   "license": "MIT",
-  "description": "A tiny 8-bit fantasy console that lives in your bar. 128x128, 8 colours, one Lua file per game.",
+  "description": "A tiny 8-bit console in your bar. 128x128, eight colours, one Lua file per game.",
   "kinds": [
     "bar-widget"
   ],
@@ -13,24 +13,12 @@
     "barWidget": "Panel.qml"
   },
   "barWidget": {
-    "displayName": "micromachee",
-    "description": "A tiny 8-bit fantasy console that lives in your bar. 128x128, 8 colours, one Lua file per game.",
-    "category": "Desktop",
+    "displayName": "Micromachee",
+    "description": "A fantasy console on the bar. Click for the shelf, pick a cart, play.",
+    "category": "Fun",
     "allowMultiple": false,
     "defaultSection": "right",
-    "defaults": {
-      "pollIntervalSec": 5
-    },
-    "schema": [
-      {
-        "key": "pollIntervalSec",
-        "type": "integer",
-        "label": "How often to refresh (seconds)",
-        "min": 1,
-        "max": 60,
-        "step": 1,
-        "defaultValue": 5
-      }
-    ]
+    "defaults": {},
+    "schema": []
   }
 }

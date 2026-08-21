@@ -1,11 +1,24 @@
-omarchy-micromachee — the helper behind the micromachee bar widget
+micromachee — a 128x128, eight-colour console that lives in your bar
 
-USAGE
-  omarchy-micromachee status     one line of JSON for the bar (the default)
-  omarchy-micromachee set <text>  write the headline the bar shows
-  omarchy-micromachee doctor     what is installed and where state lives
-  omarchy-micromachee help       this
+PLAYING
+  micromachee status          one line of JSON for the bar
+  micromachee list            the shelf, as JSON
+  micromachee play <id>       run a cart (frames on stdout, buttons on stdin)
+  micromachee sync            fetch carts from the catalog
+  micromachee doctor          where everything lives
 
-The bar polls `status` on a timer, so it stays cheap and never blocks. Other
-commands print a sentence to stderr and exit non-zero on failure; the panel
-shows that last line to the user exactly as written.
+MAKING A GAME
+  micromachee new "<name>"    write a starting cart that already plays
+  micromachee check <file>    does it load, and survive a minute of play?
+  micromachee shot <file> [--frames N] [--hold 2,4] [-o out.png]
+                              look at it, with buttons held down
+
+A cart is one Lua file, at most 24K. It needs _draw(); _init() and _update()
+are optional. 30 frames a second.
+
+  cls(c) pset(x,y,c) pget(x,y) rect(x,y,w,h,c) rectb(x,y,w,h,c)
+  line(x0,y0,x1,y1,c) circ(x,y,r,c) circb(x,y,r,c) print(text,x,y,c)
+  btn(i) btnp(i) t() rnd(n) flr(n) mid(lo,v,hi) score(n)
+
+Colours 0-7: black navy red orange yellow green blue white
+Buttons 0-5: left right up down O(z) X(x)
