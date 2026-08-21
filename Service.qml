@@ -24,6 +24,17 @@ Item {
   property var carts: []
   property string lastId: ""
 
+  // The shell travels with the palette, so the QML never picks a colour of its
+  // own. A widget that themes half of itself looks worse than one that does not
+  // theme at all.
+  property string themeId: ""
+  property var themes: []
+  property color shellBody: "#000000"
+  property color shellBezel: "#000000"
+  property color shellText: "#fff1e8"
+  property color shellDim: "#b3a9a2"
+  property color shellAccent: "#ff004d"
+
   // While a cart is running
   property string playingId: ""
   property string playingTitle: ""
@@ -57,6 +68,14 @@ Item {
       if (carts[i].id === id) best = Number(carts[i].best || 0)
     gameProcess.command = [bin, "play", id]
     gameProcess.running = true
+  }
+
+  function nextTheme() {
+    if (themes.length < 2) return
+    var i = themes.indexOf(themeId)
+    var next = themes[(i + 1) % themes.length]
+    themeProcess.command = [bin, "theme", next]
+    themeProcess.running = true
   }
 
   function stop() {
@@ -106,6 +125,31 @@ Item {
       try { s = JSON.parse(String(statusOut.text || "{}")) } catch (e) { return }
       root.carts = s.carts || []
       root.lastId = String(s.last || "")
+      root.themeId = String(s.theme || "")
+      root.themes = s.themes || []
+      if (s.shell) {
+        root.shellBody = s.shell.body || root.shellBody
+        root.shellBezel = s.shell.bezel || root.shellBezel
+        root.shellText = s.shell.text || root.shellText
+        root.shellDim = s.shell.dim || root.shellDim
+        root.shellAccent = s.shell.accent || root.shellAccent
+      }
+    }
+  }
+
+  Process {
+    id: themeProcess
+    running: false
+    command: []
+    onExited: function() {
+      root.refresh()
+      // A running cart is drawing with the old palette; restart it so the
+      // change is visible immediately rather than at the next game.
+      if (root.playing) {
+        var id = root.playingId, title = root.playingTitle
+        root.stop()
+        root.play(id, title)
+      }
     }
   }
 

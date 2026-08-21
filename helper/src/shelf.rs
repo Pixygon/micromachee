@@ -108,6 +108,17 @@ fn save_state(v: &Value) {
     }
 }
 
+/// The theme the player chose, if they chose one.
+pub fn saved_theme() -> Option<String> {
+    load_state().get("theme").and_then(|v| v.as_str()).map(String::from)
+}
+
+pub fn set_theme(id: &str) {
+    let mut state = load_state();
+    state["theme"] = json!(id);
+    save_state(&state);
+}
+
 pub fn best(id: &str) -> i64 {
     load_state().get("best").and_then(|b| b.get(id)).and_then(|v| v.as_i64()).unwrap_or(0)
 }

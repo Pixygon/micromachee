@@ -20,7 +20,7 @@
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use mlua::{Function, HookTriggers, Lua, VmState};
+use mlua::{Function, HookTriggers, Lua, LuaOptions, StdLib, VmState};
 
 use crate::cart::Cart;
 use crate::console::Screen;
@@ -60,8 +60,28 @@ pub struct Machine {
 
 impl Machine {
     pub fn load(cart: &Cart) -> Result<Machine, String> {
-        let lua = Lua::new();
+        // Only the libraries a game actually needs. `Lua::new()` would also
+        // bring `io`, `os` and `package`, and a cart could then write to your
+        // disk — which was true and demonstrated: a test cart created a file in
+        // /tmp and the console let it. Carts arrive from a CDN and the pitch is
+        // "drop a .lua in a folder", so that is not a footnote to document, it
+        // is a hole to close. Nothing in any real cart wanted them.
+        let lua = Lua::new_with(
+            StdLib::MATH | StdLib::STRING | StdLib::TABLE,
+            LuaOptions::default(),
+        )
+        .map_err(|e| e.to_string())?;
         lua.set_memory_limit(MEMORY_LIMIT).ok();
+
+        // `dofile` and `loadfile` live in the base library, which is always
+        // present, and both open files. `load` stays: compiling a string is
+        // harmless once there is nothing to reach.
+        {
+            let g = lua.globals();
+            for name in ["dofile", "loadfile", "collectgarbage"] {
+                let _ = g.set(name, mlua::Value::Nil);
+            }
+        }
 
         let screen = Rc::new(RefCell::new(Screen::new()));
         let input = Rc::new(RefCell::new(Input::default()));
@@ -310,6 +330,30 @@ mod tests {
         for _ in 0..40 {
             m.draw().unwrap();
         }
+    }
+
+    #[test]
+    fn a_cart_cannot_reach_the_filesystem() {
+        // Demonstrated before it was fixed: a cart opened /tmp and wrote to it.
+        for probe in ["io", "os", "package", "require", "dofile", "loadfile"] {
+            let m = machine(&format!("seen = {probe} ~= nil\nfunction _draw() end"));
+            assert!(
+                !m.lua.globals().get::<bool>("seen").unwrap(),
+                "`{probe}` is reachable from a cart"
+            );
+        }
+    }
+
+    #[test]
+    fn the_libraries_a_game_actually_needs_are_present() {
+        let m = machine(
+            "a = math.floor(2.5) b = #table.concat({'x','y'}) c = string.rep('z', 3)
+             function _draw() end",
+        );
+        let g = m.lua.globals();
+        assert_eq!(g.get::<i64>("a").unwrap(), 2);
+        assert_eq!(g.get::<i64>("b").unwrap(), 2);
+        assert_eq!(g.get::<String>("c").unwrap(), "zzz");
     }
 
     #[test]

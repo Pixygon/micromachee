@@ -19,7 +19,7 @@ pub const LINE_HEIGHT: i32 = 6;
 /// author picks by name instead of deliberating.
 ///
 ///   0 black · 1 navy · 2 red · 3 orange · 4 yellow · 5 green · 6 blue · 7 white
-pub const PALETTE: [(u8, u8, u8); 8] = [
+pub const DEFAULT_PALETTE: [(u8, u8, u8); 8] = [
     (0x00, 0x00, 0x00),
     (0x1d, 0x2b, 0x53),
     (0xff, 0x00, 0x4d),
@@ -182,8 +182,11 @@ impl Screen {
         }
     }
 
-    pub fn to_png(&self) -> Vec<u8> {
-        crate::png::encode(W as u32, H as u32, &PALETTE, &self.px)
+    /// The palette arrives here and nowhere else. A cart names slots; only
+    /// this call turns a slot into a colour, which is why swapping a theme
+    /// costs nothing and no cart can tell which one it is running under.
+    pub fn to_png(&self, palette: &[(u8, u8, u8); 8]) -> Vec<u8> {
+        crate::png::encode(W as u32, H as u32, palette, &self.px)
     }
 }
 

@@ -16,6 +16,7 @@ mod cart;
 mod console;
 mod png;
 mod shelf;
+mod theme;
 mod vm;
 
 use std::io::{BufRead, Write};
@@ -86,6 +87,7 @@ fn cmd_play(id: &str) -> i32 {
         });
     }
 
+    let palette = theme::active(shelf::saved_theme().as_deref()).palette;
     let out = std::io::stdout();
     let mut out = out.lock();
     let fail = |out: &mut dyn Write, e: String| {
@@ -111,7 +113,7 @@ fn cmd_play(id: &str) -> i32 {
             fail(&mut out, e);
             return 1;
         }
-        let frame = machine.screen.borrow().to_png();
+        let frame = machine.screen.borrow().to_png(&palette);
         if writeln!(out, "F {}", base64(&frame)).is_err() || out.flush().is_err() {
             break; // the panel closed; that is a normal ending
         }
@@ -275,7 +277,8 @@ fn cmd_shot(args: &[String]) -> i32 {
             return 1;
         }
     }
-    let frame = machine.screen.borrow().to_png();
+    let palette = theme::active(shelf::saved_theme().as_deref()).palette;
+    let frame = machine.screen.borrow().to_png(&palette);
     match std::fs::write(&out, frame) {
         Ok(()) => {
             println!("wrote {out} — frame {frames} of {}", cart.title);
@@ -324,6 +327,7 @@ fn cmd_new(args: &[String]) -> i32 {
 fn cmd_status() {
     let carts = shelf::list();
     let state = shelf::load_state();
+    let th = theme::active(shelf::saved_theme().as_deref());
     let last = state
         .get("last")
         .and_then(|v| v.as_str())
@@ -339,6 +343,15 @@ fn cmd_status() {
             "ready": !carts.is_empty(),
             "headline": headline,
             "count": carts.len(),
+            // The shell travels with the palette so the QML never picks a
+            // colour of its own — a bar widget that themes half of itself is
+            // worse than one that does not theme at all.
+            "theme": th.id,
+            "themes": theme::ids(),
+            "shell": {
+                "body": th.shell.body, "bezel": th.shell.bezel,
+                "text": th.shell.text, "dim": th.shell.dim, "accent": th.shell.accent,
+            },
             "carts": carts.iter().map(|c| serde_json::json!({
                 "id": c.id,
                 "title": c.title,
@@ -405,6 +418,29 @@ fn main() {
         },
         "shot" => cmd_shot(&rest),
         "new" => cmd_new(&rest),
+        "theme" => match rest.first() {
+            Some(id) if theme::get(id).is_some() => {
+                shelf::set_theme(id);
+                println!("theme is now {id}");
+                0
+            }
+            Some(id) => {
+                eprintln!("✗ there is no theme called {id} — try: {}", theme::ids().join(", "));
+                2
+            }
+            None => {
+                let now = theme::active(shelf::saved_theme().as_deref()).id;
+                for id in theme::ids() {
+                    println!("{} {id}", if id == now { "*" } else { " " });
+                }
+                // The one thing somebody writing a new palette has to know.
+                println!(
+                    "\nslots dark to light: {} — every theme keeps that order",
+                    theme::rank().iter().map(|n| n.to_string()).collect::<Vec<_>>().join(" ")
+                );
+                0
+            }
+        },
         "sync" => shelf::sync(),
         "doctor" => cmd_doctor(),
         "-h" | "--help" | "help" => {
@@ -436,7 +472,7 @@ mod tests {
 
     #[test]
     fn a_whole_frame_encodes_to_one_line() {
-        let png = crate::png::encode(128, 128, &crate::console::PALETTE, &[0u8; 128 * 128]);
+        let png = crate::png::encode(128, 128, &crate::console::DEFAULT_PALETTE, &[0u8; 128 * 128]);
         let line = base64(&png);
         assert!(!line.contains('\n'), "the protocol is one frame per line");
         assert!(line.len() < 16_000, "line was {} chars", line.len());

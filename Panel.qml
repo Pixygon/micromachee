@@ -87,6 +87,12 @@ Panel {
       anchors.fill: parent
       onCloseRequested: mm.playing ? mm.stop() : root.close()
 
+      // T cycles the colour mode. It works on the shelf and mid-game, and a
+      // running cart is restarted so the change is visible at once.
+      onTextKey: function(ch) {
+        if (ch === "t" || ch === "T") mm.nextTheme()
+      }
+
       // The controller. Arrows or WASD, z and x — held, not typed, so a game
       // sees a button going down and coming up rather than a key repeat.
       Keys.onPressed: function(event) {
@@ -123,16 +129,29 @@ Panel {
           height: width          // square, always
           visible: mm.playing
 
+          // The console body. Its colours come from the helper with the
+          // palette, so the shell and the screen can never drift apart.
           Rectangle {
             anchors.fill: parent
-            color: "#000000"
-            radius: Style.cornerRadius
+            color: mm.shellBody
+            radius: Style.space(8)
+            Behavior on color { ColorAnimation { duration: 180 } }
+
+            Rectangle {
+              anchors.fill: parent
+              anchors.margins: Style.space(5)
+              color: mm.shellBezel
+              radius: Style.space(4)
+              border.width: 1
+              border.color: Qt.rgba(mm.shellDim.r, mm.shellDim.g, mm.shellDim.b, 0.35)
+              Behavior on color { ColorAnimation { duration: 180 } }
+            }
           }
 
           Image {
             id: screen
             anchors.fill: parent
-            anchors.margins: 2
+            anchors.margins: Style.space(7)
             source: mm.frame !== "" ? "data:image/png;base64," + mm.frame : ""
             // 128 pixels blown up: never interpolate, or the whole point of an
             // eight-colour console is lost to a blur.
@@ -158,7 +177,7 @@ Panel {
           visible: mm.playing
           Text {
             text: mm.playingTitle
-            color: root.foreground
+            color: mm.shellText
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
             Layout.fillWidth: true
@@ -166,7 +185,7 @@ Panel {
           }
           Text {
             text: mm.score + (mm.best > 0 ? "  /  BEST " + mm.best : "")
-            color: root.dim
+            color: mm.shellDim
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
           }
@@ -175,7 +194,7 @@ Panel {
         Text {
           visible: mm.playing
           width: parent.width
-          text: "ARROWS OR WASD · Z AND X · ESC FOR THE SHELF"
+          text: "ARROWS OR WASD · Z AND X · T THEME · ESC BACK"
           color: root.dim
           font.family: root.fontFamily
           font.pixelSize: Style.font.bodySmall
@@ -201,6 +220,59 @@ Panel {
               font.family: root.fontFamily
               font.pixelSize: Style.font.display
             }
+          }
+        }
+
+        Item {
+          visible: !mm.playing && mm.themes.length > 1
+          width: parent.width
+          height: Style.space(22)
+
+          Text {
+            anchors.left: parent.left
+            anchors.leftMargin: Style.space(6)
+            anchors.verticalCenter: parent.verticalCenter
+            text: "COLOUR MODE"
+            color: root.dim
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.bodySmall
+          }
+
+          Row {
+            anchors.right: parent.right
+            anchors.rightMargin: Style.space(8)
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Style.space(6)
+
+            // The palette itself is the label: eight swatches say more about a
+            // colour mode than its name does.
+            Row {
+              anchors.verticalCenter: parent.verticalCenter
+              spacing: 1
+              Repeater {
+                model: [mm.shellBezel, mm.shellDim, mm.shellAccent, mm.shellText]
+                delegate: Rectangle {
+                  required property var modelData
+                  width: Style.space(6); height: Style.space(6)
+                  radius: 1
+                  color: modelData
+                  Behavior on color { ColorAnimation { duration: 180 } }
+                }
+              }
+            }
+            Text {
+              anchors.verticalCenter: parent.verticalCenter
+              text: mm.themeId
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.bodySmall
+            }
+          }
+
+          MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: mm.nextTheme()
           }
         }
 

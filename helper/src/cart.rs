@@ -137,42 +137,94 @@ impl Cart {
 
 /// A starting cart that already plays, because the fastest way to learn a
 /// console is to change something that already moves.
+///
+/// It teaches by example rather than by comment: colours named by role and
+/// never by hue, `mid` for clamping, backwards iteration when removing from a
+/// list, the HUD drawn last on its own ground, and O to restart. Those are the
+/// habits every cart wants, so the first one an author sees already has them.
+///
+/// Built with a plain replace rather than `format!`: the body is full of Lua
+/// table literals, and every `{` in it would have to be doubled.
 pub fn scaffold(title: &str) -> String {
-    format!(
-        r#"-- title: {title}
--- author: you
--- about: a starting point
+    const TEMPLATE: &str = r#"-- title: {{TITLE}}
+-- author: {{AUTHOR}}
+-- about: catch the falling ones
 
--- 128x128, eight colours:
---   0 black  1 navy  2 red   3 orange
---   4 yellow 5 green 6 blue  7 white
--- buttons: 0 left  1 right  2 up  3 down  4 O(z)  5 X(x)
+-- A whole game, so there is something on screen before you change anything.
+-- Delete it a piece at a time.
+--
+-- 128x128, eight colours, 30 frames a second. Colours are INDEXES 0-7, dark to
+-- light: 0 ground, 1 dim, 2 alert, 6 cool, 3 warm, 5 go, 4 bright, 7 light.
+-- Never assume 2 is "red" — themes repaint every game, and only the order of
+-- those eight is promised.
+
+local x, drops, points, lives, tick
 
 function _init()
-  x, y = 64, 64
-  n = 0
+  x      = 64
+  drops  = {}
+  points = 0
+  lives  = 3
+  tick   = 0
+  score(0)
 end
 
 function _update()
-  if btn(0) then x = x - 2 end
-  if btn(1) then x = x + 2 end
-  if btn(2) then y = y - 2 end
-  if btn(3) then y = y + 2 end
-  x = mid(4, x, 123)
-  y = mid(4, y, 123)
-  if btnp(4) then n = n + 1 score(n) end
+  if lives <= 0 then
+    if btnp(4) then _init() end   -- O restarts; every cart does it this way
+    return
+  end
+
+  if btn(0) then x = x - 3 end    -- 0 left, 1 right, 2 up, 3 down, 4 O, 5 X
+  if btn(1) then x = x + 3 end
+  x = mid(8, x, 120)              -- mid(lo, value, hi) clamps
+
+  tick = tick + 1
+  if tick % 20 == 0 then
+    drops[#drops + 1] = { x = 6 + rnd(116), y = 16, v = 1 + rnd(1.5) }
+  end
+
+  -- Backwards, so removing the one under the cursor cannot skip the next.
+  for i = #drops, 1, -1 do
+    local d = drops[i]
+    d.y = d.y + d.v
+    if d.y > 112 and d.y < 120 and d.x > x - 10 and d.x < x + 10 then
+      points = points + 1
+      score(points)
+      table.remove(drops, i)
+    elseif d.y > 128 then
+      lives = lives - 1
+      table.remove(drops, i)
+    end
+  end
 end
 
 function _draw()
-  cls(1)
-  circ(x, y, 4, 4)
-  print("{upper}", 4, 4, 7)
-  print("MOVE. Z SCORES. N=" .. n, 4, 118, 6)
+  cls(0)
+
+  for i = 1, #drops do
+    circ(drops[i].x, drops[i].y, 2, 4)
+  end
+  rect(x - 10, 116, 20, 3, 7)
+
+  -- The HUD is drawn last, on its own ground, so nothing falls through it.
+  rect(0, 0, 128, 14, 0)
+  line(0, 14, 127, 14, 1)
+  print("SCORE " .. points, 2, 2, 7)
+  for i = 1, lives do
+    rect(120 - (i - 1) * 5, 3, 3, 3, 2)
+  end
+
+  if lives <= 0 then
+    -- Boxed, or it lands on top of whatever is still moving.
+    rect(28, 52, 72, 24, 0)
+    rectb(28, 52, 72, 24, 2)
+    print("GAME OVER", 46, 58, 7)
+    print("PRESS O", 50, 66, 3)
+  end
 end
-"#,
-        title = title,
-        upper = title.to_uppercase()
-    )
+"#;
+    TEMPLATE.replace("{{TITLE}}", title).replace("{{AUTHOR}}", "you")
 }
 
 #[cfg(test)]
@@ -250,6 +302,6 @@ mod tests {
         let c = Cart::parse("my-game", &src).unwrap();
         assert_eq!(c.title, "my game");
         assert!(c.warnings().is_empty(), "{:?}", c.warnings());
-        assert!(c.bytes < 1024, "a starting cart should be tiny, was {}", c.bytes);
+        assert!(c.bytes < 4096, "a starting cart should be small, was {}", c.bytes);
     }
 }

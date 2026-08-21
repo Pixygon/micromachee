@@ -125,13 +125,17 @@ Frames are indexed PNGs at bit depth 4, which puts a full 128×128 frame in
 about 8 KB, and the deflate stream is uncompressed — a compressor would be more
 code than the encoder it lives in, to save a few percent on a local pipe.
 
-### A cart is not sandboxed
+### What a cart can and cannot do
 
-A cart is Lua with the standard library, running as you. There is an
-instruction budget per frame, so an endless loop ends the cart rather than
-freezing your bar, and a memory ceiling, so a runaway table does the same. That
-is all. **Treat a cart like any other script you were sent** — read it before
-you run it. It is one file and it is meant to be read.
+A cart gets `math`, `string` and `table`. `io`, `os`, `package`, `require`,
+`dofile` and `loadfile` are not loaded, so a cart cannot open a file or run a
+program — the first version did load them, and a test cart wrote to `/tmp` to
+prove the point. There is also an instruction budget per frame, so an endless
+loop ends the cart rather than freezing your bar, and a memory ceiling.
+
+It is still a Lua interpreter in your process rather than a real sandbox.
+**Treat a cart like any other script you were sent** — read it before you run
+it. It is one file and it is meant to be read.
 
 ## License
 

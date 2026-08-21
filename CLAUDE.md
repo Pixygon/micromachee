@@ -1,0 +1,169 @@
+# micromachee
+
+A 128×128, eight-colour fantasy console that lives in an Omarchy bar widget.
+One Lua file per game.
+
+## How it is put together
+
+```
+manifest.json   what Omarchy reads
+Panel.qml       the bar button and the panel — drawing only
+Service.qml     runs the helper, turns its output into properties
+helper/         Rust: everything that can actually fail
+carts/          the games
+themes/         palettes + the rules a palette must keep
+```
+
+**The split is the point.** QML cannot be unit-tested without a compositor, so
+anything written there is only ever verified by looking at it. Anything in
+`helper/` is reachable by `cargo test` on any machine. Logic goes in the helper;
+the QML layer stays dumb enough to be obviously correct.
+
+Two conventions the QML depends on:
+
+- `status` prints **one line of JSON** and exits 0. It is polled on a timer, so
+  it must be cheap and must never block.
+- Every other command prints a **human sentence** to stderr and exits non-zero
+  when it fails. The panel shows that last line verbatim — write it for the
+  person reading the bar, not for a log.
+
+```bash
+cargo test  --manifest-path helper/Cargo.toml
+./install.sh                      # after changing the helper
+```
+
+---
+
+# Writing a cart
+
+This is the part most sessions are here for. A cart is **one Lua file, at most
+24K**. It needs `_draw()`. `_init()` and `_update()` are optional. 30 frames a
+second.
+
+```lua
+-- title: Dodge
+-- author: you
+-- about: one line, optional
+
+local x
+
+function _init()  x = 64 end
+function _update()
+  if btn(0) then x = x - 2 end
+  if btn(1) then x = x + 2 end
+  x = mid(0, x, 127)
+end
+function _draw()
+  cls(0)
+  print("SCORE 0", 2, 2, 7)
+  rect(x - 3, 118, 7, 4, 6)
+end
+```
+
+The `-- title:` / `-- author:` / `-- about:` comments are optional metadata, not
+a required header. There is no magic line. If you write valid Lua under 24K with
+a `_draw`, it is a cart.
+
+## The whole API
+
+```
+cls(c)  pset(x,y,c)  pget(x,y)
+rect(x,y,w,h,c)  rectb(x,y,w,h,c)  line(x0,y0,x1,y1,c)
+circ(x,y,r,c)  circb(x,y,r,c)  print(text,x,y,c)
+btn(i)  btnp(i)  t()  rnd(n)  flr(n)  mid(lo,v,hi)  score(n)
+```
+
+That is all of it. There is no sprite sheet and no sound. Lua's `math.*`,
+`table.*` and `string.*` are available.
+
+**A cart gets `math`, `string` and `table`, and nothing else.** `io`, `os`,
+`package`, `require`, `dofile` and `loadfile` are all absent, so a cart cannot
+open a file, run a program, or reach anything outside the console. This was not
+always true: the first version loaded the whole standard library, and a test
+cart wrote a file to `/tmp` to prove it. Since `sync` pulls carts off a CDN,
+that was a hole rather than a footnote.
+
+It is still not a security boundary in the strong sense — it is a Lua
+interpreter in your process, and the per-frame instruction budget and memory
+ceiling exist to stop a cart hanging your bar rather than to contain a
+determined attacker. Treat a cart from a stranger the way you would any script
+they sent you: read it first. It is one file and at most 24K, which is the
+point.
+
+- `btn(i)` is held, `btnp(i)` is newly pressed this frame.
+  **0** left · **1** right · **2** up · **3** down · **4** O · **5** X
+- `t()` is seconds since the cart started. `rnd(n)` is a float in `[0, n)`.
+- `mid(lo, v, hi)` clamps — the usual way to keep a player on screen.
+- `score(n)` is fire-and-forget. The console owns high scores per cart; a cart
+  cannot read or lower them. Call it when the score changes.
+- `pget(x,y)` reads the framebuffer back, so you can collide against what you
+  drew last frame instead of keeping a parallel model. Very effective for cave,
+  tunnel and maze games.
+
+## Colours are indexes, never names
+
+**A cart indexes colours. It never names them.** Themes repaint every game —
+Game Boy green, amber CRT, greyscale — and a cart that assumes slot 2 is red
+breaks under all of them. If a game draws blood it draws it in **2** because 2
+is dark-mid, not because 2 is red.
+
+What you can rely on is the **rank**, which every theme preserves:
+
+| slot | role | default |
+|---|---|---|
+| 0 | ground — darkest, backgrounds | black |
+| 1 | dim — separators, inactive | navy |
+| 2 | alert | red |
+| 6 | cool | blue |
+| 3 | warm | orange |
+| 5 | go | green |
+| 4 | bright | yellow |
+| 7 | light — text, the player | white |
+
+Read top-to-bottom as dark to light. `cls(0)` then `print(..., 7)` is readable
+in every theme, forever. See `themes/README.md`.
+
+## Laying out 128×128
+
+Text is **4 pixels per character, 6 pixels per line**, drawn from the top-left
+of the first glyph. So a 32-character line exactly fills the screen, and
+centring is `x = (128 - #text * 4) / 2`.
+
+Lower case prints as upper — there is one case in the font. Characters the font
+lacks are skipped silently, leaving a hole; `check` warns about it in a title.
+
+Everything clips. Drawing off the edge is safe and normal — it will not panic
+and will not wrap to the far side. Colours wrap: `c % 8`, so `9` is `1` and a
+stray `-1` is `7`.
+
+## Things that bite
+
+- **A frame has an instruction budget** (about 2M). A `while true do end` ends
+  the cart with "a frame ran forever", it does not lock the bar. Plenty for a
+  real game; you will not meet it by accident.
+- **Reserve the HUD area.** If things move through the top of the screen, draw a
+  `rect(0,0,128,16,0)` behind the score *after* drawing them, or the one number
+  the player wants is the one they cannot read.
+- **Put game-over text in a box** (`rect` then `rectb`) rather than straight on
+  the field, or it lands on top of whatever was moving.
+- **Restart on a button, not a timer.** `if btnp(4) then _init() end` in
+  `_update` when dead is the convention all the shipped carts use.
+
+## Verify it, then look at it
+
+```bash
+B=./helper/target/release/omarchy-micromachee
+$B check carts/yourgame.lua                          # loads? survives a minute?
+$B shot  carts/yourgame.lua --frames 90 -o /tmp/x.png
+```
+
+`check` runs 1800 frames with pseudo-random button-mashing and reports size,
+metadata and warnings. **A clean `check` is necessary and not sufficient** —
+then open the PNG and *look at it*. Every visual bug in the shipped carts got
+through a green `check` and was caught by looking: rocks falling through the
+score, a game-over message landing on a moving object, `"SCORE " .. flr(n)`
+rendering as `30.0`. Look at the death and start screens too, not just frame 90.
+
+The four shipped carts in `carts/` are the worked examples — `snake.lua` for
+grid movement, `breakout.lua` for float physics and per-axis collision,
+`meteor.lua` for spawning and HUD layering, `tunnel.lua` for `pget` collision.
