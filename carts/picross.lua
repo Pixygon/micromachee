@@ -1,6 +1,6 @@
--- title: The Signs
+-- title: Signcarver
 -- author: pixygon
--- about: the numbers describe a sign. draw it
+-- about: the numbers describe a sign. carve it
 
 -- A nonogram. The clues along a row say how many squares are filled and in what
 -- runs, so "3 1" means three together, a gap, then one.
@@ -174,7 +174,7 @@ function _draw()
   if won then
     rect(24, 54, 80, 22, 0)
     rectb(24, 54, 80, 22, 5)
-    print("THE SIGN SHOWS", 36, 59, 7)
+    print("THE SIGN HOLDS", 36, 59, 7)
     print("O FOR ANOTHER", 38, 67, 3)
   else
     print("O FILL   X RULE OUT", 20, 115, 1)
@@ -210,5 +210,5 @@ function _cover()
   print("1 1", 12, 41, 6)
 
   rect(0, 96, 128, 32, 0)
-  print("THE SIGNS", 10, 104, 4, 3)
+  print("SIGNCARVER", 4, 104, 4, 3)
 end

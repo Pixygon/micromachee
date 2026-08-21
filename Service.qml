@@ -32,6 +32,8 @@ Item {
   /// Screen pixels per console pixel. Lives in the helper so the buttons on the
   /// console can change it, and so it survives a reload.
   property int scale: 3
+  /// "plain", or "ydrast" if somebody found it.
+  property string tongue: "plain"
   property bool paused: false
   property color shellBody: "#000000"
   property color shellBezel: "#000000"
@@ -195,6 +197,15 @@ Item {
     }
   }
 
+  /// Every word the console prints goes through the helper, so a whole change
+  /// of language is one flag there and nothing at all here.
+  function toggleTongue() {
+    var next = tongue === "ydrast" ? "plain" : "ydrast"
+    tongue = next
+    tongueProcess.command = [bin, "tongue", next]
+    tongueProcess.running = true
+  }
+
   function setScale(n) {
     var want = Math.max(2, Math.min(6, n))
     if (want === scale) return
@@ -268,12 +279,29 @@ Item {
       root.themeId = String(s.theme || "")
       root.themes = s.themes || []
       root.scale = Number(s.scale || 3)
+      root.tongue = String(s.tongue || "plain")
       if (s.shell) {
         root.shellBody = s.shell.body || root.shellBody
         root.shellBezel = s.shell.bezel || root.shellBezel
         root.shellText = s.shell.text || root.shellText
         root.shellDim = s.shell.dim || root.shellDim
         root.shellAccent = s.shell.accent || root.shellAccent
+      }
+    }
+  }
+
+  Process {
+    id: tongueProcess
+    running: false
+    command: []
+    onExited: function() {
+      root.refresh()
+      root.loadCovers()
+      // A running cart is printing in the old tongue; restart it so the change
+      // is visible at once. Safe here — unlike the theme, this one is rare.
+      if (root.playing) {
+        var id = root.playingId, title = root.playingTitle
+        Qt.callLater(function() { root.stop(); root.play(id, title) })
       }
     }
   }

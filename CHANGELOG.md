@@ -4,6 +4,22 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.17.0] — 2026-08-21
+
+### Added
+- Added a hidden Ydrast language mode — enter a secret button combo on the shelf (or run `micromachee tongue ydrast`) and every cart's on-screen text is rendered in a fully rule-based constructed language, with a fixed lexicon, consistent word-coining, and digits spoken as words. Running carts and covers update immediately when you switch tongues, and the setting persists.
+- Added a new cart, Pixiel — an endless runner where you hop and leap over gaps and blocks as a discarded robot body that just keeps going.
+
+### Changed
+- Renamed several shipped carts to match their in-world lore: Recycler is now Serpent, The Signs is now Signcarver, and Seedplate is now Farm of Arra, with updated in-game text and cover art to match.
+
+### Improved
+- Updated documentation to describe the new hidden language feature and the expanded cart shelf.
+
+### Fixed
+- Cart metadata (title, author, about) that gets silently truncated at the length limit is now flagged by the cart checker, so an oversized field is caught before it ships instead of quietly cutting off mid-word.
+
+
 ## [0.16.0] — 2026-08-21
 
 ### Added

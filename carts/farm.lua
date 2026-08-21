@@ -1,6 +1,6 @@
--- title: Seedplate
+-- title: Farm of Arra
 -- author: pixygon
--- about: a plate carried everything to grow a world. grow it
+-- about: a plate that carries a whole world. grow it
 
 -- The one game here that uses the clock on the wall rather than the frame
 -- counter. `now()` is real seconds since 1970 and `save()` outlives the widget,
@@ -176,5 +176,5 @@ function _cover()
     end
   end
   rect(0, 96, 128, 32, 0)
-  print("SEEDPLATE", 10, 104, 5, 3)
+  print("FARM OF ARRA", 16, 106, 5, 2)
 end

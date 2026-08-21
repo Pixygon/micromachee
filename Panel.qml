@@ -41,6 +41,9 @@ Panel {
   readonly property bool typing: nameField.activeFocus || promptField.activeFocus
                                  || reviseField.activeFocus
 
+  /// The last few buttons pressed on the shelf. Nothing advertises this.
+  property string secret: ""
+
   /// Which cart the shelf has highlighted, and how wide the grid is.
   property int shelfIndex: 0
   readonly property int shelfColumns: 3
@@ -149,6 +152,16 @@ Panel {
           var n = mm.carts.length
           if (n === 0) return
           var s = buttonFor(event.key)
+          if (s >= 0) {
+            // up up down down left right left right X O
+            root.secret = (root.secret + s).slice(-10)
+            if (root.secret === "2233010154") {
+              root.secret = ""
+              mm.toggleTongue()
+              event.accepted = true
+              return
+            }
+          }
           if (s === 0)      root.shelfIndex = Math.max(0, root.shelfIndex - 1)
           else if (s === 1) root.shelfIndex = Math.min(n - 1, root.shelfIndex + 1)
           else if (s === 2) root.shelfIndex = Math.max(0, root.shelfIndex - root.shelfColumns)

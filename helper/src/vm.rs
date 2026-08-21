@@ -74,6 +74,8 @@ pub struct Machine {
     pub saved: Rc<RefCell<serde_json::Map<String, serde_json::Value>>>,
     pub dirty: Rc<Cell<bool>>,
     pub outcome: Rc<Cell<Outcome>>,
+    /// Whether text is rendered in the Ydrast on the way to the screen.
+    tongue: Rc<Cell<bool>>,
     budget: Rc<Cell<u32>>,
 }
 
@@ -117,6 +119,7 @@ impl Machine {
         let saved = Rc::new(RefCell::new(saved_in));
         let dirty = Rc::new(Cell::new(false));
         let outcome = Rc::new(Cell::new(Outcome::Playing));
+        let tongue = Rc::new(Cell::new(false));
         let rng = Rc::new(Cell::new(0x2545_f491_4f6c_dd1du64));
 
         {
@@ -200,6 +203,7 @@ impl Machine {
         }
         {
             let s = screen.clone();
+            let tg = tongue.clone();
             api!("print", move |_, (t, x, y, c, scale): (mlua::Value, f64, f64, Option<f64>, Option<f64>)| {
                 let text = match t {
                     mlua::Value::String(s) => s.to_string_lossy().to_string(),
@@ -211,6 +215,10 @@ impl Machine {
                     mlua::Value::Boolean(b) => b.to_string(),
                     _ => "?".into(),
                 };
+                // Every word a cart prints passes through here, which is the
+                // one place the console can speak a different language without
+                // a single cart knowing about it.
+                let text = if tg.get() { crate::ydrast::render(&text) } else { text };
                 // The fifth argument is optional and defaults to 1, so every
                 // cart written before it existed prints exactly as it did.
                 s.borrow_mut()
@@ -347,7 +355,7 @@ impl Machine {
             .exec()
             .map_err(|e| tidy(&e.to_string()))?;
 
-        Ok(Machine { lua, screen, input, frame, score, saved, dirty, outcome, budget })
+        Ok(Machine { lua, screen, input, frame, score, saved, dirty, outcome, tongue, budget })
     }
 
     fn call(&self, name: &str) -> Result<(), String> {
@@ -396,6 +404,10 @@ impl Machine {
         self.outcome.set(Outcome::Playing);
     }
 
+    pub fn set_tongue(&self, on: bool) {
+        self.tongue.set(on);
+    }
+
     pub fn set_held(&self, held: u8) {
         self.input.borrow_mut().held = held;
     }
@@ -436,6 +448,21 @@ mod tests {
         m.update().unwrap();
         m.draw().unwrap();
         assert_eq!(m.screen.borrow().pget(1, 0), 5, "n should be 2 by draw time");
+    }
+
+    #[test]
+    fn the_tongue_changes_what_reaches_the_screen_not_the_cart() {
+        // A cart never learns which language it is printing in — the same call
+        // draws different pixels, and nothing in the game changes.
+        let m = machine("function _draw() cls(0) print('THE THREAD IS TIME', 0, 0, 7) end");
+        m.draw().unwrap();
+        let plain = m.screen.borrow().px.clone();
+        m.set_tongue(true);
+        m.draw().unwrap();
+        assert_ne!(plain, m.screen.borrow().px, "the ydrast must look different");
+        m.set_tongue(false);
+        m.draw().unwrap();
+        assert_eq!(plain, m.screen.borrow().px, "and turning it off must restore it exactly");
     }
 
     #[test]

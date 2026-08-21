@@ -37,6 +37,9 @@ use crate::console;
 /// load as well as on publish, so an oversized cart cannot arrive by any route.
 pub const MAX_CART_BYTES: usize = 24 * 1024;
 
+/// How much of a metadata value is kept.
+pub const META_MAX: usize = 48;
+
 #[derive(Debug, Clone)]
 pub struct Cart {
     pub id: String,
@@ -75,7 +78,11 @@ impl Cart {
                 if let Some(v) = rest.trim().strip_prefix(&format!("{key}:")) {
                     let v = v.trim();
                     if !v.is_empty() {
-                        return Some(v.chars().take(48).collect());
+                        // Capped so a runaway header cannot push the shelf
+                        // around. `check` says when it bites — a title clipped
+                        // mid-word is the kind of thing that ships unnoticed
+                        // because nothing anywhere complains.
+                        return Some(v.chars().take(META_MAX).collect());
                     }
                 }
             }
@@ -121,6 +128,22 @@ impl Cart {
             if let Some(bad) = value.chars().find(|&c| !console::can_render(c)) {
                 out.push(format!(
                     "the console has no glyph for {bad:?}, so the {field} prints with a gap"
+                ));
+            }
+        }
+        // Metadata is capped, and it used to be capped in silence: two of the
+        // shipped carts had their `about` clipped mid-word — "does not bli" —
+        // and nothing anywhere said so. A cap you cannot see is a bug you find
+        // in production.
+        for (field, value) in [
+            ("title", &self.title),
+            ("author", &self.author),
+            ("about", &self.about),
+        ] {
+            if value.chars().count() == META_MAX {
+                out.push(format!(
+                    "`{field}` is exactly {META_MAX} characters, so it was probably cut short — \
+                     shorten it and check the end is still there"
                 ));
             }
         }

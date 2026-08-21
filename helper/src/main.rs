@@ -23,6 +23,7 @@ mod shelf;
 mod theme;
 mod tty;
 mod vm;
+mod ydrast;
 
 use std::io::{BufRead, IsTerminal, Write};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
@@ -71,7 +72,7 @@ fn cmd_play(id: &str) -> i32 {
         }
     };
     let machine = match Machine::load_with(&cart, shelf::load_save(&cart.id)) {
-        Ok(m) => m,
+        Ok(m) => { m.set_tongue(shelf::saved_tongue()); m }
         Err(e) => {
             eprintln!("✗ {e}");
             return 1;
@@ -320,7 +321,7 @@ fn cmd_check(file: &str) -> i32 {
     }
 
     let machine = match Machine::load(&cart) {
-        Ok(m) => m,
+        Ok(m) => { m.set_tongue(shelf::saved_tongue()); m }
         Err(e) => {
             eprintln!("✗ it does not load: {e}");
             return 1;
@@ -411,7 +412,7 @@ fn cmd_shot(args: &[String]) -> i32 {
         }
     };
     let machine = match Machine::load(&cart) {
-        Ok(m) => m,
+        Ok(m) => { m.set_tongue(shelf::saved_tongue()); m }
         Err(e) => {
             eprintln!("✗ {e}");
             return 1;
@@ -506,6 +507,7 @@ fn cmd_status() {
             // The console's own size control, so the buttons on it can change
             // it without anybody opening a settings page.
             "scale": shelf::saved_scale(),
+            "tongue": if shelf::saved_tongue() { "ydrast" } else { "plain" },
             "shell": {
                 "body": th.shell.body, "bezel": th.shell.bezel,
                 "text": th.shell.text, "dim": th.shell.dim, "accent": th.shell.accent,
@@ -645,6 +647,7 @@ const COVER_FALLBACK_FRAMES: u32 = 45;
 /// least honest about what it looks like.
 fn render_cover(cart: &Cart, palette: &theme::Palette) -> Result<Vec<u8>, String> {
     let machine = Machine::load(cart)?;
+    machine.set_tongue(shelf::saved_tongue());
     machine.init()?;
     if machine.has_cover() {
         machine.cover()?;
@@ -748,11 +751,6 @@ fn cmd_cover(args: &[String]) -> i32 {
     0
 }
 
-fn return_code(n: i32) -> i64 {
-    // A tiny shim so the match arm above can bail out with a code.
-    std::process::exit(n)
-}
-
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let cmd = args.first().map(String::as_str).unwrap_or("status");
@@ -844,6 +842,20 @@ fn main() {
         "covers" => cmd_covers(),
         "cover" => cmd_cover(&rest),
         "catalog" => cmd_catalog(&rest),
+        "tongue" => {
+            // Not advertised in `--help`. Somebody has to find it.
+            let on = match rest.first().map(String::as_str) {
+                Some("ydrast") => { shelf::set_tongue(true); true }
+                Some("plain") => { shelf::set_tongue(false); false }
+                Some(other) => {
+                    eprintln!("✗ don't know the tongue {other}");
+                    std::process::exit(2);
+                }
+                None => shelf::saved_tongue(),
+            };
+            println!("{}", if on { "ydrast" } else { "plain" });
+            0
+        }
         "scale" => {
             // With no argument it reports; with one it sets and reports.
             let n = match rest.first() {
@@ -851,7 +863,7 @@ fn main() {
                     Ok(n) => shelf::set_scale(n),
                     Err(_) => {
                         eprintln!("✗ scale takes a number from 2 to 6");
-                        return_code(2)
+                        std::process::exit(2)
                     }
                 },
                 None => shelf::saved_scale(),

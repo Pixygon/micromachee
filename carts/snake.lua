@@ -1,6 +1,6 @@
--- title: Recycler
+-- title: Serpent
 -- author: pixygon
--- about: collect the discarded. do not consume yourself
+-- about: coiling at the depths. do not eat yourself
 
 -- The board is 16x15 cells of 8 pixels, with the top 8 pixels kept for the
 -- score. Everything below works in cells and only multiplies up in _draw, so
@@ -141,5 +141,5 @@ function _cover()
 
   rect(0, 98, 128, 30, 0)
   line(0, 98, 127, 98, 5)
-  print("RECYCLER", 16, 106, 5, 3)
+  print("SERPENT", 22, 106, 5, 3)
 end

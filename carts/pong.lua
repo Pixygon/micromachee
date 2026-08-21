@@ -1,6 +1,6 @@
 -- title: The Whale
 -- author: pixygon
--- about: first to seven against a thing that does not blink
+-- about: first to seven. it does not blink
 
 -- The opponent is deliberately imperfect. It only starts tracking once the ball
 -- is heading its way and it moves fractionally slower than you do, so it can be

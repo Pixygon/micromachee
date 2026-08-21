@@ -62,6 +62,7 @@ pub struct Mega {
     /// three updates every two frames rather than one or two at random.
     carry: f64,
     seed: u64,
+    tongue: bool,
     pub out: Screen,
 }
 
@@ -92,6 +93,7 @@ impl Mega {
             left: INTRO_FRAMES,
             carry: 0.0,
             seed,
+            tongue: shelf::saved_tongue(),
             out: Screen::new(),
         };
         mega.shuffle();
@@ -135,12 +137,19 @@ impl Mega {
         matches!(self.phase, Phase::Over)
     }
 
+    /// What this line will actually say, so it can be centred on that rather
+    /// than on the English it started as.
+    fn say(&self, text: &str) -> String {
+        if self.tongue { crate::ydrast::render(text) } else { text.to_string() }
+    }
+
     fn begin_round(&mut self) -> Result<(), String> {
         let cart = self.current().clone();
         // A fresh machine every round, and no saved state: a micro-game starts
         // from nothing, and a farm's coins have no business in here.
         self.machine = Some(Machine::load(&cart)?);
         if let Some(m) = &self.machine {
+            m.set_tongue(self.tongue);
             m.init()?;
         }
         self.carry = 0.0;
@@ -283,27 +292,30 @@ impl Mega {
 
     fn draw_intro(&mut self) {
         self.out.cls(0);
-        self.out.print("MEGA", centre("MEGA", 3), 34, 4, 3);
-        self.out.print("MICROMACHEE", centre("MICROMACHEE", 1), 58, 7, 1);
-        self.out.print("EVERY PEARL. NO TIME.", centre("EVERY PEARL. NO TIME.", 1), 78, 1, 1);
-        let lives = format!("{LIVES} LIVES");
+        let t = self.say("MEGA");
+        self.out.print(&t, centre(&t, 3), 34, 4, 3);
+        let t = self.say("MICROMACHEE");
+        self.out.print(&t, centre(&t, 1), 58, 7, 1);
+        let t = self.say("EVERY PEARL. NO TIME.");
+        self.out.print(&t, centre(&t, 1), 78, 1, 1);
+        let lives = self.say(&format!("{LIVES} LIVES"));
         self.out.print(&lives, centre(&lives, 1), 94, 2, 1);
     }
 
     fn draw_card(&mut self) {
         self.out.cls(0);
-        let round = format!("ROUND {}", self.round + 1);
+        let round = self.say(&format!("ROUND {}", self.round + 1));
         self.out.print(&round, centre(&round, 1), 18, 1, 1);
 
-        let title = self.current().title.clone();
+        let title = self.say(&self.current().title.clone());
         let scale = if title.chars().count() * 4 * 2 <= 120 { 2 } else { 1 };
         self.out.print(&title, centre(&title, scale), 46, 7, scale);
 
-        let secs = format!("{} SECONDS", self.seconds() as i32);
+        let secs = self.say(&format!("{} SECONDS", self.seconds() as i32));
         self.out.print(&secs, centre(&secs, 1), 74, 5, 1);
 
         if self.speed() > 1.0 {
-            let sp = format!("SPEED {:.1}X", self.speed());
+            let sp = self.say(&format!("SPEED {:.1}X", self.speed()));
             self.out.print(&sp, centre(&sp, 1), 88, 3, 1);
         }
         for i in 0..LIVES {
@@ -313,18 +325,20 @@ impl Mega {
 
     fn draw_verdict(&mut self, ok: bool) {
         self.out.cls(0);
-        let word = if ok { "SURVIVED" } else { "MISS" };
-        self.out.print(word, centre(word, 2), 50, if ok { 5 } else { 2 }, 2);
-        let n = format!("{} SURVIVED", self.survived);
+        let word = self.say(if ok { "SURVIVED" } else { "MISS" });
+        self.out.print(&word, centre(&word, 2), 50, if ok { 5 } else { 2 }, 2);
+        let n = self.say(&format!("{} SURVIVED", self.survived));
         self.out.print(&n, centre(&n, 1), 76, 1, 1);
     }
 
     fn draw_over(&mut self) {
         self.out.cls(0);
-        self.out.print("GAME OVER", centre("GAME OVER", 2), 40, 2, 2);
-        let n = format!("{} ROUNDS", self.survived);
+        let over = self.say("GAME OVER");
+        self.out.print(&over, centre(&over, 2), 40, 2, 2);
+        let n = self.say(&format!("{} ROUNDS", self.survived));
         self.out.print(&n, centre(&n, 1), 64, 7, 1);
-        self.out.print("PRESS O", centre("PRESS O", 1), 84, 3, 1);
+        let press = self.say("PRESS O");
+        self.out.print(&press, centre(&press, 1), 84, 3, 1);
     }
 
     /// The shelf picture, drawn rather than stored — there is no mega.lua for a
@@ -367,6 +381,7 @@ mod tests {
             left: 1,
             carry: 0.0,
             seed: 12345,
+            tongue: false,
             out: Screen::new(),
         };
         m.left = 1;

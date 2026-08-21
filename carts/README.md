@@ -1,6 +1,6 @@
 # The shelf
 
-Eight carts, and between them they are the best documentation this console has.
+Nine carts, and between them they are the best documentation this console has.
 Every one is a complete game in a single Lua file, and each was written to show
 one thing clearly — so when you are about to write something and want to see how
 it is done here, open the cart in the right-hand column rather than guessing.
@@ -85,17 +85,29 @@ catalog) but the games are named for what they are in the Codex:
 
 | cart | is | from the Codex |
 |---|---|---|
-| snake | **Recycler** | the afterlife-machine the Arra built to dissolve broken Pixiels *gently* — a death-machine that believes it is mercy |
+| snake | **Serpent** | the Serpent sign — *"coiling at the depths, with cunning agility, it shapes what is to come"* |
 | breakout | **The Veil** | Caul's membrane, peeled at the first apocalypse. Breaking it is how a world is born |
 | pong | **The Whale** | the Whale sign — *"calm, controlled, and the foundation which everything rests on"* |
 | meteor | **Plate Fall** | the hexagonal plates the Dyson sphere is assembled from, shed and falling |
 | tunnel | **Down-Shaft** | the White Tower: pilgrims read it as rising; it is a shaft descending to the pulsar |
-| picross | **The Signs** | the nine celestial figures — the numbers describe one, you draw it |
+| picross | **Signcarver** | the nine celestial figures — the numbers describe one, you carve it |
 | rogue | **Abaddon** | the prison laid over the cursed forest. Nothing escapes it, and you do not die here — you dissolve |
-| farm | **Seedplate** | *"each plate carried everything needed to grow a world on top"* |
+| farm | **Farm of Arra** | the Arra seeded the plates and built the recycler; the growing is theirs |
+| pixiel | **Pixiel** | the body-stock — skeleton and AI brain. The ones not cleanly reissued end up in the pit |
 
 Mega Micromachee is the [pearl-dress](../README.md#mega-micromachee): every
 pearl, a few seconds each.
+
+## A tongue you have to find
+
+The console can speak the **Ydrast**, the rule-based language of Amebrak. It is
+not in the menu. Every word a cart prints passes through one place in the helper,
+so the whole console changes language and not one cart knows about it — the
+letters merge (i and j are one, c and q become k, x becomes ks), the sacred
+vocabulary is fixed, digits are spoken as words, and anything with no root yet
+is coined by a reckoning that gives the same root forever.
+
+`micromachee tongue ydrast` if you would rather not hunt for it.
 
 ## One thing that is true of all seven
 

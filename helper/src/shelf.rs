@@ -182,6 +182,20 @@ pub fn set_scale(n: i64) -> i64 {
     n
 }
 
+/// Whether the console is speaking the Ydrast. Off unless somebody found it.
+pub fn saved_tongue() -> bool {
+    load_state().get("tongue").and_then(|v| v.as_str()) == Some("ydrast")
+}
+
+pub fn set_tongue(on: bool) {
+    let mut state = load_state();
+    if !state.is_object() {
+        state = json!({});
+    }
+    state["tongue"] = json!(if on { "ydrast" } else { "plain" });
+    save_state(&state);
+}
+
 pub fn saved_theme() -> Option<String> {
     load_state().get("theme").and_then(|v| v.as_str()).map(String::from)
 }

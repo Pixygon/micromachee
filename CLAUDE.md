@@ -258,13 +258,13 @@ The shipped carts in `carts/` each demonstrate one thing:
 
 | cart | for |
 |---|---|
-| `snake.lua` | *Recycler* — grid movement, queued turns |
+| `snake.lua` | *Serpent* — grid movement, queued turns |
 | `breakout.lua` | *The Veil* — float physics, per-axis collision |
 | `meteor.lua` | *Plate Fall* — spawning, difficulty ramp, HUD layering |
 | `tunnel.lua` | *Down-Shaft* — `pget` collision against the framebuffer |
 | `pong.lua` | *The Whale* — an opponent worth playing, imperfect on purpose |
-| `picross.lua` | *The Signs* — dense layout, a cursor, clue gutters that fit |
+| `picross.lua` | *Signcarver* — dense layout, a cursor, clue gutters that fit |
 | `rogue.lua` | *Abaddon* — generated levels, turn order, remembered map, stats |
-| `farm.lua` | *Seedplate* — `save`/`load` and `now()`, real time while closed |
+| `farm.lua` | *Farm of Arra* — `save`/`load` and `now()`, real time while closed |
 
 All seven draw their own `_cover()`, so they double as worked examples of that.
