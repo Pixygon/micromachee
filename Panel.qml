@@ -41,6 +41,9 @@ Panel {
   readonly property bool typing: nameField.activeFocus || promptField.activeFocus
                                  || reviseField.activeFocus
 
+  /// Whether the card is up over the cover. X plays; O is the other one.
+  property bool showInfo: false
+
   /// The last few buttons pressed on the shelf. Nothing advertises this.
   property string secret: ""
 
@@ -84,6 +87,7 @@ Panel {
   // points past the end of the shelf highlights nothing.
   Connections {
     target: mm
+    function onArmedIdChanged() { root.showInfo = false }
     function onCartsChanged() {
       root.shelfIndex = Math.max(0, Math.min(root.shelfIndex, mm.carts.length - 1))
     }
@@ -142,7 +146,12 @@ Panel {
         if (root.typing) return
         // On the cover, X is the only button that does anything: it starts.
         if (mm.arming) {
+          // X plays. O is the alt button: it says what the game is.
           if (event.key === Qt.Key_X) { mm.startArmed(); event.accepted = true }
+          else if (event.key === Qt.Key_Z || event.key === Qt.Key_Space) {
+            root.showInfo = !root.showInfo
+            event.accepted = true
+          }
           return
         }
         // On the shelf the same buttons move a selection and pick one, so the
@@ -299,9 +308,65 @@ Panel {
               font.pixelSize: Style.font.bodySmall
             }
 
+            // ── what this game is ─────────────────────────────────────────
+            Rectangle {
+              visible: mm.arming && root.showInfo
+              anchors.fill: screen
+              color: Qt.rgba(0, 0, 0, 0.93)
+
+              Column {
+                anchors.centerIn: parent
+                width: parent.width - Style.space(16)
+                spacing: Style.space(6)
+
+                Text {
+                  width: parent.width
+                  horizontalAlignment: Text.AlignHCenter
+                  text: mm.armedTitle
+                  color: mm.shellText
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.body
+                  font.bold: true
+                  wrapMode: Text.WordWrap
+                }
+                Text {
+                  width: parent.width
+                  horizontalAlignment: Text.AlignHCenter
+                  text: mm.aboutFor(mm.armedId)
+                  color: mm.shellDim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  wrapMode: Text.WordWrap
+                }
+                Text {
+                  width: parent.width
+                  horizontalAlignment: Text.AlignHCenter
+                  visible: Number(mm.bestFor(mm.armedId)) > 0
+                  text: "BEST " + mm.bestFor(mm.armedId)
+                  color: mm.shellAccent
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                }
+                Text {
+                  width: parent.width
+                  horizontalAlignment: Text.AlignHCenter
+                  text: "O CLOSES · X PLAYS"
+                  color: mm.shellDim
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.bodySmall
+                  opacity: 0.6
+                }
+              }
+
+              MouseArea {
+                anchors.fill: parent
+                onClicked: root.showInfo = false
+              }
+            }
+
             // ── press X ───────────────────────────────────────────────────
             Rectangle {
-              visible: mm.arming
+              visible: mm.arming && !root.showInfo
               anchors.horizontalCenter: screen.horizontalCenter
               anchors.bottom: screen.bottom
               anchors.bottomMargin: Style.space(8)
@@ -533,7 +598,7 @@ Panel {
         Text {
           visible: mm.playing || mm.arming
           width: parent.width
-          text: mm.arming ? "X STARTS · ESC GOES BACK"
+          text: mm.arming ? "X STARTS · O TELLS YOU MORE · ESC BACK"
                           : "ARROWS OR WASD · Z AND X · T THEME · ESC BACK"
           color: root.dim
           font.family: root.fontFamily

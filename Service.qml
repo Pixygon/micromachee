@@ -74,6 +74,18 @@ Item {
     return false
   }
 
+  function aboutFor(id) {
+    for (var i = 0; i < carts.length; i++)
+      if (carts[i].id === id) return String(carts[i].about || "")
+    return ""
+  }
+
+  function bestFor(id) {
+    for (var i = 0; i < carts.length; i++)
+      if (carts[i].id === id) return Number(carts[i].best || 0)
+    return 0
+  }
+
   function coverFor(id) {
     return covers && covers[id] !== undefined ? covers[id] : ""
   }

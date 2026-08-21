@@ -4,6 +4,17 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.18.0] — 2026-08-21
+
+### Added
+- On a game's cover screen, press O (or Z/Space) to bring up an info card showing the game's title, description, and best score before you commit to playing. Press O again or click to dismiss it.
+
+### Changed
+- The shelf screen now shows just each game's title under its thumbnail; the longer description moved into the new pre-game info card instead of being truncated on the shelf.
+- Updated on-screen and web hints to mention the new O button action (e.g. "X STARTS · O TELLS YOU MORE · ESC BACK").
+- The web page header now links to Pixygon instead of showing the old technical tagline.
+
+
 ## [0.17.0] — 2026-08-21
 
 ### Added
