@@ -48,6 +48,16 @@ pub struct Entry {
     art_rows: i32,
 }
 
+/// The reserved last tile. It is not a cart and has no file; picking it asks
+/// the panel to open the make-a-game flow, which is why it comes back as its
+/// own line rather than as an id that something might try to load.
+const MAKE_ID: &str = "\u{1}make";
+
+/// Frames of the opening titles. Skippable, and only played when the panel
+/// itself opened — not every time the shelf process restarts, or leaving a game
+/// would replay it and it would stop being a welcome.
+const INTRO: i32 = 78;
+
 pub struct Browse {
     entries: Vec<Entry>,
     sel: usize,
@@ -55,7 +65,21 @@ pub struct Browse {
     info: bool,
     last: u8,
     picked: Option<String>,
+    make: bool,
+    intro: i32,
+    tick: i32,
     out: Screen,
+}
+
+/// Clamp to 0..1 — the eased slide needs it and `mid` is integer-only.
+fn mid_f(v: f32) -> f32 {
+    if v < 0.0 {
+        0.0
+    } else if v > 1.0 {
+        1.0
+    } else {
+        v
+    }
 }
 
 fn centre(text: &str, scale: i32) -> i32 {
@@ -113,6 +137,48 @@ fn art_for(cart: &Cart) -> Option<Screen> {
     Some(copy)
 }
 
+/// The make-a-game tile: nothing but a plus, because it is the one tile that is
+/// not a picture of a game that exists.
+fn make_tile() -> Screen {
+    let mut s = Screen::new();
+    s.cls(0);
+    s.rectb(10, 8, 108, 80, 1);
+    s.rectb(11, 9, 106, 78, 1);
+    s.rect(56, 30, 16, 36, 5);
+    s.rect(46, 40, 36, 16, 5);
+    s
+}
+
+/// One tile pixel from the block of cover pixels behind it.
+///
+/// Point sampling — taking the single pixel at the corner of each block — threw
+/// away nine tenths of a cover and kept whatever happened to land on the grid,
+/// which is why the tiles came out as noise. This takes the commonest colour in
+/// the block instead, with two adjustments that matter at this size: the
+/// background has to win outright rather than merely lead, so a small bright
+/// thing on black survives being shrunk; and ties go to the lighter colour,
+/// because on a dark cover the lighter pixel is the one carrying the shape.
+fn block(art: &Screen, x0: i32, x1: i32, y0: i32, y1: i32, rank_of: &[usize; 8]) -> i32 {
+    let mut count = [0u32; 8];
+    for y in y0..y1.max(y0 + 1) {
+        for x in x0..x1.max(x0 + 1) {
+            count[(art.pget(x, y) & 7) as usize] += 1;
+        }
+    }
+    let mut best = 0usize;
+    let mut best_score = 0u32;
+    for c in 0..8usize {
+        // Weight everything above the darkest slot, so background only wins
+        // when it genuinely dominates the block.
+        let score = count[c] * if c == 0 { 7 } else { 10 };
+        if score > best_score || (score == best_score && rank_of[c] > rank_of[best]) {
+            best = c;
+            best_score = score;
+        }
+    }
+    best as i32
+}
+
 /// A cart that will not run still needs a tile, so it gets its initial.
 fn placeholder(title: &str) -> Screen {
     let mut s = Screen::new();
@@ -123,7 +189,7 @@ fn placeholder(title: &str) -> Screen {
 }
 
 impl Browse {
-    pub fn new() -> Self {
+    pub fn new(intro: bool) -> Self {
         let mut entries = Vec::new();
 
         // Mega goes first, the way it does on every other listing: it is the
@@ -158,7 +224,37 @@ impl Browse {
             });
         }
 
-        Self { entries, sel: 0, scroll: 0, info: false, last: 0, picked: None, out: Screen::new() }
+        // Always last, so the shelf reads as "the games, and then make one"
+        // rather than putting a tool in among the toys.
+        entries.push(Entry {
+            id: MAKE_ID.to_string(),
+            title: "Make a game".to_string(),
+            author: "you".to_string(),
+            about: "say what it is. the console writes it".to_string(),
+            best: 0,
+            draft: false,
+            in_mega: false,
+            art: make_tile(),
+            art_rows: COVER_ART,
+        });
+
+        Self {
+            entries,
+            sel: 0,
+            scroll: 0,
+            info: false,
+            last: 0,
+            picked: None,
+            make: false,
+            intro: if intro { INTRO } else { 0 },
+            tick: 0,
+            out: Screen::new(),
+        }
+    }
+
+    /// Whether the player asked for the make-a-game flow rather than a cart.
+    pub fn wants_make(&self) -> bool {
+        self.make
     }
 
     /// The cart the player chose, once they have chosen one.
@@ -182,8 +278,18 @@ impl Browse {
         }
     }
 
+    fn choose(&mut self) {
+        let id = self.entries[self.sel].id.clone();
+        if id == MAKE_ID {
+            self.make = true;
+        } else {
+            self.picked = Some(id);
+        }
+    }
+
     /// One frame. `held` is the same bitmask a cart sees.
     pub fn frame(&mut self, held: u8) -> &Screen {
+        self.tick += 1;
         let pressed = held & !self.last;
         self.last = held;
         let hit = |b: u8| pressed & (1 << b) != 0;
@@ -193,9 +299,25 @@ impl Browse {
             return &self.out;
         }
 
+        // Any button at all cuts the titles short. An intro you cannot skip is
+        // a delay, however good it is.
+        if self.intro > 0 {
+            self.intro -= 1;
+            if pressed != 0 {
+                // The press that skips is spent on skipping. Letting it fall
+                // through as well means the button you hit to get past the
+                // titles also moves the selection or starts a game.
+                self.intro = 0;
+                self.draw_grid();
+                return &self.out;
+            }
+            self.draw_intro();
+            return &self.out;
+        }
+
         if self.info {
             if hit(4) {
-                self.picked = Some(self.entries[self.sel].id.clone());
+                self.choose();
             } else if hit(5) {
                 self.info = false;
             }
@@ -219,7 +341,7 @@ impl Browse {
             self.move_to(next);
         }
         if hit(4) {
-            self.picked = Some(self.entries[self.sel].id.clone());
+            self.choose();
         }
         if hit(5) {
             self.info = true;
@@ -230,6 +352,40 @@ impl Browse {
     }
 
     // ── drawing ─────────────────────────────────────────────────────────────
+
+    /// The opening titles. MICRO comes down, MACHEE comes up, they meet, and
+    /// the line under them draws itself outward from the middle.
+    ///
+    /// All of it is one eased number: `slide` runs 0 to 1 over the first third,
+    /// so the two halves are always exactly as far along as each other and meet
+    /// on the same frame however the timing is retuned.
+    fn draw_intro(&mut self) {
+        self.out.cls(0);
+        let t = INTRO - self.intro;               // frames elapsed
+        let arrive = INTRO / 3;
+
+        // Cubic ease out: fast in, settling rather than stopping.
+        let p = mid_f(t as f32 / arrive as f32);
+        let slide = 1.0 - (1.0 - p) * (1.0 - p) * (1.0 - p);
+
+        let top_y = (-30.0 + slide * 74.0) as i32;      // MICRO, down to 44
+        let bot_y = (140.0 - slide * 72.0) as i32;      // MACHEE, up to 68
+
+        self.out.print("MICRO", centre("MICRO", 3), top_y, 7, 3);
+        self.out.print("MACHEE", centre("MACHEE", 3), bot_y, 6, 3);
+
+        // Once they have landed, a rule opens out between them and the byline
+        // fades up under it.
+        if p >= 1.0 {
+            let after = t - arrive;
+            let w = (after * 5).clamp(0, 60);
+            self.out.rect(64 - w, 64, w * 2, 1, 5);
+            if after > 14 {
+                let by = say("by pixygon");
+                self.out.print(&by, centre(&by, 1), 96, 1, 1);
+            }
+        }
+    }
 
     fn draw_empty(&mut self) {
         self.out.cls(0);
@@ -242,11 +398,18 @@ impl Browse {
     /// One cover, sampled down into a tile. Nearest neighbour: a cover is pixel
     /// art, and averaging pixel art produces mud.
     fn draw_tile(&mut self, at: usize, x: i32, y: i32) {
+        let rows = self.entries[at].art_rows;
+        let mut rank_of = [0usize; 8];
+        for (place, slot) in crate::theme::rank().iter().enumerate() {
+            rank_of[*slot & 7] = place;
+        }
         for ty in 0..TILE {
-            let sy = ty * self.entries[at].art_rows / TILE;
+            let y0 = ty * rows / TILE;
+            let y1 = (ty + 1) * rows / TILE;
             for tx in 0..TILE {
-                let sx = tx * W / TILE;
-                let c = self.entries[at].art.pget(sx, sy) as i32;
+                let x0 = tx * W / TILE;
+                let x1 = (tx + 1) * W / TILE;
+                let c = block(&self.entries[at].art, x0, x1, y0, y1, &rank_of);
                 self.out.pset(x + tx, y + ty, c);
             }
         }
@@ -374,6 +537,9 @@ mod tests {
             info: false,
             last: 0,
             picked: None,
+            make: false,
+            intro: 0,
+            tick: 0,
             out: Screen::new(),
         };
         for i in 0..n {
@@ -447,6 +613,41 @@ mod tests {
             let row = b.sel / COLS;
             assert!(row >= b.scroll && row < b.scroll + VIS_ROWS);
         }
+    }
+
+    #[test]
+    fn the_make_tile_is_not_a_cart() {
+        // Picking it must not come back as an id, or the panel would try to
+        // load a cart called "make" and fail in a way nobody could read.
+        let mut b = dummy(3);
+        b.entries.push(Entry {
+            id: MAKE_ID.into(),
+            title: "Make a game".into(),
+            author: "you".into(),
+            about: "say what it is".into(),
+            best: 0,
+            draft: false,
+            in_mega: false,
+            art: make_tile(),
+            art_rows: COVER_ART,
+        });
+        b.move_to(3);
+        press(&mut b, 4);
+        assert!(b.wants_make(), "O on the make tile did not ask for the make flow");
+        assert!(b.picked().is_none(), "it came back as a cart id as well");
+    }
+
+    #[test]
+    fn the_titles_play_once_and_can_be_skipped() {
+        let mut b = dummy(4);
+        b.intro = INTRO;
+        b.frame(0);
+        assert!(b.intro > 0, "the titles ended before they began");
+        b.frame(1 << 1);
+        assert_eq!(b.intro, 0, "a button did not skip the titles");
+        // and skipping must not also move the selection or start anything
+        assert_eq!(b.sel, 0);
+        assert!(b.picked().is_none());
     }
 
     #[test]

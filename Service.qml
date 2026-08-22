@@ -106,13 +106,16 @@ Item {
   // helper and every cart use.
   property int held: 0
 
-  function startBrowse() {
+  /// `intro` plays the opening titles. Only the panel opening passes it: the
+  /// shelf also restarts when you leave a game or change the tongue, and titles
+  /// on the way out of a game are not a welcome, they are a wait.
+  function startBrowse(intro) {
     if (!active || starting || creating || playing || armedId !== "") return
     if (browseProcess.running) return
     frame = ""
     held = 0
     paused = false
-    browseProcess.command = [bin, "browse"]
+    browseProcess.command = intro === true ? [bin, "browse", "--intro"] : [bin, "browse"]
     browseProcess.running = true
   }
 
@@ -470,7 +473,10 @@ Item {
         if (s.length < 2) return
         var kind = s.charAt(0)
         if (kind === "F") root.frame = s.substring(2)
-        else if (kind === "G") {
+        else if (kind === "M") {
+          // The last tile on the shelf is not a cart. It asks for this.
+          root.openCreate()
+        } else if (kind === "G") {
           var id = s.substring(2)
           var title = id
           for (var i = 0; i < root.carts.length; i++)

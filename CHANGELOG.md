@@ -4,6 +4,27 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.25.0] — 2026-08-22
+
+### Added
+- The console shelf now plays a brief animated title sequence when you first open the panel (skippable with any button press), instead of showing a static header.
+- A "Make a game" tile now lives at the end of the shelf itself, so starting a new game is just another selection on the console rather than a separate button below it.
+- The colour mode switcher has moved onto the console face as a compact palette swatch next to the controls, so you can cycle themes without leaving the play view.
+- Breakout now features an evolving, endless wall: each level generates a new pattern with drifting and descending bricks, keeping the challenge fresh well beyond the original fixed set of levels.
+- Breakout adds falling power-up capsules — widen or narrow your paddle, split your ball into three, or gain a piercing shot — picked up by catching them with the paddle.
+- Sparrow now gives you a grace period after taking a hit instead of dying instantly: as long as you have upgraded your gun, a hit costs you a power level rather than the run.
+- Sparrow's bird visually evolves as you power up, and reaching the top gun level adds two wingmen that fly alongside you and fire together.
+
+### Changed
+- The on-screen control hint text under the console has been removed as part of streamlining the shelf layout.
+
+### Improved
+- Cover art thumbnails on the shelf are now generated using a smarter downsampling method that preserves small details and shapes instead of picking a single, often unrepresentative pixel, making game tiles look noticeably clearer.
+- The console UI (buttons, text, d-pad, and controls) now scales proportionally with the window size, so resizing keeps everything looking consistent instead of stretching just the screen area.
+- Breakout's scoring, life, and game-over screens have been reworked to reflect the new endless-level structure, including a visible level counter.
+- Sparrow's max shots and gun levels have been increased, giving more room for sustained fire at higher power.
+
+
 ## [0.24.0] — 2026-08-21
 
 ### Added

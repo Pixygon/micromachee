@@ -287,15 +287,18 @@ fn cmd_play_mega() -> i32 {
 
 /// The shelf, as a program the console runs.
 ///
-/// Same protocol as `play`, with one line added: `G <id>` when the player picks
-/// something, after which this exits and the panel starts that cart. Picking is
-/// a handover rather than a mode inside one process, so a game that falls over
-/// cannot take the shelf down with it.
-fn cmd_browse() -> i32 {
+/// Same protocol as `play`, with two lines added: `G <id>` when the player picks
+/// a cart, and `M` when they pick the make-a-game tile. Either way this exits
+/// and the panel takes over — picking is a handover rather than a mode inside
+/// one process, so a game that falls over cannot take the shelf down with it.
+///
+/// `--intro` plays the opening titles. The panel passes it when it opens and
+/// not when the shelf merely restarts, so leaving a game does not replay them.
+fn cmd_browse(args: &[String]) -> i32 {
     if std::io::stdout().is_terminal() {
         eprintln!("note: `browse` prints a frame protocol for the bar, not a menu for a terminal.");
     }
-    let mut shelf_screen = browse::Browse::new();
+    let mut shelf_screen = browse::Browse::new(args.iter().any(|a| a == "--intro"));
 
     let held = Arc::new(AtomicU8::new(0));
     let quit = Arc::new(AtomicBool::new(false));
@@ -354,6 +357,11 @@ fn cmd_browse() -> i32 {
         }
         if let Some(id) = shelf_screen.picked() {
             let _ = writeln!(out, "G {id}");
+            let _ = out.flush();
+            return 0;
+        }
+        if shelf_screen.wants_make() {
+            let _ = writeln!(out, "M");
             let _ = out.flush();
             return 0;
         }
@@ -908,7 +916,7 @@ fn main() {
             println!("{}", serde_json::to_string(&shelf::shelf_json()).unwrap_or_else(|_| "[]".into()));
             0
         }
-        "browse" => cmd_browse(),
+        "browse" => cmd_browse(&rest),
         "play" => match rest.first() {
             Some(id) => cmd_play(id),
             None => {

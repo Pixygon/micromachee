@@ -67,7 +67,7 @@ Panel {
       mm.loadCovers()          // once per opening, not on the poll timer
       mm.active = true
       mm.resume()              // a closed panel paused it; pick it back up
-      mm.startBrowse()         // and the shelf is the thing it comes back to
+      mm.startBrowse(true)     // and the shelf, with its titles, is what opens
       Qt.callLater(function() { keys.forceActiveFocus() })
     } else {
       // Not `stop()`. Closing the bar to look at something else should cost you
@@ -390,15 +390,21 @@ Panel {
             anchors.topMargin: Style.space(4)
             anchors.left: parent.left
             anchors.right: parent.right
-            height: Style.space(56)
+            height: Math.round(Style.space(56) * pad.k)
 
-            readonly property int cell: Style.space(16)
-            readonly property int round: Style.space(22)
+            // The console keeps its proportions at every size. Everything below
+            // is a multiple of the same number the screen is drawn at, so
+            // making the window bigger makes a bigger console rather than the
+            // same buttons around a bigger screen.
+            readonly property real k: screenBox.pixelScale / 3
+            readonly property int cell: Math.round(Style.space(16) * pad.k)
+            readonly property int round: Math.round(Style.space(22) * pad.k)
+            readonly property int fs: Math.max(7, Math.round(Style.font.bodySmall * pad.k))
 
             Item {
               id: dpad
               anchors.left: parent.left
-              anchors.leftMargin: Style.space(10)
+              anchors.leftMargin: Math.round(Style.space(10) * pad.k)
               anchors.verticalCenter: parent.verticalCenter
               width: pad.cell * 3 + 4
               height: pad.cell * 3 + 4
@@ -419,20 +425,20 @@ Panel {
                   height: pad.cell
                   radius: Style.space(3)
                   color: down ? mm.shellAccent : mm.shellDim
-                  opacity: mm.playing ? 1.0 : 0.45
+                  opacity: (mm.playing || mm.browsing) ? 1.0 : 0.45
 
                   Text {
                     anchors.centerIn: parent
                     text: modelData.key
                     color: mm.shellBezel
                     font.family: root.fontFamily
-                    font.pixelSize: Style.font.bodySmall
+                    font.pixelSize: pad.fs
                     font.bold: true
                   }
 
                   MouseArea {
                     anchors.fill: parent
-                    enabled: mm.playing
+                    enabled: mm.playing || mm.browsing
                     onPressed: mm.setButton(modelData.bit, true)
                     onReleased: mm.setButton(modelData.bit, false)
                     onCanceled: mm.setButton(modelData.bit, false)
@@ -453,8 +459,8 @@ Panel {
                 text: "MICROMACHEE"
                 color: mm.shellDim
                 font.family: root.fontFamily
-                font.pixelSize: Style.font.bodySmall
-                font.letterSpacing: 2
+                font.pixelSize: pad.fs
+                font.letterSpacing: 2 * pad.k
                 opacity: 0.7
               }
 
@@ -463,13 +469,49 @@ Panel {
                 text: "by Pixygon"
                 color: mm.shellDim
                 font.family: root.fontFamily
-                font.pixelSize: Style.font.bodySmall
+                font.pixelSize: pad.fs
                 opacity: 0.55
               }
 
               Row {
                 anchors.horizontalCenter: parent.horizontalCenter
-                spacing: Style.space(4)
+                spacing: Math.round(Style.space(4) * pad.k)
+
+                // The colour mode lives here now rather than in a row of chrome
+                // under the console. It is the palette itself on a button: the
+                // four slots that change most, in the order the rank puts them.
+                Rectangle {
+                  visible: mm.themes.length > 1
+                  width: Math.round(Style.space(26) * pad.k)
+                  height: Math.round(Style.space(14) * pad.k)
+                  radius: Math.round(Style.space(3) * pad.k)
+                  color: "transparent"
+                  border.width: 1
+                  border.color: mm.shellDim
+                  opacity: themeHover.containsMouse ? 1.0 : 0.8
+
+                  Row {
+                    anchors.centerIn: parent
+                    spacing: 1
+                    Repeater {
+                      model: [mm.shellAccent, mm.shellText, mm.shellDim]
+                      delegate: Rectangle {
+                        required property var modelData
+                        width: Math.max(3, Math.round(4 * pad.k))
+                        height: Math.max(3, Math.round(8 * pad.k))
+                        color: modelData
+                      }
+                    }
+                  }
+
+                  MouseArea {
+                    id: themeHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: mm.nextTheme()
+                  }
+                }
 
                 Repeater {
                   model: [
@@ -480,9 +522,9 @@ Panel {
                     required property var modelData
                     readonly property bool canDo:
                       mm.scale + modelData.step >= 2 && mm.scale + modelData.step <= 6
-                    width: Style.space(16)
-                    height: Style.space(14)
-                    radius: Style.space(3)
+                    width: Math.round(Style.space(16) * pad.k)
+                    height: Math.round(Style.space(14) * pad.k)
+                    radius: Math.round(Style.space(3) * pad.k)
                     color: "transparent"
                     border.width: 1
                     border.color: mm.shellDim
@@ -493,7 +535,7 @@ Panel {
                       text: modelData.label
                       color: mm.shellDim
                       font.family: root.fontFamily
-                      font.pixelSize: Style.font.bodySmall
+                      font.pixelSize: pad.fs
                     }
 
                     MouseArea {
@@ -509,9 +551,9 @@ Panel {
 
             Row {
               anchors.right: parent.right
-              anchors.rightMargin: Style.space(10)
+              anchors.rightMargin: Math.round(Style.space(10) * pad.k)
               anchors.verticalCenter: parent.verticalCenter
-              spacing: Style.space(8)
+              spacing: Math.round(Style.space(8) * pad.k)
 
               Repeater {
                 // Big letter is what a cart calls the button; small letter is
@@ -530,26 +572,29 @@ Panel {
                     height: pad.round
                     radius: width / 2
                     color: down ? mm.shellAccent : mm.shellDim
-                    opacity: (mm.playing || (mm.arming && modelData.bit === 5)) ? 1.0 : 0.45
+                    opacity: (mm.playing || mm.browsing
+                              || (mm.arming && modelData.bit === 5)) ? 1.0 : 0.45
 
                     Text {
                       anchors.centerIn: parent
                       text: modelData.name
                       color: mm.shellBezel
                       font.family: root.fontFamily
-                      font.pixelSize: Style.font.body
+                      font.pixelSize: Math.max(9, Math.round(Style.font.body * pad.k))
                       font.bold: true
                     }
 
                     MouseArea {
                       anchors.fill: parent
-                      enabled: mm.playing || (mm.arming && modelData.bit === 5)
+                      enabled: mm.playing || mm.browsing || (mm.arming && modelData.bit === 5)
                       onPressed: {
                         if (mm.arming) mm.startArmed()
                         else mm.setButton(modelData.bit, true)
                       }
-                      onReleased: if (mm.playing) mm.setButton(modelData.bit, false)
-                      onCanceled: if (mm.playing) mm.setButton(modelData.bit, false)
+                      // Release has to clear the bit wherever press set it, or
+                      // clicking O on the shelf leaves it held down forever.
+                      onReleased: if (mm.playing || mm.browsing) mm.setButton(modelData.bit, false)
+                      onCanceled: if (mm.playing || mm.browsing) mm.setButton(modelData.bit, false)
                     }
                   }
 
@@ -558,7 +603,7 @@ Panel {
                     text: modelData.key
                     color: mm.shellDim
                     font.family: root.fontFamily
-                    font.pixelSize: Style.font.bodySmall
+                    font.pixelSize: pad.fs
                   }
                 }
               }
@@ -586,17 +631,6 @@ Panel {
           }
         }
 
-        Text {
-          visible: mm.playing || mm.arming || mm.browsing
-          width: parent.width
-          text: mm.arming ? "X STARTS · O TELLS YOU MORE · ESC BACK"
-              : (mm.browsing ? "ARROWS OR WASD · Z PLAYS · X TELLS YOU MORE · T THEME"
-                             : "ARROWS OR WASD · Z AND X · T THEME · ESC BACK")
-          color: root.dim
-          font.family: root.fontFamily
-          font.pixelSize: Style.font.bodySmall
-          horizontalAlignment: Text.AlignHCenter
-        }
 
         // ── a game you made ─────────────────────────────────────────────
         // Only on the cover, not mid-play: this is where you look at it and
@@ -726,80 +760,7 @@ Panel {
           }
         }
 
-        // ── the shelf ───────────────────────────────────────────────────
-        PanelHero {
-          visible: !mm.playing && !mm.arming
-          width: parent.width
-          title: "Micromachee"
-          meta: mm.installed
-            ? (mm.carts.length === 0
-               ? "no carts — micromachee sync"
-               : mm.carts.length + (mm.carts.length === 1 ? " cart" : " carts"))
-            : "helper not installed"
-          foreground: root.foreground
-          fontFamily: root.fontFamily
-          iconComponent: Component {
-            Text {
-              text: root.glyph
-              color: root.foreground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.display
-            }
-          }
-        }
 
-        Item {
-          visible: !mm.playing && !mm.arming && mm.themes.length > 1
-          width: parent.width
-          height: Style.space(22)
-
-          Text {
-            anchors.left: parent.left
-            anchors.leftMargin: Style.space(6)
-            anchors.verticalCenter: parent.verticalCenter
-            text: "COLOUR MODE"
-            color: root.dim
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.bodySmall
-          }
-
-          Row {
-            anchors.right: parent.right
-            anchors.rightMargin: Style.space(8)
-            anchors.verticalCenter: parent.verticalCenter
-            spacing: Style.space(6)
-
-            // The palette itself is the label: eight swatches say more about a
-            // colour mode than its name does.
-            Row {
-              anchors.verticalCenter: parent.verticalCenter
-              spacing: 1
-              Repeater {
-                model: [mm.shellBezel, mm.shellDim, mm.shellAccent, mm.shellText]
-                delegate: Rectangle {
-                  required property var modelData
-                  width: Style.space(6); height: Style.space(6)
-                  radius: 1
-                  color: modelData
-                  Behavior on color { ColorAnimation { duration: 180 } }
-                }
-              }
-            }
-            Text {
-              anchors.verticalCenter: parent.verticalCenter
-              text: mm.themeId
-              color: root.foreground
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.bodySmall
-            }
-          }
-
-          MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            onClicked: mm.nextTheme()
-          }
-        }
 
         Text {
           visible: mm.lastError !== ""
@@ -811,37 +772,6 @@ Panel {
           wrapMode: Text.WordWrap
         }
 
-        // ── make one ────────────────────────────────────────────────────
-        Rectangle {
-          visible: !mm.playing && !mm.arming && !mm.creating && mm.installed
-          width: parent.width
-          height: Style.space(30)
-          radius: Style.cornerRadius
-          color: makeHover.containsMouse
-            ? Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.13)
-            : "transparent"
-          border.width: 1
-          border.color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.25)
-
-          Text {
-            anchors.centerIn: parent
-            text: "+  MAKE A GAME"
-            color: root.foreground
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.bodySmall
-          }
-
-          MouseArea {
-            id: makeHover
-            anchors.fill: parent
-            hoverEnabled: true
-            cursorShape: Qt.PointingHandCursor
-            onClicked: {
-              mm.openCreate()
-              Qt.callLater(function() { nameField.forceActiveFocus() })
-            }
-          }
-        }
 
         Column {
           visible: mm.creating
