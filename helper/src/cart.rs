@@ -54,6 +54,51 @@ pub struct Cart {
 }
 
 impl Cart {
+    /// Clean a string that came out of a cart before anything displays it.
+    ///
+    /// Metadata is the one part of a cart that is shown as TEXT rather than
+    /// run, and after `sync` it can have come from a catalog on the internet.
+    /// That makes it wire data, and it reaches places this program does not
+    /// own: Qt `Text` fields default to `AutoText`, which sniffs a string for
+    /// markup, so a title of `<img src="http://tracker/x">` would have the bar
+    /// fetch that URL the moment it rendered. The panel also sets
+    /// `Text.PlainText` for the same reason — but the tooltip goes through
+    /// Omarchy's own internals, which neither this nor the panel controls, so
+    /// the string has to be safe before it leaves here.
+    ///
+    /// Angle brackets go, because they are the whole of that sniff. Control
+    /// characters go. So do the bidirectional overrides, which are invisible
+    /// and let one name be drawn looking like another in a list of names.
+    pub fn sanitize_display(raw: &str) -> String {
+        let filtered: String = raw
+            .chars()
+            .filter_map(|c| {
+                // A tab or a newline is a control character AND a word break.
+                // Dropping it outright ran the words either side together, so
+                // it becomes a space and the collapse below tidies up after.
+                if c.is_whitespace() {
+                    return Some(' ');
+                }
+                if c.is_control()
+                    || c == '<'
+                    || c == '>'
+                    || matches!(c,
+                        '\u{200B}'..='\u{200F}'
+                        | '\u{202A}'..='\u{202E}'
+                        | '\u{2066}'..='\u{2069}'
+                        | '\u{FEFF}')
+                {
+                    return None;
+                }
+                Some(c)
+            })
+            .collect();
+        // Collapse the whitespace too: a title padded with fifty spaces pushes
+        // everything beside it off the shelf without containing anything.
+        let collapsed: Vec<&str> = filtered.split_whitespace().collect();
+        collapsed.join(" ").chars().take(META_MAX).collect()
+    }
+
     pub fn parse(id: &str, source: &str) -> Result<Cart, String> {
         let bytes = source.len();
         if bytes > MAX_CART_BYTES {
@@ -81,11 +126,16 @@ impl Cart {
                 if let Some(v) = rest.trim().strip_prefix(&format!("{key}:")) {
                     let v = v.trim();
                     if !v.is_empty() {
+                        // Cleaned and capped here, which is the single door
+                        // every title, author and about line comes through.
                         // Capped so a runaway header cannot push the shelf
                         // around. `check` says when it bites — a title clipped
                         // mid-word is the kind of thing that ships unnoticed
                         // because nothing anywhere complains.
-                        return Some(v.chars().take(META_MAX).collect());
+                        let v = Self::sanitize_display(v);
+                        if !v.is_empty() {
+                            return Some(v);
+                        }
                     }
                 }
             }
@@ -252,6 +302,64 @@ function _draw()
 end
 "#;
     TEMPLATE.replace("{{TITLE}}", title).replace("{{AUTHOR}}", "you")
+}
+
+#[cfg(test)]
+mod display_tests {
+    use super::*;
+
+    fn titled(t: &str) -> String {
+        Cart::parse("x", &format!("-- title: {t}\nfunction _draw() end\n")).unwrap().title
+    }
+
+    #[test]
+    fn markup_never_survives_into_a_title() {
+        // The actual attack: a Qt Text field on AutoText treats this as rich
+        // text and fetches the image when it draws.
+        let t = titled("<img src=\"http://tracker/x.png\">");
+        assert!(!t.contains('<') && !t.contains('>'), "angle brackets survived: {t}");
+        assert!(!t.to_lowercase().contains("<img"));
+        for probe in ["<b>bold</b>", "<a href='http://x'>go</a>", "a<br>b"] {
+            let got = titled(probe);
+            assert!(!got.contains('<'), "{probe} left markup: {got}");
+        }
+    }
+
+    #[test]
+    fn invisible_characters_cannot_dress_one_name_as_another() {
+        // Bidi overrides are not decoration; in a list of names they let one
+        // entry be drawn looking like a different one.
+        let t = titled("Snake\u{202E}elbuort\u{202C}");
+        assert!(!t.contains('\u{202E}') && !t.contains('\u{202C}'), "{t:?}");
+        assert!(!titled("A\u{200B}B").contains('\u{200B}'));
+        assert!(!titled("A\u{FEFF}B").contains('\u{FEFF}'));
+    }
+
+    #[test]
+    fn control_characters_and_padding_go() {
+        assert_eq!(Cart::sanitize_display("a\tb\nc"), "a b c");
+        assert_eq!(Cart::sanitize_display("   spaced   out   "), "spaced out");
+        assert_eq!(Cart::sanitize_display(&" ".repeat(200)), "");
+    }
+
+    #[test]
+    fn an_ordinary_title_is_left_alone() {
+        // The check is worth nothing if it mangles the real ones.
+        for ok in ["Serpent", "The Veil", "Farm of Arra", "Mega Micromachee", "Cat & Mouse"] {
+            assert_eq!(Cart::sanitize_display(ok), ok, "{ok} was altered");
+        }
+        assert_eq!(titled("The Twins"), "The Twins");
+    }
+
+    #[test]
+    fn the_length_bound_holds_after_cleaning() {
+        // Cleaning happens first, so the cap has to be applied to what is left
+        // or a title of 200 angle brackets would come out长 and empty-looking.
+        let long = "x".repeat(500);
+        assert_eq!(Cart::sanitize_display(&long).chars().count(), META_MAX);
+        let mixed = format!("{}{}", "<".repeat(400), "y".repeat(400));
+        assert!(Cart::sanitize_display(&mixed).chars().count() <= META_MAX);
+    }
 }
 
 #[cfg(test)]

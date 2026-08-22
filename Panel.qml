@@ -98,6 +98,7 @@ Panel {
     anchors.fill: parent
     bar: root.bar
     text: root.barLabel
+    textFormat: Text.PlainText
     active: mm.playing
     tooltipText: root.tooltip
     onPressed: function(buttonCode) { root.toggle() }
@@ -299,6 +300,7 @@ Panel {
                   width: parent.width
                   horizontalAlignment: Text.AlignHCenter
                   text: mm.armedTitle
+                  textFormat: Text.PlainText
                   color: mm.shellText
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.body
@@ -309,6 +311,7 @@ Panel {
                   width: parent.width
                   horizontalAlignment: Text.AlignHCenter
                   text: mm.aboutFor(mm.armedId)
+                  textFormat: Text.PlainText
                   color: mm.shellDim
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.bodySmall
@@ -319,6 +322,7 @@ Panel {
                   horizontalAlignment: Text.AlignHCenter
                   visible: Number(mm.bestFor(mm.armedId)) > 0
                   text: "BEST " + mm.bestFor(mm.armedId)
+                  textFormat: Text.PlainText
                   color: mm.shellAccent
                   font.family: root.fontFamily
                   font.pixelSize: Style.font.bodySmall
@@ -424,6 +428,7 @@ Panel {
                   Text {
                     anchors.centerIn: parent
                     text: modelData.key
+                    textFormat: Text.PlainText
                     color: mm.shellBezel
                     font.family: root.fontFamily
                     font.pixelSize: pad.fs
@@ -506,6 +511,7 @@ Panel {
                   Text {
                     anchors.centerIn: parent
                     text: mm.muted ? "◌" : "◍"
+                    textFormat: Text.PlainText
                     color: mm.shellDim
                     font.family: root.fontFamily
                     font.pixelSize: pad.fs
@@ -535,6 +541,7 @@ Panel {
                   Text {
                     anchors.centerIn: parent
                     text: mm.updatesReady > 0 ? "↻" + mm.updatesReady : "↻"
+                    textFormat: Text.PlainText
                     color: mm.updatesReady > 0 ? mm.shellAccent : mm.shellDim
                     font.family: root.fontFamily
                     font.pixelSize: pad.fs
@@ -609,6 +616,7 @@ Panel {
                     Text {
                       anchors.centerIn: parent
                       text: modelData.label
+                      textFormat: Text.PlainText
                       color: mm.shellDim
                       font.family: root.fontFamily
                       font.pixelSize: pad.fs
@@ -654,6 +662,7 @@ Panel {
                     Text {
                       anchors.centerIn: parent
                       text: modelData.name
+                      textFormat: Text.PlainText
                       color: mm.shellBezel
                       font.family: root.fontFamily
                       font.pixelSize: Math.max(9, Math.round(Style.font.body * pad.k))
@@ -677,6 +686,7 @@ Panel {
                   Text {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: modelData.key
+                    textFormat: Text.PlainText
                     color: mm.shellDim
                     font.family: root.fontFamily
                     font.pixelSize: pad.fs
@@ -692,6 +702,7 @@ Panel {
           visible: mm.playing || mm.arming
           Text {
             text: mm.playing ? mm.playingTitle : mm.armedTitle
+            textFormat: Text.PlainText
             color: mm.shellText
             font.family: root.fontFamily
             font.pixelSize: Style.font.body
@@ -701,6 +712,7 @@ Panel {
           Text {
             visible: mm.playing
             text: mm.score + (mm.best > 0 ? "  /  BEST " + mm.best : "")
+            textFormat: Text.PlainText
             color: mm.shellDim
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
@@ -750,6 +762,7 @@ Panel {
                 anchors.verticalCenter: parent.verticalCenter
                 visible: reviseField.text === ""
                 text: mm.working && mm.makeStatus !== "" ? mm.makeStatus : "make it harder"
+                textFormat: Text.PlainText
                 color: root.dim
                 font: reviseField.font
               }
@@ -842,6 +855,7 @@ Panel {
           visible: mm.lastError !== ""
           width: parent.width
           text: mm.lastError
+          textFormat: Text.PlainText
           color: root.urgent
           font.family: root.fontFamily
           font.pixelSize: Style.font.bodySmall
@@ -940,6 +954,7 @@ Panel {
               Text {
                 anchors.centerIn: parent
                 text: mm.working ? (mm.makeStatus !== "" ? mm.makeStatus.toUpperCase() : "WORKING")
+                textFormat: Text.PlainText
                                  : "MAKE IT"
                 color: mm.working ? root.foreground : mm.shellBezel
                 font.family: root.fontFamily

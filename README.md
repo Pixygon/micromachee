@@ -244,7 +244,16 @@ else's file** throughout: an entry's id has to be a plain cart name, because an
 id becomes a filename and `..` or a leading `/` would let whoever serves the
 catalog choose where on your disk a file lands; and both the catalog and each
 cart are read with a hard byte ceiling, so an endpoint that never stops sending
-is refused rather than buffered. That is one way for a file to travel, not
+is refused rather than buffered.
+
+A cart's `title`, `author` and `about` are the one part of it that is *shown*
+rather than run, and after a `sync` they may have come off the internet. They
+are cleaned where they are read — angle brackets, control characters and the
+invisible bidirectional overrides all go — because a Qt `Text` field defaults to
+sniffing its content for markup, and a title of `<img src="http://…">` would
+otherwise have the bar fetch that URL the moment it drew. The panel pins those
+fields to `Text.PlainText` as well; the cleaning is what protects the parts of
+the bar this repository does not own. That is one way for a file to travel, not
 how carts work — copying a file into that directory still does the same job.
 
 **A cart already on the shelf is never quietly replaced.** It might be one you

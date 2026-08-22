@@ -430,6 +430,17 @@ pub fn sync(update: bool) -> i32 {
         }
         let dest = dir.join(format!("{id}.lua"));
 
+        // `fs::write` follows a symlink at the destination, so a link sitting
+        // where a cart should be would have this write through it to wherever
+        // it points. Anyone able to place that link can already drop a cart in
+        // here, so it is not a privilege boundary — but writing through a link
+        // nobody asked for is never what was meant.
+        if std::fs::symlink_metadata(&dest).map(|m| m.file_type().is_symlink()).unwrap_or(false) {
+            println!("  ✗ {id} is a symlink here — refused");
+            failed += 1;
+            continue;
+        }
+
         // What is already here, and is it the same thing the catalog is
         // offering? Without the second half of that question, "already here" is
         // indistinguishable from "already up to date".
