@@ -775,6 +775,13 @@ fn cmd_catalog(args: &[String]) -> i32 {
     let mut carts = Vec::new();
     for path in &files {
         let Some(id) = path.file_stem().and_then(|s| s.to_str()) else { continue };
+        // Never publish a name a correct client would refuse to install. The
+        // check that stops a hostile catalog also has to stop us shipping one
+        // by accident.
+        if !shelf::valid_id(id) {
+            eprintln!("✗ {id} is not a usable cart name — rename the file");
+            return 1;
+        }
         let Ok(text) = std::fs::read_to_string(path) else {
             eprintln!("✗ could not read {}", path.display());
             return 1;

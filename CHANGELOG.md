@@ -4,6 +4,19 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.27.0] — 2026-08-22
+
+### Changed
+- Commands that take a cart id (`revise`, `publish`, `discard`, and cart lookup) now reject ids containing slashes, `..`, or other characters that aren't valid in a plain cart name, reporting them as "no draft called <id>" instead of touching the filesystem. **(BREAKING)**
+
+### Fixed
+- `micromachee catalog` now refuses to publish a cart whose filename wouldn't pass the same validity check `sync` applies to incoming carts, preventing you from accidentally shipping a catalog entry that well-behaved clients would reject.
+
+### Security
+- Cart ids from a catalog or the command line are now validated as plain filenames before being used on disk. This closes a path-traversal issue where a malicious or misconfigured catalog entry (e.g. an id like "../../pwned" or an absolute path) could have made `sync` write, read, or overwrite files outside the cart directory.
+- Downloads made by `sync` (the catalog itself and any cart fetched by URL) are now capped at a hard byte limit while streaming, so a server that never stops sending data is refused instead of being buffered into memory indefinitely.
+
+
 ## [0.26.0] — 2026-08-22
 
 ### Added

@@ -239,7 +239,12 @@ registry to tell.
 
 `micromachee sync` pulls the published shelf from a catalog on the internet.
 Every entry carries a SHA-256 and `sync` checks it, so a cart that arrived
-mangled is refused rather than saved. That is one way for a file to travel, not
+mangled is refused rather than saved. The catalog is treated as **somebody
+else's file** throughout: an entry's id has to be a plain cart name, because an
+id becomes a filename and `..` or a leading `/` would let whoever serves the
+catalog choose where on your disk a file lands; and both the catalog and each
+cart are read with a hard byte ceiling, so an endpoint that never stops sending
+is refused rather than buffered. That is one way for a file to travel, not
 how carts work — copying a file into that directory still does the same job.
 
 **A cart already on the shelf is never quietly replaced.** It might be one you

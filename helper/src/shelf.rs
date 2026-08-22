@@ -6,8 +6,9 @@
 //! notify. `sync` exists only to fetch other people's carts from a catalog on
 //! the internet; it is not how carts work, just one way they can travel.
 
+use std::io::Read;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use serde_json::{json, Value};
 
@@ -131,10 +132,16 @@ pub fn list_json() -> Value {
 
 /// Whether this cart is still a draft — made here and not yet put on the shelf.
 pub fn is_draft(id: &str) -> bool {
-    crate::make::drafts_dir().join(format!("{id}.lua")).exists()
+    valid_id(id) && crate::make::drafts_dir().join(format!("{id}.lua")).exists()
 }
 
 pub fn find(id: &str) -> Option<PathBuf> {
+    // Ids reach here from the command line and from the panel too, and the same
+    // join that let a catalog escape the cart directory would let
+    // `micromachee play ../../something` read outside it.
+    if !valid_id(id) {
+        return None;
+    }
     for dir in search_paths() {
         let p = dir.join(format!("{id}.lua"));
         if p.exists() {
@@ -272,18 +279,73 @@ pub fn record_score(id: &str, score: i64) {
 
 // ── carts from elsewhere ────────────────────────────────────────────────────
 
-fn fetch(url: &str) -> Result<Vec<u8>, String> {
+/// The most a catalog may be. It carries every cart's source inline, so it is
+/// legitimately the largest thing fetched — fourteen carts of 24K each plus
+/// JSON is under half a megabyte, and this is four times that.
+const MAX_CATALOG_BYTES: usize = 2 * 1024 * 1024;
+
+/// A cart id, and therefore a filename stem, and nothing else.
+///
+/// This is the check that was missing. `PathBuf::join` **replaces** the base
+/// when given an absolute path and happily walks upward on `..`, so an id taken
+/// from a remote catalog and pasted into a path meant any endpoint serving that
+/// catalog could choose where on the disk a file landed: `../../x` climbed out
+/// of the cart directory and `/tmp/x` ignored it altogether. Every `.lua` file
+/// the user could write was reachable.
+///
+/// Ids are generated from filename stems and from `slug()`, both of which
+/// already produce exactly this alphabet, so nothing legitimate is excluded.
+pub fn valid_id(id: &str) -> bool {
+    !id.is_empty()
+        && id.len() <= 40
+        && !id.starts_with('-')
+        && id
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_')
+}
+
+/// Fetch at most `limit` bytes.
+///
+/// The limit is enforced HERE rather than on the result, because a check that
+/// runs after the download has already let the whole thing into memory. curl's
+/// own `--max-filesize` is passed as well and is not enough on its own: it
+/// works from Content-Length, which a chunked response simply does not send.
+/// So the pipe is read with a hard ceiling and the child is killed the moment
+/// it goes over.
+fn fetch_at_most(url: &str, limit: usize) -> Result<Vec<u8>, String> {
     // curl rather than a TLS stack: this binary sits in a bar all day, and a
     // whole HTTP client to download a text file now and then is not a trade
     // worth making. `doctor` says so if curl is missing.
-    let out = Command::new("curl")
-        .args(["-fsSL", "--max-time", "20", url])
-        .output()
+    let mut child = Command::new("curl")
+        .args(["-fsSL", "--max-time", "20", "--max-filesize", &limit.to_string(), url])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
         .map_err(|e| format!("could not run curl: {e}"))?;
-    if !out.status.success() {
+
+    let mut body = Vec::new();
+    if let Some(out) = child.stdout.take() {
+        // limit + 1, so going over is detectable rather than a silent truncation
+        // that would then fail a checksum for a reason nobody could work out.
+        let _ = out.take(limit as u64 + 1).read_to_end(&mut body);
+    }
+    if body.len() > limit {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(format!("{url} is larger than {limit} bytes — refused"));
+    }
+    let status = child.wait().map_err(|e| format!("curl did not finish: {e}"))?;
+    if !status.success() {
+        // 63 is curl's own "exceeded the maximum allowed file size". On a
+        // chunked response there is no Content-Length to check up front, so
+        // curl counts as it goes and aborts — which reads as a plain network
+        // failure unless it is named.
+        if status.code() == Some(63) {
+            return Err(format!("{url} is larger than {limit} bytes — refused"));
+        }
         return Err(format!("{url} could not be fetched"));
     }
-    Ok(out.stdout)
+    Ok(body)
 }
 
 /// Pull the catalog and any carts named in it that are not already here.
@@ -329,7 +391,7 @@ pub fn compare(local: Option<&[u8]>, want_sha: Option<&str>) -> Local {
 pub fn sync(update: bool) -> i32 {
     let url = catalog_url();
     println!("→ {url}");
-    let body = match fetch(&url) {
+    let body = match fetch_at_most(&url, MAX_CATALOG_BYTES) {
         Ok(b) => b,
         Err(e) => {
             eprintln!("✗ {e}");
@@ -359,6 +421,13 @@ pub fn sync(update: bool) -> i32 {
 
     for entry in carts {
         let Some(id) = entry.get("id").and_then(|v| v.as_str()) else { continue };
+        // The catalog is somebody else's file. It does not get to choose where
+        // on this disk anything lands.
+        if !valid_id(id) {
+            println!("  ✗ {id} is not a cart name — refused");
+            failed += 1;
+            continue;
+        }
         let dest = dir.join(format!("{id}.lua"));
 
         // What is already here, and is it the same thing the catalog is
@@ -382,7 +451,7 @@ pub fn sync(update: bool) -> i32 {
         let fetched = match entry.get("code").and_then(|v| v.as_str()) {
             Some(code) => Ok(code.as_bytes().to_vec()),
             None => match entry.get("url").and_then(|v| v.as_str()) {
-                Some(u) => fetch(u),
+                Some(u) => fetch_at_most(u, MAX_CART_BYTES),
                 None => continue,
             },
         };
@@ -467,6 +536,63 @@ pub fn sync(update: bool) -> i32 {
         println!("`micromachee sync --update` replaces them and keeps your copies as .lua.bak");
     }
     i32::from(failed > 0 && got == 0)
+}
+
+#[cfg(test)]
+mod id_tests {
+    use super::*;
+
+    #[test]
+    fn a_cart_id_is_a_filename_stem_and_nothing_else() {
+        for good in ["snake", "the-veil", "rogue2", "my_game", "a"] {
+            assert!(valid_id(good), "{good} should be a usable id");
+        }
+    }
+
+    #[test]
+    fn nothing_that_could_name_a_path_is_an_id() {
+        // Every one of these was accepted before, and each one chose where on
+        // the disk `sync` wrote a file.
+        for bad in [
+            "../../pwned",
+            "..",
+            "/tmp/absolute",
+            "/etc/passwd",
+            "a/b",
+            "a\\b",
+            "snake/../../x",
+            "",
+            "-rf",
+            "Snake",          // ids are the lowercase stem, never the title
+            "sn ake",
+            "sn.ake",
+            "sn\0ake",
+        ] {
+            assert!(!valid_id(bad), "{bad:?} was accepted as an id");
+        }
+        assert!(!valid_id(&"x".repeat(41)), "an id may not be unbounded");
+    }
+
+    #[test]
+    fn a_refused_id_cannot_be_turned_into_a_path() {
+        // The property that actually matters, stated directly: for anything
+        // `valid_id` accepts, joining it onto a directory stays under that
+        // directory. `join` replaces the base for an absolute path and walks
+        // up for `..`, so this is the whole defence.
+        let base = std::path::Path::new("/base/carts");
+        for id in ["snake", "the-veil", "my_game"] {
+            let p = base.join(format!("{id}.lua"));
+            assert!(p.starts_with(base), "{id} escaped to {}", p.display());
+            assert_eq!(p.components().filter(|c| matches!(c, std::path::Component::ParentDir)).count(), 0);
+        }
+    }
+
+    #[test]
+    fn the_shelf_will_not_look_up_a_traversing_id() {
+        assert!(find("../../../../etc/passwd").is_none());
+        assert!(find("/etc/passwd").is_none());
+        assert!(!is_draft("../../x"));
+    }
 }
 
 #[cfg(test)]

@@ -359,6 +359,14 @@ pub fn revise(id: &str, prompt: &str) -> i32 {
         eprintln!("✗ say what to change");
         return 2;
     }
+    // Same reason `sync` checks: an id becomes a filename, and `join` will
+    // happily take `../..` or an absolute path and put the file somewhere it
+    // was never meant to go. These ids arrive from the command line.
+    if !shelf::valid_id(id) {
+        eprintln!("✗ there is no draft called {id}");
+        return 2;
+    }
+
     let path = cart_path(id);
     if !path.exists() {
         eprintln!("✗ there is no draft called {id}");
@@ -401,6 +409,13 @@ pub fn revise(id: &str, prompt: &str) -> i32 {
 /// Move a draft onto the shelf. Local only — sharing a cart with anyone else is
 /// `scripts/publish.sh`, which is a deliberate act with different credentials.
 pub fn publish(id: &str) -> i32 {
+    // Same reason `sync` checks: an id becomes a filename, and `join` will
+    // happily take `../..` or an absolute path and put the file somewhere it
+    // was never meant to go. These ids arrive from the command line.
+    if !shelf::valid_id(id) {
+        eprintln!("✗ there is no draft called {id}");
+        return 2;
+    }
     let from = cart_path(id);
     if !from.exists() {
         eprintln!("✗ there is no draft called {id}");
@@ -439,6 +454,13 @@ pub fn publish(id: &str) -> i32 {
 }
 
 pub fn discard(id: &str) -> i32 {
+    // Same reason `sync` checks: an id becomes a filename, and `join` will
+    // happily take `../..` or an absolute path and put the file somewhere it
+    // was never meant to go. These ids arrive from the command line.
+    if !shelf::valid_id(id) {
+        eprintln!("✗ there is no draft called {id}");
+        return 2;
+    }
     let path = cart_path(id);
     if !path.exists() {
         eprintln!("✗ there is no draft called {id}");
