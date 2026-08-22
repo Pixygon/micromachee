@@ -68,6 +68,7 @@ function _update()
 
   if nx < 0 or ny < 0 or nx >= COLS or ny >= ROWS then
     alive = false
+    sfx(7)
     lose()
     return
   end
@@ -76,6 +77,7 @@ function _update()
   for i = 1, #snake - 1 do
     if snake[i].x == nx and snake[i].y == ny then
       alive = false
+      sfx(7)
       lose()
       return
     end
@@ -85,6 +87,7 @@ function _update()
   if food and nx == food.x and ny == food.y then
     points = points + 1
     score(points)
+    sfx(3)
     if points % 5 == 0 and speed > 2 then speed = speed - 1 end
     place_food()
   else

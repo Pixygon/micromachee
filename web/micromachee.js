@@ -188,6 +188,8 @@ __outcome = 0   -- 0 playing, 1 lost, 2 won
 function lose() __outcome = 1 end
 function win() __outcome = 2 end
 
+function sfx(n) __sfx(n or 0) end
+
 
 function mid(a, b, c)
   local lo, hi = a, c
@@ -199,7 +201,7 @@ end
 `;
 
 /// Load a cart and give back something you can drive a frame at a time.
-export async function loadCart(factory, code, { onScore, storage } = {}) {
+export async function loadCart(factory, code, { onScore, storage, onSfx } = {}) {
   const lua = await factory.createEngine({ openStandardLibs: true });
   const screen = new Screen();
   const mem = {};
@@ -236,6 +238,14 @@ export async function loadCart(factory, code, { onScore, storage } = {}) {
   g.set("score", (n) => {
     score = Math.floor(n);
     if (onScore) onScore(score);
+  });
+  // The console owns the sounds, so a cart passes an index and nothing else.
+  // `onSfx` is optional: check.mjs runs this in node where there is no audio at
+  // all, and a cart calling sfx() must not die there — which is exactly how
+  // `lose()` went missing from this prelude once already.
+  g.set("__sfx", (n) => {
+    const i = ((Math.floor(n) % 8) + 8) % 8;
+    if (onSfx) onSfx(i);
   });
 
   await lua.doString(PRELUDE);

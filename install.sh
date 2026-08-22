@@ -78,6 +78,16 @@ for f in "$here"/carts/*.lua; do
   fi
 done
 echo "✓ installed $added cart(s) to $carts${kept:+ (kept $kept already there)}"
+
+# The sound bank is generated, not shipped: eight short WAVs written by the
+# helper itself. Regenerating on every install means the files always match the
+# binary that plays them, and it keeps audio out of the repository.
+if "$prefix/bin/$id" sounds >/dev/null 2>&1; then
+  echo "✓ generated the sound bank"
+else
+  echo "  note: could not generate sounds — the console will be quiet"
+fi
+
 case ":$PATH:" in
   *":$prefix/bin:"*) ;;
   *) echo "  note: $prefix/bin is not on your PATH" ;;

@@ -56,9 +56,11 @@ function _update()
   -- Collision: did the nose of the ship end up inside a wall we drew?
   if ship < 3 or ship > FLOOR - 3 then
     dead = 30
+    sfx(2)
     lose()
   elseif pget(30, flr(ship)) ~= 0 and pget(30, flr(ship)) ~= 4 then
     dead = 30
+    sfx(2)
     lose()
   end
 end

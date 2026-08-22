@@ -91,7 +91,8 @@ end
 
 function _update()
   if won then
-    if btnp(4) then _init() end
+    if btnp(4) then
+    sfx(0) _init() end
     return
   end
 
@@ -107,6 +108,7 @@ function _update()
     moved = moved + 1
   end
   if btnp(5) then
+    sfx(0)
     mark[cy][cx] = mark[cy][cx] == 2 and 0 or 2
     moved = moved + 1
   end
@@ -115,6 +117,7 @@ function _update()
     won = true
     -- Fewer moves is better, so the score counts down from a par rather than up.
     score(mid(0, 400 - moved * 2, 400))
+  sfx(6)
   end
 end
 

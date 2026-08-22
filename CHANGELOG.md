@@ -4,6 +4,23 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.26.0] — 2026-08-22
+
+### Added
+- The console now has sound! Eight fixed effects — blip, hit, boom, pickup, jump, hurt, win, lose — play across every included cart, generated automatically on install so no audio files ship in the repo.
+- A mute button on the console body turns sound off in one press (and the console remembers your choice). Games are built to work fine muted, too.
+- The shelf now automatically checks for cart updates whenever the panel opens, and shows an amber count when updates are available. A new sync button lets you fetch and apply new/updated carts on demand, keeping old versions as backups.
+
+### Improved
+- Several built-in games (Breakout, Firekeeper, Sparrow, Pixiel, Dreadwager, and more) now have screen shake and particle bursts on hits, kills, and deaths, giving impacts a lot more visual punch.
+
+### Fixed
+- Dreadwager's on-screen cliff distance counter no longer runs off the edge of the screen or overlaps the life indicators.
+
+### Removed
+- The hidden secret button sequence on the shelf (previously an Easter egg for the Ydrast text mode) has been removed since it could no longer reliably trigger. The Ydrast tongue is now toggled via a small, unlabelled dot button in the panel instead. **(BREAKING)**
+
+
 ## [0.25.0] — 2026-08-22
 
 ### Added

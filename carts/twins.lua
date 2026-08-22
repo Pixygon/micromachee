@@ -108,10 +108,12 @@ local function finish()
     if side == SUN then
       wins = wins + 1
       save("wins", wins)
+      sfx(6)
       win()
     else
       losses = losses + 1
       save("losses", losses)
+      sfx(7)
       lose()
     end
   elseif full(board) then
@@ -166,6 +168,7 @@ function _update()
     local at = slot(cx, cy)
     if board[at] == 0 then
       board[at] = SUN
+      sfx(0)
       finish()
       if not over then wait = THINK end
     end

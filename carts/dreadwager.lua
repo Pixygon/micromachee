@@ -28,6 +28,7 @@ local foes, shots, sparks
 local cool, guns, taken, tick, spawn
 local cliff, cx, cy
 local dead, authored, best
+local bits, shake
 
 local function reset()
   px, py = 64, 70
@@ -39,6 +40,7 @@ local function reset()
   spawn = 40
   cliff, cx, cy = false, 0, 0
   dead, authored = false, false
+  bits, shake = {}, 0
 end
 
 function _init()
@@ -89,13 +91,27 @@ local function fire()
   end
 end
 
+local function burst(x, y, n, c)
+  for _ = 1, n do
+    bits[#bits + 1] = {
+      x = x, y = y, dx = rnd(3) - 1.5, dy = rnd(3) - 1.5,
+      life = 6 + flr(rnd(9)), c = c,
+    }
+  end
+end
+
 local function drift()
   dead = true
+  shake = 12
+  burst(px + 3, py + 3, 20, 2)
+  sfx(7)
   lose()
 end
 
 local function author()
   dead, authored = true, true
+  burst(cx, cy, 24, 5)
+  sfx(6)
   win()
 end
 
@@ -105,6 +121,12 @@ function _update()
     return
   end
   tick = tick + 1
+  if shake > 0 then shake = shake - 1 end
+  for i = #bits, 1, -1 do
+    local b = bits[i]
+    b.x, b.y, b.life = b.x + b.dx * 0.8, b.y + b.dy * 0.8, b.life - 1
+    if b.life <= 0 then table.remove(bits, i) end
+  end
 
   -- ── moving, and therefore aiming ──────────────────────────────────────────
   local mx, my = 0, 0
@@ -139,6 +161,7 @@ function _update()
   -- ── the cliff ─────────────────────────────────────────────────────────────
   if not cliff and taken >= CLIFF_AT then
     cliff = true
+    sfx(2)
     -- Never under your feet at the moment it opens: the choice has to be walked
     -- to, or it is not a choice.
     repeat
@@ -168,6 +191,9 @@ function _update()
     if d < f.w and hitcool <= 0 and dashleft <= 0 then
       hp = hp - 1
       hitcool = HITCOOL
+      shake = 7
+      burst(px + 3, py + 3, 8, 7)
+      sfx(5)
       if hp <= 0 then drift() return end
     end
   end
@@ -187,6 +213,8 @@ function _update()
           table.remove(shots, i)
           if f.hp <= 0 then
             sparks[#sparks + 1] = { x = f.x, y = f.y, t = 0 }
+            burst(f.x, f.y, 4, f.kind == 3 and 6 or (f.kind == 2 and 3 or 2))
+            sfx(1)
             table.remove(foes, j)
           end
           break
@@ -212,8 +240,9 @@ function _update()
       table.remove(sparks, i)
       taken = taken + 1
       score(taken)
+      sfx(3)
       if taken > best then best = taken end
-      if taken == 12 or taken == 40 then guns = guns + 1 end
+      if taken == 12 or taken == 40 then guns = guns + 1 sfx(6) end
     elseif s.t > 900 then
       table.remove(sparks, i)
     end
@@ -279,6 +308,10 @@ function _draw()
   end
 
   for i = 1, #foes do draw_foe(foes[i]) end
+  for i = 1, #bits do
+    local b = bits[i]
+    pset(flr(b.x), flr(b.y), b.life > 6 and 7 or b.c)
+  end
 
   for i = 1, #shots do
     local s = shots[i]
@@ -299,7 +332,10 @@ function _draw()
   -- Right-aligned rather than placed by eye. "24 TO THE CLIFF" at a guessed x
   -- ran off the edge and rendered as "24 TO THE CLI", which looks like a bug in
   -- the font rather than a number that got too wide.
-  local note = cliff and "THE CLIFF" or (CLIFF_AT - taken) .. " TO THE CLIFF"
+  -- Short enough to clear the life pips at x=56..70. The long version was
+  -- right-aligned, which fixed it running off the edge and immediately started
+  -- it running into something else.
+  local note = cliff and "CLIFF OPEN" or "CLIFF " .. (CLIFF_AT - taken)
   print(note, 126 - #note * 4, 2, cliff and 6 or 1)
   if dashcool > 0 then rect(2, 8, flr(24 * (1 - dashcool / DASHCOOL)), 1, 6) end
 

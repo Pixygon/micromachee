@@ -52,11 +52,20 @@ btn(i)   btnp(i)          held / pressed just now
 t()                       seconds since the cart started
 rnd(n)  flr(n)  mid(lo,v,hi)
 score(n)                  tell the console your score
+sfx(n)                    play one of eight sounds, 0-7
 ```
 
 Lua's own `math.*`, `table.*` and `string.*` are all there too. Colours are
 `0`–`7`, buttons `0`–`5`, and everything clips at the screen edge so drawing
 off-screen is safe and free.
+
+Sound is eight fixed effects — blip, hit, boom, pickup, jump, hurt, win, lose —
+and a cart picks one by index the way it picks a colour by index. It cannot
+choose a frequency, because the console owns how it sounds in the same way a
+theme owns how it looks. The bank is *generated* by the helper rather than
+shipped as files, so nothing here carries audio and `micromachee sounds`
+rewrites it. The console can be muted from a button on its own body, and the
+helper then does not send the sound at all.
 
 **Only three rules**: fit in 24 KB, parse as Lua, define `_draw`. Metadata is
 optional comments. There is no magic header to forget on your first attempt.

@@ -23,6 +23,7 @@ local px, py, cool, invuln
 local shots, foes, fire, gifts, bots
 local wing, wingleft, wingclean, spawn
 local gun, kills, dist, best, dead, tick, shake
+local bits
 
 function _init()
   px, py = 14, 62
@@ -33,13 +34,25 @@ function _init()
   wing, spawn = 0, 16
   wingleft, wingclean = {}, {}
   gun, kills, dist, dead, tick, shake = 1, 0, 0, false, 0, 0
+  bits = {}
   best = best or 0
   score(0)
+end
+
+local function burst(x, y, n, c)
+  for _ = 1, n do
+    bits[#bits + 1] = {
+      x = x, y = y, dx = rnd(3) - 1.5, dy = rnd(3) - 1.5,
+      life = 6 + flr(rnd(8)), c = c,
+    }
+  end
 end
 
 local function die()
   dead = true
   shake = 8
+  burst(px + 4, py + 2, 16, 3)
+  sfx(2)
   lose()
 end
 
@@ -51,6 +64,8 @@ local function damage()
   if gun > 1 then
     gun = gun - 1
     invuln = INVULN
+    burst(px + 4, py + 2, 8, 4)
+    sfx(5)
   else
     die()
   end
@@ -82,7 +97,10 @@ end
 
 local function shoot()
   if cool > 0 then return end
-  cool = 6
+  -- The gun gets faster as well as wider. Extra barrels alone made an upgrade
+  -- you could see and not feel.
+  cool = mid(4, 8 - gun, 8)
+  sfx(0)
   local x, y = px + PW, py + 2
   if gun == 1 then
     shots[#shots + 1] = { x = x, y = y, vy = 0 }
@@ -99,6 +117,8 @@ end
 
 local function kill(i)
   local f = foes[i]
+  burst(f.x + 4, f.y + 3, 5, f.kind == 1 and 2 or 3)
+  sfx(1)
   table.remove(foes, i)
   kills = kills + 1
   wingleft[f.wing] = wingleft[f.wing] - 1
@@ -107,6 +127,7 @@ local function kill(i)
   if wingleft[f.wing] == 0 then
     if wingclean[f.wing] and gun < GUNMAX then
       gifts[#gifts + 1] = { x = f.x, y = f.y, t = 0 }
+      sfx(6)
     end
     -- A wing that is done is done. Left in, these two tables grow by one entry
     -- every couple of seconds for as long as the run lasts.
@@ -226,11 +247,19 @@ function _update()
     elseif hits(px, py, PW, PH, g.x, g.y, 7, 7) then
       table.remove(gifts, i)
       gun = mid(1, gun + 1, GUNMAX)
+      burst(px + 4, py + 2, 8, 5)
+      sfx(3)
     end
   end
 
   -- Distance counts as well as kills, so the console has to hear about it every
   -- frame and not only when something dies.
+  for i = #bits, 1, -1 do
+    local b = bits[i]
+    b.x, b.y, b.life = b.x + b.dx * 0.7, b.y + b.dy * 0.7, b.life - 1
+    if b.life <= 0 then table.remove(bits, i) end
+  end
+
   local total = kills * 10 + flr(dist / 10)
   score(total)
   if total > best then best = total end
@@ -310,6 +339,10 @@ function _draw()
   end
 
   for i = 1, #foes do draw_foe(foes[i]) end
+  for i = 1, #bits do
+    local b = bits[i]
+    pset(flr(b.x), flr(b.y), b.life > 5 and 7 or b.c)
+  end
 
   for i = 1, #fire do
     local b = fire[i]

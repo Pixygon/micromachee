@@ -38,10 +38,35 @@ wants both. `_cover()` is optional and draws the shelf picture.
     now()                       real seconds since 1970 (wall clock)
     lose()                      the player has failed
     win()                       the player has succeeded
+    sfx(n)                      play sound n, 0-7
 
-That is all of it. There is no sprite sheet, no sound, no file access, no
-`require`. Lua's `math`, `string` and `table` are available. `io` and `os` are
-NOT — do not use them.
+That is all of it. There is no sprite sheet, no file access, no `require`.
+Lua's `math`, `string` and `table` are available. `io` and `os` are NOT — do
+not use them.
+
+## Sound
+
+`sfx(n)` plays one of eight fixed sounds. You do not get to choose frequencies,
+for the same reason you do not get to choose colours: the console owns how it
+sounds, and a theme repaints a cart without asking it.
+
+    0 blip     a cursor moved, a shot left
+    1 hit      something took a hit
+    2 boom     something stopped existing
+    3 pickup   collected, unlocked, gained
+    4 jump     left the ground
+    5 hurt     YOU took the hit
+    6 win      finished it
+    7 lose     did not
+
+Fire and forget, and it wraps like a colour, so `sfx(9)` is `sfx(1)`. Call it at
+the moment the thing happens, in `_update` rather than `_draw` — `_draw` may run
+more than once for a frame, and a sound that plays twice is a sound that is
+wrong. **At most eight per frame** are kept; a sound in a loop is dropped rather
+than played, which will sound like a bug in your game and is not one.
+
+The player can mute the console. Do not build anything that only works if it can
+be heard.
 
 Buttons: 0 left, 1 right, 2 up, 3 down, 4 O, 5 X.
 

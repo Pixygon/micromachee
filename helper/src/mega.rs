@@ -63,6 +63,8 @@ pub struct Mega {
     carry: f64,
     seed: u64,
     tongue: bool,
+    /// Sounds the meta-game itself asked for, before the cart's are added.
+    sfx: Vec<u8>,
     pub out: Screen,
 }
 
@@ -98,6 +100,7 @@ impl Mega {
             carry: 0.0,
             seed,
             tongue: shelf::saved_tongue(),
+            sfx: Vec::new(),
             out: Screen::new(),
         };
         mega.shuffle();
@@ -200,6 +203,7 @@ impl Mega {
                 self.left = self.left.saturating_sub(1);
                 if self.left == 0 {
                     if self.lives <= 0 {
+                        self.sfx.push(7);
                         self.phase = Phase::Over;
                     } else {
                         self.next_round();
@@ -274,6 +278,9 @@ impl Mega {
         } else {
             self.lives -= 1;
         }
+        // The verdict is the one moment a round has, so it is the one that
+        // gets a sound.
+        self.sfx.push(if survived { 3 } else { 5 });
         self.phase = Phase::Verdict(survived);
         self.left = VERDICT_FRAMES;
     }
@@ -347,6 +354,16 @@ impl Mega {
 
     /// The shelf picture, drawn rather than stored — there is no mega.lua for a
     /// `_cover()` to live in.
+    /// Sounds asked for by the meta-game and by the cart inside it.
+    pub fn take_sfx(&mut self) -> Vec<u8> {
+        let mut out = std::mem::take(&mut self.sfx);
+        if let Some(m) = &self.machine {
+            out.extend(m.take_sfx());
+        }
+        out.truncate(8);
+        out
+    }
+
     pub fn cover() -> Screen {
         let mut s = Screen::new();
         s.cls(0);
@@ -386,6 +403,7 @@ mod tests {
             carry: 0.0,
             seed: 12345,
             tongue: false,
+            sfx: Vec::new(),
             out: Screen::new(),
         };
         m.left = 1;

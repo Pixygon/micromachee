@@ -31,8 +31,9 @@ export const MAX_SPEED = 2.5;
 const centre = (text, scale) => Math.floor((W - text.length * CHAR_WIDTH * scale) / 2);
 
 export class Mega {
-  constructor(factory, carts) {
+  constructor(factory, carts, onSfx) {
     this.factory = factory;
+    this.onSfx = onSfx;
     // A cart can say it is no good in a few seconds — a nonogram or a farm is a
     // fine game and a terrible ten seconds — and Mega then never deals it out.
     // `helper/src/mega.rs` filters on the same flag; `megacheck.mjs` checks it.
@@ -89,7 +90,7 @@ export class Mega {
   async beginRound() {
     // A fresh engine every round and no saved state: a micro-game starts from
     // nothing, and a farm's coins have no business in here.
-    this.cart = await loadCart(this.factory, this.current().code);
+    this.cart = await loadCart(this.factory, this.current().code, { onSfx: this.onSfx });
     this.cart.init();
     this.carry = 0;
     this.left = Math.floor(this.seconds() * FPS);
@@ -106,6 +107,7 @@ export class Mega {
     if (this.cart) { this.cart.close(); this.cart = null; }
     if (survived) this.survived += 1;
     else this.lives -= 1;
+    if (this.onSfx) this.onSfx(survived ? 3 : 5);
     this.phase = "verdict";
     this.verdictOk = survived;
     this.left = VERDICT_FRAMES;

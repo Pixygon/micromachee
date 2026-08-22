@@ -36,6 +36,7 @@ local PW, PH = 6, 9        -- the body is six by nine
 local world, coinat, foes
 local px, py, vx, vy, onground, coyote, buffered, face
 local camx, furthest, coins, dead, best, tick
+local bits
 
 -- ── the pit builds itself ────────────────────────────────────────────────────
 
@@ -147,12 +148,26 @@ function _init()
   vx, vy = 0, 0
   onground, coyote, buffered, face = true, 0, 0, 1
   camx, furthest, coins, dead, tick = 0, 0, 0, false, 0
+  bits = {}
   best = best or 0
   score(0)
 end
 
+-- Dust where a thing happened. Cheap, and it is the difference between the
+-- runner being on the ground and the runner being drawn near it.
+local function puff(x, y, n, c)
+  for _ = 1, n do
+    bits[#bits + 1] = {
+      x = x, y = y, dx = rnd(2) - 1, dy = -rnd(1.4),
+      life = 6 + flr(rnd(6)), c = c,
+    }
+  end
+end
+
 local function die()
   dead = true
+  sfx(2)
+  puff(px + 3, py + 4, 10, 2)
   lose()
 end
 
@@ -182,6 +197,8 @@ function _update()
 
   if buffered > 0 and coyote > 0 then
     vy, onground, coyote, buffered = JUMP, false, 0, 0
+    puff(px + 3, py + 9, 3, 1)
+    sfx(4)
   end
   -- Releasing the button mid-rise cuts the jump, so a tap is a hop and a hold
   -- is the full four tiles. One button, every height in between.
@@ -229,6 +246,8 @@ function _update()
   if coinat[col] and row >= coinat[col] - 1 and row <= coinat[col] + 1 then
     coinat[col] = nil
     coins = coins + 1
+    puff(col * TILE + 4, row * TILE + 4, 4, 4)
+    sfx(3)
   end
 
   for i = #foes, 1, -1 do
@@ -246,6 +265,8 @@ function _update()
         if vy > 0 and py + PH - vy <= f.y + 3 then
           table.remove(foes, i)
           vy = JUMP * 0.7                 -- a stomp gives half a jump back
+          puff(f.x + 3, f.y + 3, 6, 3)
+          sfx(1)
           coins = coins + 2
         else
           die()
@@ -253,6 +274,13 @@ function _update()
         end
       end
     end
+  end
+
+  for i = #bits, 1, -1 do
+    local b = bits[i]
+    b.x, b.y, b.life = b.x + b.dx, b.y + b.dy, b.life - 1
+    b.dy = b.dy + 0.11
+    if b.life <= 0 then table.remove(bits, i) end
   end
 
   if py > 128 then die() return end
@@ -332,6 +360,11 @@ function _draw()
       pset(sx + 4, flr(f.y) + 2, 0)
       rect(sx, flr(f.y) + 6, 6, 1, flr(tick / 5) % 2 == 0 and 3 or 1)
     end
+  end
+
+  for i = 1, #bits do
+    local b = bits[i]
+    pset(flr(b.x) - ox, flr(b.y), b.life > 4 and 7 or b.c)
   end
 
   draw_runner(flr(px) - ox, flr(py), dead and 2 or 7)

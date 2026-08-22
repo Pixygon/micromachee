@@ -65,6 +65,7 @@ pub struct Browse {
     info: bool,
     last: u8,
     picked: Option<String>,
+    sfx: Vec<u8>,
     make: bool,
     intro: i32,
     tick: i32,
@@ -245,11 +246,17 @@ impl Browse {
             info: false,
             last: 0,
             picked: None,
+            sfx: Vec::new(),
             make: false,
             intro: if intro { INTRO } else { 0 },
             tick: 0,
             out: Screen::new(),
         }
+    }
+
+    /// Sounds asked for since this was last called.
+    pub fn take_sfx(&mut self) -> Vec<u8> {
+        std::mem::take(&mut self.sfx)
     }
 
     /// Whether the player asked for the make-a-game flow rather than a cart.
@@ -267,7 +274,13 @@ impl Browse {
     }
 
     fn move_to(&mut self, next: usize) {
+        let was = self.sel;
         self.sel = next.min(self.entries.len().saturating_sub(1));
+        // Only when it actually moved: a blip at the end of a row for a press
+        // that changed nothing is the console lying about what it did.
+        if self.sel != was {
+            self.sfx.push(0);
+        }
         // Keep the selection inside the two rows on screen, and no further —
         // scrolling by a whole page loses the player their place.
         let row = self.sel / COLS;
@@ -279,6 +292,7 @@ impl Browse {
     }
 
     fn choose(&mut self) {
+        self.sfx.push(3);                   // pickup: you took something
         let id = self.entries[self.sel].id.clone();
         if id == MAKE_ID {
             self.make = true;
@@ -345,6 +359,7 @@ impl Browse {
         }
         if hit(5) {
             self.info = true;
+            self.sfx.push(0);
         }
 
         self.draw_grid();
@@ -537,6 +552,7 @@ mod tests {
             info: false,
             last: 0,
             picked: None,
+            sfx: Vec::new(),
             make: false,
             intro: 0,
             tick: 0,

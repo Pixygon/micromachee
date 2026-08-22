@@ -185,6 +185,28 @@ pub fn set_scale(n: i64) -> i64 {
 }
 
 /// Whether the console is speaking the Ydrast. Off unless somebody found it.
+/// Where the generated sound bank lives. Beside the state, not beside the
+/// carts: it is the console's, not the shelf's.
+pub fn sounds_dir() -> PathBuf {
+    state_path().parent().map(|p| p.join("sounds")).unwrap_or_else(|| PathBuf::from("sounds"))
+}
+
+/// Sound is off by default in nothing — but a widget in a bar that makes noise
+/// without being asked is a widget people uninstall, so this is honoured
+/// everywhere and the panel can turn it off in one press.
+pub fn saved_muted() -> bool {
+    load_state().get("muted").and_then(|v| v.as_bool()).unwrap_or(false)
+}
+
+pub fn set_muted(on: bool) {
+    let mut state = load_state();
+    if !state.is_object() {
+        state = json!({});
+    }
+    state["muted"] = json!(on);
+    save_state(&state);
+}
+
 pub fn saved_tongue() -> bool {
     load_state().get("tongue").and_then(|v| v.as_str()) == Some("ydrast")
 }

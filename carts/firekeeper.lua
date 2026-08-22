@@ -30,10 +30,24 @@ local BUNKY = 98
 local GUNY = 116
 
 local alive, count, bx, by, dir, tick, step, wave
+local bits, shake
 local px, shot, bombs, bunker
 local lives, points, best, dead, hitpause, flash
 
 local function at(r, c) return r * COLS + c + 1 end
+
+-- A rank that simply vanishes when shot reads as a bug. Six pixels thrown
+-- outward for a third of a second is the difference between "it is gone" and
+-- "you destroyed it", and it costs one table.
+local function burst(x, y, n, c)
+  for _ = 1, n do
+    bits[#bits + 1] = {
+      x = x, y = y,
+      dx = rnd(2.4) - 1.2, dy = rnd(2.4) - 1.2,
+      life = 7 + flr(rnd(7)), c = c,
+    }
+  end
+end
 
 local function build_wave()
   alive, count = {}, ROWS * COLS
@@ -62,6 +76,7 @@ function _init()
   shot = nil
   bombs = {}
   lives, points, dead, hitpause, flash = 3, 0, false, 0, 0
+  bits, shake = {}, 0
   best = best or 0
   score(0)
 end
@@ -114,6 +129,8 @@ end
 
 local function die()
   dead = true
+  shake = 10
+  sfx(7)
   lose()
 end
 
@@ -167,6 +184,7 @@ local function fire()
   -- and it is what makes each one a decision.
   if shot then return end
   shot = { x = px + 4, y = GUNY - 2 }
+  sfx(0)
 end
 
 local function drop_bomb()
@@ -182,6 +200,13 @@ function _update()
     return
   end
   if flash > 0 then flash = flash - 1 end
+  if shake > 0 then shake = shake - 1 end
+  for i = #bits, 1, -1 do
+    local b = bits[i]
+    b.x, b.y, b.life = b.x + b.dx, b.y + b.dy, b.life - 1
+    b.dy = b.dy + 0.06
+    if b.life <= 0 then table.remove(bits, i) end
+  end
 
   -- A beat after being hit, so you see what happened before it resumes.
   if hitpause > 0 then
@@ -221,6 +246,9 @@ function _update()
             if shot.x >= ax and shot.x < ax + AW and shot.y >= ay and shot.y < ay + AH then
               alive[i] = false
               count = count - 1
+              burst(ax + AW / 2, ay + AH / 2, 6, colour_of(r))
+              shake = 2
+              sfx(1)
               points = points + value(r)
               score(points)
               if points > best then best = points end
@@ -247,11 +275,15 @@ function _update()
       table.remove(bombs, i)
       lives = lives - 1
       hitpause = 24
+      shake = 8
+      burst(px + 5, GUNY + 2, 12, 7)
+      sfx(5)
       if lives <= 0 then die() end
     end
   end
 
   if count == 0 then
+    sfx(6)
     wave = wave + 1
     build_wave()
     shot, bombs = nil, {}
@@ -277,12 +309,17 @@ end
 function _draw()
   cls(0)
 
+  -- One offset, applied to the field and not to the panel. A HUD that shakes
+  -- with the screen is a HUD you cannot read at the exact moment you need it.
+  local sx = shake > 0 and (flr(rnd(3)) - 1) or 0
+  local sy = shake > 0 and (flr(rnd(3)) - 1) or 0
+
   local other = dir > 0
 
   for r = 0, ROWS - 1 do
     for c = 0, COLS - 1 do
       if alive[at(r, c)] then
-        draw_alien(bx + c * SX, by + r * SY, colour_of(r), other)
+        draw_alien(bx + c * SX + sx, by + r * SY + sy, colour_of(r), other)
       end
     end
   end
@@ -301,9 +338,13 @@ function _draw()
 
   for i = 1, #bombs do
     local b = bombs[i]
-    rect(b.x, b.y, 1, 3, 2)
+    rect(b.x + sx, b.y + sy, 1, 3, 2)
   end
   if shot then rect(shot.x, shot.y, 1, 4, 4) end
+  for i = 1, #bits do
+    local b = bits[i]
+    pset(flr(b.x) + sx, flr(b.y) + sy, b.life > 4 and 7 or b.c)
+  end
 
   -- the keeper, unless they are being put back together
   if hitpause == 0 or flr(hitpause / 3) % 2 == 0 then

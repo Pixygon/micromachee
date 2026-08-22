@@ -74,6 +74,9 @@ pub struct Machine {
     pub saved: Rc<RefCell<serde_json::Map<String, serde_json::Value>>>,
     pub dirty: Rc<Cell<bool>>,
     pub outcome: Rc<Cell<Outcome>>,
+    /// Sounds asked for during this frame, in the order they were asked for.
+    /// Drained by whatever is driving the machine, once a frame.
+    pub sfx: Rc<RefCell<Vec<u8>>>,
     /// Whether text is rendered in the Ydrast on the way to the screen.
     tongue: Rc<Cell<bool>>,
     budget: Rc<Cell<u32>>,
@@ -119,6 +122,7 @@ impl Machine {
         let saved = Rc::new(RefCell::new(saved_in));
         let dirty = Rc::new(Cell::new(false));
         let outcome = Rc::new(Cell::new(Outcome::Playing));
+        let sfx = Rc::new(RefCell::new(Vec::new()));
         let tongue = Rc::new(Cell::new(false));
         let rng = Rc::new(Cell::new(0x2545_f491_4f6c_dd1du64));
 
@@ -349,13 +353,34 @@ impl Machine {
                 Ok(())
             });
         }
+        {
+            let q = sfx.clone();
+            // Eight sounds, indexed the way colours are, and wrapping the same
+            // way so `sfx(9)` is `sfx(1)` rather than an error mid-frame.
+            //
+            // Capped per frame: a cart that calls this in a loop would otherwise
+            // hand the panel hundreds of lines to play at once, which is a
+            // denial of service made of noise rather than of cycles.
+            api!("sfx", move |_, n: f64| {
+                let mut q = q.borrow_mut();
+                if q.len() < 8 {
+                    q.push((n.floor().rem_euclid(8.0)) as u8);
+                }
+                Ok(())
+            });
+        }
 
         lua.load(&cart.code)
             .set_name(cart.id.as_str())
             .exec()
             .map_err(|e| tidy(&e.to_string()))?;
 
-        Ok(Machine { lua, screen, input, frame, score, saved, dirty, outcome, tongue, budget })
+        Ok(Machine { lua, screen, input, frame, score, saved, dirty, outcome, sfx, tongue, budget })
+    }
+
+    /// Take the sounds asked for since this was last called.
+    pub fn take_sfx(&self) -> Vec<u8> {
+        std::mem::take(&mut *self.sfx.borrow_mut())
     }
 
     fn call(&self, name: &str) -> Result<(), String> {
@@ -370,6 +395,7 @@ impl Machine {
     pub fn init(&self) -> Result<(), String> {
         // Starting over is starting over: a cart that restarts itself after a
         // game over must not still be reported as lost.
+        self.sfx.borrow_mut().clear();
         self.clear_outcome();
         self.call("_init")
     }

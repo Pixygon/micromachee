@@ -118,6 +118,9 @@ import { Mega, megaCover, MEGA_ID, MEGA_TITLE, MEGA_ABOUT } from "./mega.js";
 // .json is the only thing the CDN sends CORS headers for anyway. The url is
 // generated from the helper, so the page always asks for a shelf that exists.
 import { CATALOG } from "./console-data.js";
+import { Speaker } from "./sound.js";
+
+const speaker = new Speaker();
 const FPS = 30;
 
 const $ = (id) => document.getElementById(id);
@@ -202,6 +205,7 @@ async function choose(entry) {
     return;
   }
   const cart = await loadCart(factory, entry.code, {
+    onSfx: (n) => speaker.play(n),
     onScore: (n) => ($("score").textContent = String(n)),
     storage: localStore(entry.id),
   });
@@ -244,6 +248,7 @@ function start() {
   latch = 0;
   paintKeys();
   loadCart(factory, entry.code, {
+    onSfx: (n) => speaker.play(n),
     onScore: (n) => ($("score").textContent = String(n)),
     // Per cart, in this browser: a farm planted today is still growing tomorrow.
     storage: localStore(entry.id),
@@ -268,7 +273,7 @@ function startMega() {
   armed.cart.close();
   armed = null;
   held = 0; latch = 0; paintKeys();
-  const mega = new Mega(factory, carts);
+  const mega = new Mega(factory, carts, (n) => speaker.play(n));
   running = { close() {}, screen: mega.out, mega };
   let busy = false;
   timer = setInterval(async () => {

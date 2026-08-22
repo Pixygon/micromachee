@@ -161,7 +161,8 @@ local function level_up()
     atk = atk + 1
     if lvl % 2 == 0 then def = def + 1 end
     bump_score()
-    say("YOU REACH LEVEL " .. lvl)
+    sfx(6)
+  say("YOU REACH LEVEL " .. lvl)
   end
 end
 
@@ -170,12 +171,14 @@ local function hit_monster(i)
   local dmg = mid(1, atk + flr(rnd(3)) - m.def, 99)
   m.hp = m.hp - dmg
   if m.hp <= 0 then
+    sfx(2)
     say("THE " .. m.ch .. " DIES")
     xp = xp + m.xp
     table.remove(mons, i)
     level_up()
   else
-    say("YOU HIT THE " .. m.ch .. " FOR " .. dmg)
+    sfx(1)
+  say("YOU HIT THE " .. m.ch .. " FOR " .. dmg)
   end
 end
 
@@ -187,11 +190,13 @@ local function monsters_move()
     if dist == 1 then
       local dmg = mid(1, m.atk + flr(rnd(2)) - def, 99)
       hp = hp - dmg
-      say("THE " .. m.ch .. " HITS YOU FOR " .. dmg)
+      sfx(5)
+  say("THE " .. m.ch .. " HITS YOU FOR " .. dmg)
       if hp <= 0 then
         hp = 0
         over = true
-        lose()
+        sfx(7)
+    lose()
         say("YOU DISSOLVE ON " .. depth)
         return
       end
@@ -222,7 +227,8 @@ local function pick_up()
     local it = items[i]
     if it.x == px and it.y == py and it.kind == "potion" then
       hp = mid(1, hp + 6, maxhp)
-      say("YOU DRINK A POTION")
+      sfx(3)
+  say("YOU DRINK A POTION")
       table.remove(items, i)
     end
   end
@@ -240,6 +246,7 @@ local function descend()
   bump_score()
   generate()
   light()
+  sfx(6)
   say("DEPTH " .. depth)
 end
 

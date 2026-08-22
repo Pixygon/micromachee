@@ -63,7 +63,7 @@ function _update()
   bx = bx + vx
   by = by + vy
 
-  if by < TOP + 1 then by, vy = TOP + 1, -vy end
+  if by < TOP + 1 then by, vy = TOP + 1, -vy sfx(0) end
   if by > 126     then by, vy = 126, -vy end
 
   -- Where the ball meets the paddle decides the angle it leaves at. Without
@@ -71,23 +71,27 @@ function _update()
   if vx < 0 and bx <= LX + PADW and bx > LX - 2 and by >= ly and by <= ly + PADH then
     bx = LX + PADW
     vx = -vx
+    sfx(0)
     vy = mid(-3.0, vy + (by - (ly + PADH / 2)) / 7, 3.0)
     speed_up()
   end
   if vx > 0 and bx >= RX - 1 and bx < RX + PADW + 2 and by >= ry and by <= ry + PADH then
     bx = RX - 1
     vx = -vx
+    sfx(0)
     vy = mid(-3.0, vy + (by - (ry + PADH / 2)) / 7, 3.0)
     speed_up()
   end
 
   if bx < -2 then
     sr = sr + 1
+    sfx(5)
     lose()
     if sr >= TARGET then over = true else launch(1) end
   elseif bx > 130 then
     sl = sl + 1
     score(sl)
+    sfx(6)
     if sl >= TARGET then over = true else launch(-1) end
   end
 end

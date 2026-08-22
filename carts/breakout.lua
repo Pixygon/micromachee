@@ -30,7 +30,7 @@ local POWER_FRAMES = 420
 
 local bricks, left, padx, padw, balls, points, lives, level, stuck
 local ox, oy, drift, descent, shape, t
-local drops, wide, pierce
+local drops, wide, pierce, bits, shake, stop
 
 -- ── the shape of a layer ────────────────────────────────────────────────────
 
@@ -71,6 +71,18 @@ local function build_layer()
   end
 end
 
+-- A brick that blinks out is a brick that was never hit. Six pixels in its own
+-- colour, thrown outward, and the eye reads the impact instead of the absence.
+local function burst(x, y, n, c)
+  for _ = 1, n do
+    bits[#bits + 1] = {
+      x = x, y = y,
+      dx = rnd(2.6) - 1.3, dy = rnd(2.2) - 1.4,
+      life = 8 + flr(rnd(8)), c = c,
+    }
+  end
+end
+
 -- ── balls ───────────────────────────────────────────────────────────────────
 
 local function new_ball(x, y, vx, vy)
@@ -90,6 +102,7 @@ function _init()
   points = 0
   lives  = 3
   drops, wide, pierce = {}, 0, 0
+  bits, shake, stop = {}, 0, 0
   build_layer()
   score(0)
   reset_ball()
@@ -117,6 +130,9 @@ local function hit(x, y)
   if not r then return false end
   bricks[r][c] = false
   left = left - 1
+  burst(LEFT + ox + (c - 1) * BW + BW / 2, TOP + oy + (r - 1) * BH + BH / 2, 5, WALL_COLOUR[r])
+  shake = 2
+  sfx(1)
   points = points + (ROWS - r + 1) * 10 + (level - 1) * 5
   score(points)
   if rnd(1) < DROP_CHANCE then
@@ -170,6 +186,7 @@ local function step_ball(b)
     b.y = PADY - 1
     b.vy = -b.vy
     b.vx = mid(-2.2, (b.x - (padx + padw / 2)) / 5, 2.2)
+    sfx(0)
   end
 end
 
@@ -179,6 +196,16 @@ function _update()
     return
   end
   t = t + 1
+  if shake > 0 then shake = shake - 1 end
+  for i = #bits, 1, -1 do
+    local b = bits[i]
+    b.x, b.y, b.life = b.x + b.dx, b.y + b.dy, b.life - 1
+    b.dy = b.dy + 0.09
+    if b.life <= 0 then table.remove(bits, i) end
+  end
+  -- A beat of nothing after losing a ball. It is four frames and it is the
+  -- difference between the ball vanishing and the ball being lost.
+  if stop > 0 then stop = stop - 1 return end
 
   if btn(0) then padx = padx - 3 end
   if btn(1) then padx = padx + 3 end
@@ -216,12 +243,17 @@ function _update()
       table.remove(drops, i)
     elseif d.y >= PADY - 2 and d.y <= PADY + 4 and d.x >= padx - 2 and d.x <= padx + padw + 2 then
       take(d.kind)
+      -- The bad one has to sound bad, or a hazard you cannot hear is a hazard
+      -- you learn about by losing.
+      sfx(d.kind == 2 and 5 or 3)
       table.remove(drops, i)
     end
   end
 
   if #balls == 0 then
     lives = lives - 1
+    shake, stop = 10, 6
+    sfx(5)
     lose()
     drops = {}
     if pierce > 0 then pierce = 0 end
@@ -231,6 +263,7 @@ function _update()
 
   if left == 0 then
     -- A layer peeled is not the end of it. There is always another underneath.
+    sfx(6)
     level = level + 1
     points = points + 100
     score(points)
@@ -249,6 +282,8 @@ local CAPLABEL = { "W", "N", "M", "P" }
 
 function _draw()
   cls(0)
+  local sx = shake > 0 and (flr(rnd(3)) - 1) or 0
+  local sy = shake > 0 and (flr(rnd(3)) - 1) or 0
 
   -- The walls the ball bounces off. They were always there in the physics and
   -- never drawn, so the ball turned around in mid-air at the edge of nothing.
@@ -258,7 +293,7 @@ function _draw()
   for r = 1, ROWS do
     for c = 1, COLS do
       if bricks[r][c] then
-        rect(flr(LEFT + ox + (c - 1) * BW), flr(TOP + oy + (r - 1) * BH),
+        rect(flr(LEFT + ox + (c - 1) * BW) + sx, flr(TOP + oy + (r - 1) * BH) + sy,
              BW - 1, BH - 1, WALL_COLOUR[r])
       end
     end
@@ -268,6 +303,11 @@ function _draw()
     local d = drops[i]
     rect(flr(d.x) - 3, flr(d.y), 7, 5, CAPSULE[d.kind])
     print(CAPLABEL[d.kind], flr(d.x) - 1, flr(d.y), 0)
+  end
+
+  for i = 1, #bits do
+    local b = bits[i]
+    pset(flr(b.x) + sx, flr(b.y) + sy, b.life > 5 and 7 or b.c)
   end
 
   rect(padx, PADY, padw, 3, pierce > 0 and 4 or 7)

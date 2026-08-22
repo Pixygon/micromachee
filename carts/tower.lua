@@ -147,6 +147,7 @@ end
 
 local function die()
   dead = true
+  sfx(7)
   lose()
 end
 
@@ -186,6 +187,7 @@ local function step_foes()
       f.cool = 24
       hp = hp - (6 + floor)
       hurt = 6
+      sfx(5)
       if hp <= 0 then die() return end
     end
   end
@@ -196,6 +198,7 @@ end
 -- means the crosshair never lies about what is about to be shot.
 local function shoot()
   flash = 4
+  sfx(0)
   local best_i, best_d = 0, 1e9
   for i = 1, #foes do
     local f = foes[i]
@@ -217,8 +220,10 @@ local function shoot()
   if best_i > 0 and best_d < (zbuf[64] or 1e9) then
     local f = foes[best_i]
     f.hp = f.hp - 1
+    sfx(1)
     if f.hp <= 0 then
       table.remove(foes, best_i)
+      sfx(2)
       kills = kills + 1
       score(points())
     end
@@ -269,10 +274,12 @@ function _update()
       -- then saying nine: the HUD and the ending have to agree.
       won = true
       bonus = 200
+      sfx(6)
       win()
     else
       floor = floor + 1
       hp = mid(0, hp + 25, 100)
+      sfx(3)
       build()
     end
     score(points())

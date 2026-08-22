@@ -24,6 +24,7 @@ mod shelf;
 mod theme;
 mod tty;
 mod vm;
+mod wav;
 mod ydrast;
 
 use std::io::{BufRead, IsTerminal, Write};
@@ -120,6 +121,7 @@ fn cmd_play(id: &str) -> i32 {
     }
 
     let mut palette = theme::active(shelf::saved_theme().as_deref()).palette;
+    let muted = shelf::saved_muted();
     let out = std::io::stdout();
     let mut out = out.lock();
     let fail = |out: &mut dyn Write, e: String| {
@@ -163,6 +165,16 @@ fn cmd_play(id: &str) -> i32 {
         if let Err(e) = machine.draw() {
             fail(&mut out, e);
             return 1;
+        }
+        // Sounds before the picture: they were asked for during the update that
+        // produced this frame, and a sound that arrives a frame late is a sound
+        // that does not belong to what you just saw.
+        if !muted {
+            for n in machine.take_sfx() {
+                let _ = writeln!(out, "A {n}");
+            }
+        } else {
+            machine.take_sfx();
         }
         let frame = machine.screen.borrow().to_png(&palette);
         if writeln!(out, "F {}", base64(&frame)).is_err() || out.flush().is_err() {
@@ -237,6 +249,7 @@ fn cmd_play_mega() -> i32 {
     }
 
     let mut palette = theme::active(shelf::saved_theme().as_deref()).palette;
+    let muted_mega = shelf::saved_muted();
     let out = std::io::stdout();
     let mut out = out.lock();
 
@@ -262,6 +275,13 @@ fn cmd_play_mega() -> i32 {
             return 1;
         }
 
+        if !muted_mega {
+            for n in mega.take_sfx() {
+                let _ = writeln!(out, "A {n}");
+            }
+        } else {
+            mega.take_sfx();
+        }
         let frame = mega.out.to_png(&palette);
         if writeln!(out, "F {}", base64(&frame)).is_err() || out.flush().is_err() {
             break;
@@ -332,6 +352,7 @@ fn cmd_browse(args: &[String]) -> i32 {
     }
 
     let mut palette = theme::active(shelf::saved_theme().as_deref()).palette;
+    let muted_browse = shelf::saved_muted();
     let out = std::io::stdout();
     let mut out = out.lock();
 
@@ -351,8 +372,17 @@ fn cmd_browse(args: &[String]) -> i32 {
             continue;
         }
 
-        let frame = shelf_screen.frame(held.load(Ordering::Relaxed)).to_png(&palette);
-        if writeln!(out, "F {}", base64(&frame)).is_err() || out.flush().is_err() {
+        let sounds = {
+            let s = shelf_screen.frame(held.load(Ordering::Relaxed));
+            let png = s.to_png(&palette);
+            (shelf_screen.take_sfx(), png)
+        };
+        if !muted_browse {
+            for n in sounds.0 {
+                let _ = writeln!(out, "A {n}");
+            }
+        }
+        if writeln!(out, "F {}", base64(&sounds.1)).is_err() || out.flush().is_err() {
             break;
         }
         if let Some(id) = shelf_screen.picked() {
@@ -655,7 +685,9 @@ fn cmd_status() {
             // The console's own size control, so the buttons on it can change
             // it without anybody opening a settings page.
             "scale": shelf::saved_scale(),
-            "tongue": if shelf::saved_tongue() { "ydrast" } else { "plain" },
+            "sounds": shelf::sounds_dir().to_string_lossy(),
+        "muted": shelf::saved_muted(),
+        "tongue": if shelf::saved_tongue() { "ydrast" } else { "plain" },
             "shell": {
                 "body": th.shell.body, "bezel": th.shell.bezel,
                 "text": th.shell.text, "dim": th.shell.dim, "accent": th.shell.accent,
@@ -916,6 +948,44 @@ fn main() {
             println!("{}", serde_json::to_string(&shelf::shelf_json()).unwrap_or_else(|_| "[]".into()));
             0
         }
+        "sounds" => {
+            let dir = rest
+                .iter()
+                .position(|a| a == "-o")
+                .and_then(|i| rest.get(i + 1))
+                .map(std::path::PathBuf::from)
+                .unwrap_or_else(shelf::sounds_dir);
+            match wav::write_bank(&dir) {
+                Ok(n) => {
+                    println!("wrote {n} sound(s) → {}", dir.display());
+                    0
+                }
+                Err(e) => {
+                    eprintln!("✗ {e}");
+                    1
+                }
+            }
+        }
+        "mute" => match rest.first().map(String::as_str) {
+            Some("on") => {
+                shelf::set_muted(true);
+                println!("sound is off");
+                0
+            }
+            Some("off") => {
+                shelf::set_muted(false);
+                println!("sound is on");
+                0
+            }
+            None => {
+                println!("{}", if shelf::saved_muted() { "off" } else { "on" });
+                0
+            }
+            Some(other) => {
+                eprintln!("✗ mute takes on or off, not {other}");
+                2
+            }
+        },
         "browse" => cmd_browse(&rest),
         "play" => match rest.first() {
             Some(id) => cmd_play(id),

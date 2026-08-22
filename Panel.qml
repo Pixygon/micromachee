@@ -44,9 +44,6 @@ Panel {
   /// Whether the card is up over the cover. X plays; O is the other one.
   property bool showInfo: false
 
-  /// The last few buttons pressed on the shelf. Nothing advertises this.
-  property string secret: ""
-
   readonly property string glyph: "▦"
   readonly property string barLabel: mm.carts.length > 0 ? glyph + " " + mm.carts.length : glyph
 
@@ -68,6 +65,7 @@ Panel {
       mm.active = true
       mm.resume()              // a closed panel paused it; pick it back up
       mm.startBrowse(true)     // and the shelf, with its titles, is what opens
+      mm.syncShelf(false)      // and it checks the shelf while you read them
       Qt.callLater(function() { keys.forceActiveFocus() })
     } else {
       // Not `stop()`. Closing the bar to look at something else should cost you
@@ -151,16 +149,12 @@ Panel {
         if (b < 0) return
         // The shelf is a program the console runs, so its buttons are the
         // console's buttons: nothing here decides what they mean any more.
-        if (!mm.playing) {
-          // up up down down left right left right X O
-          root.secret = (root.secret + b).slice(-10)
-          if (root.secret === "2233010154") {
-            root.secret = ""
-            mm.toggleTongue()
-            event.accepted = true
-            return
-          }
-        }
+        //
+        // That is also why the button sequence that used to reach the Ydrast
+        // tongue is gone rather than merely broken: on this shelf X opens the
+        // info card and O starts a game, so the last two presses of it did
+        // something else long before the sequence could finish. It is the dot
+        // on the console body now.
         mm.setButton(b, true)
         event.accepted = true
       }
@@ -476,6 +470,88 @@ Panel {
               Row {
                 anchors.horizontalCenter: parent.horizontalCenter
                 spacing: Math.round(Style.space(4) * pad.k)
+
+                // The Ydrast tongue. It used to be up-up-down-down-left-right
+                // on the shelf, which stopped working the day the shelf moved
+                // into the console and those buttons started games. So it is a
+                // dot: unlabelled, easy to miss, and impossible to press by
+                // accident — which is as close to a secret as a button gets.
+                Rectangle {
+                  anchors.verticalCenter: parent.verticalCenter
+                  width: Math.max(5, Math.round(6 * pad.k))
+                  height: width
+                  radius: width / 2
+                  color: mm.tongue === "ydrast" ? mm.shellAccent : mm.shellDim
+                  opacity: mm.tongue === "ydrast" ? 0.9 : 0.3
+
+                  MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: mm.toggleTongue()
+                  }
+                }
+
+                // Sound. A widget in a bar that makes noise you cannot stop is
+                // a widget people uninstall, so this is one press away and the
+                // helper honours it by not sending the sound at all.
+                Rectangle {
+                  width: Math.round(Style.space(16) * pad.k)
+                  height: Math.round(Style.space(14) * pad.k)
+                  radius: Math.round(Style.space(3) * pad.k)
+                  color: "transparent"
+                  border.width: 1
+                  border.color: mm.shellDim
+                  opacity: muteHover.containsMouse ? 1.0 : (mm.muted ? 0.35 : 0.8)
+
+                  Text {
+                    anchors.centerIn: parent
+                    text: mm.muted ? "◌" : "◍"
+                    color: mm.shellDim
+                    font.family: root.fontFamily
+                    font.pixelSize: pad.fs
+                  }
+
+                  MouseArea {
+                    id: muteHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: mm.toggleMute()
+                  }
+                }
+
+                // Fetch the shelf. It goes amber and carries a count when the
+                // automatic check on opening found carts that have moved on,
+                // so the one time you need this button it asks to be pressed.
+                Rectangle {
+                  width: Math.round(Style.space(20) * pad.k)
+                  height: Math.round(Style.space(14) * pad.k)
+                  radius: Math.round(Style.space(3) * pad.k)
+                  color: "transparent"
+                  border.width: 1
+                  border.color: mm.updatesReady > 0 ? mm.shellAccent : mm.shellDim
+                  opacity: mm.syncing ? 0.4 : (syncHover.containsMouse ? 1.0 : 0.8)
+
+                  Text {
+                    anchors.centerIn: parent
+                    text: mm.updatesReady > 0 ? "↻" + mm.updatesReady : "↻"
+                    color: mm.updatesReady > 0 ? mm.shellAccent : mm.shellDim
+                    font.family: root.fontFamily
+                    font.pixelSize: pad.fs
+                  }
+
+                  MouseArea {
+                    id: syncHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    enabled: !mm.syncing
+                    cursorShape: Qt.PointingHandCursor
+                    // Always the updating one: pressing a button labelled with
+                    // a count and having it not take those updates is a button
+                    // that lied.
+                    onClicked: mm.syncShelf(true)
+                  }
+                }
 
                 // The colour mode lives here now rather than in a row of chrome
                 // under the console. It is the palette itself on a button: the

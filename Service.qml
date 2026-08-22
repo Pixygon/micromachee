@@ -37,6 +37,9 @@ Item {
   property int scale: 3
   /// "plain", or "ydrast" if somebody found it.
   property string tongue: "plain"
+  /// Where the helper wrote the generated sound bank, and whether it plays.
+  property string soundsDir: ""
+  property bool muted: false
   property bool paused: false
   property color shellBody: "#000000"
   property color shellBezel: "#000000"
@@ -212,6 +215,21 @@ Item {
     play(id, title)
   }
 
+  /// Pull the shelf. Without `update` this only fetches carts that are not here
+  /// at all and counts the ones that have moved on; with it, it takes the new
+  /// versions too and keeps the old ones as .lua.bak.
+  ///
+  /// This runs on its own when the panel opens, so a shelf is never quietly a
+  /// release behind. Its failures are deliberately silent: being offline is not
+  /// an error the person opening a games console needs told about.
+  function syncShelf(update) {
+    if (syncing) return
+    syncing = true
+    if (update === true) updatesReady = 0
+    syncProcess.command = update === true ? [bin, "sync", "--update"] : [bin, "sync"]
+    syncProcess.running = true
+  }
+
   function refresh() {
     if (statusProcess.running) return
     statusProcess.command = [bin, "status"]
@@ -261,6 +279,18 @@ Item {
 
   /// Every word the console prints goes through the helper, so a whole change
   /// of language is one flag there and nothing at all here.
+  /// Play one of the eight. Silent, rather than broken, if the loader failed.
+  function beep(n) {
+    if (soundLoader.item) soundLoader.item.play(n)
+  }
+
+  function toggleMute() {
+    var next = !muted
+    muted = next
+    muteProcess.command = [bin, "mute", next ? "on" : "off"]
+    muteProcess.running = true
+  }
+
   function toggleTongue() {
     var next = tongue === "ydrast" ? "plain" : "ydrast"
     tongue = next
@@ -349,6 +379,8 @@ Item {
       root.themes = s.themes || []
       root.scale = Number(s.scale || 3)
       root.tongue = String(s.tongue || "plain")
+      root.soundsDir = String(s.sounds || "")
+      root.muted = s.muted === true
       if (s.shell) {
         root.shellBody = s.shell.body || root.shellBody
         root.shellBezel = s.shell.bezel || root.shellBezel
@@ -356,6 +388,34 @@ Item {
         root.shellDim = s.shell.dim || root.shellDim
         root.shellAccent = s.shell.accent || root.shellAccent
       }
+    }
+  }
+
+  // Sound is optional in the strongest sense: if QtMultimedia is missing this
+  // Loader fails, `item` stays null, and the console is quiet. Importing it in
+  // the panel instead would have taken the whole widget down with it.
+  Loader {
+    id: soundLoader
+    source: "Sound.qml"
+    onLoaded: if (item) item.dir = root.soundsDir
+  }
+
+  Connections {
+    target: root
+    function onSoundsDirChanged() {
+      if (soundLoader.item) soundLoader.item.dir = root.soundsDir
+    }
+  }
+
+  Process {
+    id: muteProcess
+    running: false
+    command: []
+    onExited: function() {
+      root.refresh()
+      // The helper decides whether to send sound at all, so a running game has
+      // to be told. It is one flag on the next frame either way.
+      root.refreshBrowse()
     }
   }
 
@@ -463,6 +523,36 @@ Item {
   }
 
   Process {
+    id: syncProcess
+    running: false
+    command: []
+    stdout: SplitParser {
+      onRead: function(line) {
+        var s = String(line)
+        // "3 cart(s) here differ from the shelf: picross, snake, rogue"
+        var m = s.match(/^(\d+) cart\(s\) here differ/)
+        if (m) root.updatesReady = parseInt(m[1], 10) || 0
+        if (s.indexOf(" new,") >= 0) {
+          var got = s.match(/^(\d+) new/)
+          if (got && parseInt(got[1], 10) > 0) root.gotNewCarts = true
+          var upd = s.match(/(\d+) updated/)
+          if (upd && parseInt(upd[1], 10) > 0) root.gotNewCarts = true
+        }
+      }
+    }
+    stderr: StdioCollector { id: syncErr; waitForEnd: true }
+    onExited: function() {
+      root.syncing = false
+      root.refresh()
+      if (root.gotNewCarts) {
+        root.gotNewCarts = false
+        root.loadCovers()
+        root.refreshBrowse()      // the shelf read its carts when it started
+      }
+    }
+  }
+
+  Process {
     id: browseProcess
     running: false
     command: []
@@ -473,6 +563,7 @@ Item {
         if (s.length < 2) return
         var kind = s.charAt(0)
         if (kind === "F") root.frame = s.substring(2)
+        else if (kind === "A") root.beep(parseInt(s.substring(2), 10) || 0)
         else if (kind === "M") {
           // The last tile on the shelf is not a cart. It asks for this.
           root.openCreate()
@@ -509,6 +600,7 @@ Item {
         if (s.length < 2) return
         var kind = s.charAt(0)
         if (kind === "F") root.frame = s.substring(2)
+        else if (kind === "A") root.beep(parseInt(s.substring(2), 10) || 0)
         else if (kind === "S") {
           root.score = parseInt(s.substring(2), 10) || 0
           if (root.score > root.best) root.best = root.score

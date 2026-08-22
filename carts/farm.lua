@@ -83,6 +83,7 @@ function _update()
       save_plot(i)
       save("coins", coins)
       score(coins)
+      sfx(3)
       say("SOLD FOR " .. CROPS[kind[i]][4])
     elseif st == 0 then
       local cost = CROPS[pick][3]
@@ -93,8 +94,10 @@ function _update()
         save_plot(i)
         save("coins", coins)
         score(coins)
+        sfx(4)
         say("PLANTED " .. CROPS[pick][1])
       else
+        sfx(1)
         say("NOT ENOUGH COINS")
       end
     else

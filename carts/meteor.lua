@@ -51,6 +51,7 @@ function _update()
   frames = frames + 1
   points = flr(frames / 3)
   score(points)
+  sfx(3)
   if points > best then best = points end
 
   if btn(0) then shipx = shipx - 2 end
@@ -72,6 +73,7 @@ function _update()
     elseif r.y + r.h >= SHIPY - 2 and r.y <= SHIPY + 2
        and shipx + 2 >= r.x and shipx - 2 <= r.x + r.w then
       alive = false
+      sfx(5)
       lose()
     end
   end
