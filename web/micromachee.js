@@ -18,6 +18,12 @@ export { W, H, CHAR_WIDTH, LINE_HEIGHT, THEMES };
 
 const wrap = (c) => ((Math.floor(c) % 8) + 8) % 8;
 
+// Mirrors console.rs DRAW_LIMIT: geometry is clamped to this window before any
+// primitive iterates, so an extreme coordinate cannot hang the tab. Real
+// drawing on a 128px screen never approaches it.
+const DRAW_LIMIT = 4096;
+const clampCoord = (v) => (v < -DRAW_LIMIT ? -DRAW_LIMIT : v > DRAW_LIMIT ? DRAW_LIMIT : v);
+
 export class Screen {
   constructor() {
     this.px = new Uint8Array(W * H);
@@ -63,8 +69,12 @@ export class Screen {
   line(x0, y0, x1, y1, c) {
     // Bresenham in the form that needs no special cases for steepness or
     // direction — the same one the helper uses.
-    x0 = Math.floor(x0); y0 = Math.floor(y0);
-    x1 = Math.floor(x1); y1 = Math.floor(y1);
+    // Clamped to the same window the helper uses (console.rs DRAW_LIMIT): an
+    // extreme coordinate is already entirely off a 128px screen, and left
+    // unclamped it steps this loop a pixel at a time across billions and hangs
+    // the tab. Real drawing is untouched.
+    x0 = clampCoord(Math.floor(x0)); y0 = clampCoord(Math.floor(y0));
+    x1 = clampCoord(Math.floor(x1)); y1 = clampCoord(Math.floor(y1));
     let x = x0, y = y0;
     const dx = Math.abs(x1 - x0);
     const dy = -Math.abs(y1 - y0);
@@ -81,7 +91,7 @@ export class Screen {
   }
 
   circ(cx, cy, r, c) {
-    cx = Math.floor(cx); cy = Math.floor(cy); r = Math.floor(r);
+    cx = Math.floor(cx); cy = Math.floor(cy); r = Math.min(Math.floor(r), DRAW_LIMIT);
     if (r < 0) return;
     const rr = r * r;
     for (let dy = -r; dy <= r; dy++) {
@@ -91,7 +101,7 @@ export class Screen {
   }
 
   circb(cx, cy, r, c) {
-    cx = Math.floor(cx); cy = Math.floor(cy); r = Math.floor(r);
+    cx = Math.floor(cx); cy = Math.floor(cy); r = Math.min(Math.floor(r), DRAW_LIMIT);
     if (r < 0) return;
     let x = r, y = 0, d = 1 - r;
     while (x >= y) {

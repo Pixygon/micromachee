@@ -332,12 +332,25 @@ pub fn load_save(id: &str) -> serde_json::Map<String, Value> {
         .unwrap_or_default()
 }
 
+/// A single cart's saved data may not exceed this once serialized. The per-key
+/// bounds in the VM already keep an honest cart far under it; this is the
+/// backstop that makes "one cart cannot bloat the shared state file" true
+/// regardless of how the data got into the map.
+const MAX_CART_SAVE_BYTES: usize = 128 * 1024;
+
 pub fn store_save(id: &str, data: &serde_json::Map<String, Value>) {
+    let blob = Value::Object(data.clone());
+    if blob.to_string().len() > MAX_CART_SAVE_BYTES {
+        // Dropped rather than written: persisting this would risk the next
+        // load_state refusing the whole file and taking every cart's saves
+        // with it. Losing one oversized cart's write is the smaller harm.
+        return;
+    }
     let mut state = load_state();
     if !state.is_object() {
         state = json!({});
     }
-    state["saves"][id] = Value::Object(data.clone());
+    state["saves"][id] = blob;
     save_state(&state);
 }
 

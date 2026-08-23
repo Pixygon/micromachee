@@ -6,6 +6,23 @@
 //! not wrap around to the far side of the screen. That is checked rather than
 //! assumed, because a wrapped pixel looks like a game bug and is a console bug.
 
+/// Coordinates and sizes are clamped to this before any primitive iterates.
+///
+/// Everything clips to the 128×128 screen, so a coordinate past this window is
+/// already entirely off-screen and drawing it changes nothing visible. What it
+/// DID change was the cost: `circ` with a two-billion radius looped two billion
+/// rows, and `line` between far-apart points stepped Bresenham a pixel at a time
+/// across the whole gap — each a single Lua call, so the per-frame instruction
+/// budget never saw them and the frame simply hung. Clamping the geometry bounds
+/// every loop to a few thousand iterations while leaving all real drawing exact:
+/// nothing on a 128-pixel screen needs a coordinate beyond ±4096.
+const DRAW_LIMIT: i32 = 4096;
+
+#[inline]
+fn clamp_coord(v: i32) -> i32 {
+    v.clamp(-DRAW_LIMIT, DRAW_LIMIT)
+}
+
 pub const W: i32 = 128;
 pub const H: i32 = 128;
 
@@ -79,8 +96,8 @@ impl Screen {
         let c = Self::col(c);
         let x0 = x.max(0);
         let y0 = y.max(0);
-        let x1 = (x + w).min(W);
-        let y1 = (y + h).min(H);
+        let x1 = x.saturating_add(w).min(W);
+        let y1 = y.saturating_add(h).min(H);
         for yy in y0..y1 {
             let row = (yy * W) as usize;
             for xx in x0..x1 {
@@ -102,6 +119,8 @@ impl Screen {
     pub fn line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, c: i32) {
         // Bresenham, in the form that needs no special cases for steepness or
         // direction — the one place in here worth not improvising.
+        let (x0, y0) = (clamp_coord(x0), clamp_coord(y0));
+        let (x1, y1) = (clamp_coord(x1), clamp_coord(y1));
         let (mut x, mut y) = (x0, y0);
         let dx = (x1 - x0).abs();
         let dy = -(y1 - y0).abs();
@@ -129,6 +148,7 @@ impl Screen {
         if r < 0 {
             return;
         }
+        let r = r.min(DRAW_LIMIT);
         let rr = r * r;
         for dy in -r..=r {
             let span = ((rr - dy * dy) as f64).sqrt() as i32;
@@ -140,6 +160,7 @@ impl Screen {
         if r < 0 {
             return;
         }
+        let r = r.min(DRAW_LIMIT);
         let (mut x, mut y, mut d) = (r, 0, 1 - r);
         while x >= y {
             for (px, py) in [
@@ -293,6 +314,26 @@ fn glyph(c: char) -> Option<[u8; 5]> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn extreme_geometry_terminates_and_does_not_overflow() {
+        // Each of these is a single Lua call, so the per-frame instruction
+        // budget never sees it. Before the clamp, circ looped ~2 billion rows
+        // and line stepped Bresenham across ~4 billion pixels; the frame hung.
+        // The test passing at all is the assertion — it returns.
+        let mut s = Screen::new();
+        s.circ(0, 0, i32::MAX, 3);
+        s.circb(0, 0, i32::MAX, 3);
+        s.line(i32::MIN, i32::MIN, i32::MAX, i32::MAX, 4);
+        s.rect(i32::MAX, i32::MAX, i32::MAX, i32::MAX, 5);
+        s.circ(-i32::MAX, -i32::MAX, i32::MAX, 6);
+
+        // and an ordinary circle is unchanged: centre filled, well outside empty
+        let mut s = Screen::new();
+        s.circ(64, 64, 10, 5);
+        assert_eq!(s.pget(64, 64), 5, "centre of a normal circle not drawn");
+        assert_eq!(s.pget(64, 90), 0, "a normal circle leaked past its radius");
+    }
 
     #[test]
     fn a_new_screen_is_black() {

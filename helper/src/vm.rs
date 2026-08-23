@@ -34,6 +34,18 @@ const HOOK_EVERY: u32 = 50_000;
 /// Memory a cart may hold. A 128×128 game needs a rounding error of this.
 const MEMORY_LIMIT: usize = 16 * 1024 * 1024;
 
+// What one cart may persist. save()/load() share a single state file across
+// every cart, and load_state refuses a file over its own ceiling — so a cart
+// that writes without limit does not just bloat its own corner, it pushes the
+// shared file over the edge and every cart's saves and high scores vanish on
+// the next read. These keep any one cart's footprint small enough that the
+// shared file cannot be driven over by ordinary use, and a cart trying to on
+// purpose is stopped at the first oversized write. Farm, the heaviest real
+// user, saves 25 short keys.
+const SAVE_KEY_MAX: usize = 64;
+const SAVE_VALUE_MAX: usize = 2048;
+const SAVE_KEYS_MAX: usize = 64;
+
 pub const FPS: u32 = 30;
 
 /// What a cart has said about how the player is doing. Every cart tracks this
@@ -291,15 +303,31 @@ impl Machine {
             // written to disk by a widget that may be killed at any moment.
             let (st, dr) = (saved.clone(), dirty.clone());
             api!("save", move |_, (k, v): (String, mlua::Value)| {
+                if k.len() > SAVE_KEY_MAX {
+                    return Err(mlua::Error::runtime("save() key is too long"));
+                }
                 let val = match v {
                     mlua::Value::Integer(i) => serde_json::json!(i),
                     mlua::Value::Number(f) => serde_json::json!(f),
-                    mlua::Value::String(s) => serde_json::json!(s.to_string_lossy()),
+                    mlua::Value::String(s) => {
+                        let s = s.to_string_lossy();
+                        if s.len() > SAVE_VALUE_MAX {
+                            return Err(mlua::Error::runtime("save() value is too long"));
+                        }
+                        serde_json::json!(s)
+                    }
                     mlua::Value::Boolean(b) => serde_json::json!(b),
                     mlua::Value::Nil => serde_json::Value::Null,
                     _ => return Err(mlua::Error::runtime("save() takes a number, string or boolean")),
                 };
-                st.borrow_mut().insert(k, val);
+                let mut store = st.borrow_mut();
+                // A new key past the ceiling is refused; overwriting one that
+                // already exists is always fine, so a farm re-saving its plots
+                // never trips it however long it runs.
+                if !store.contains_key(&k) && store.len() >= SAVE_KEYS_MAX {
+                    return Err(mlua::Error::runtime("save() has too many keys"));
+                }
+                store.insert(k, val);
                 dr.set(true);
                 Ok(())
             });
@@ -558,6 +586,27 @@ mod tests {
         for _ in 0..40 {
             m.draw().unwrap();
         }
+    }
+
+    #[test]
+    fn save_is_bounded_so_one_cart_cannot_wipe_the_shelf() {
+        // save/load share one file across every cart, and an unbounded write
+        // pushes it past the load ceiling and drops everyone's data. Each of
+        // these must be refused rather than stored.
+        let cart = crate::cart::Cart::parse("t", "function _draw() end").unwrap();
+        let m = Machine::load(&cart).unwrap();
+        m.init().unwrap();
+        let g = m.lua.globals();
+
+        let save: mlua::Function = g.get("save").unwrap();
+        assert!(save.call::<()>(("k", "x".repeat(5000))).is_err(), "oversized value stored");
+        assert!(save.call::<()>(("k".repeat(200), 1)).is_err(), "oversized key stored");
+
+        for i in 0..64 {
+            save.call::<()>((format!("n{i}"), i)).unwrap();
+        }
+        assert!(save.call::<()>(("one_too_many", 1)).is_err(), "keys grew without bound");
+        assert!(save.call::<()>(("n0", 999)).is_ok(), "overwriting a key was refused");
     }
 
     #[test]
