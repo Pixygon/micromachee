@@ -291,16 +291,20 @@ those paths.
 
 Stated plainly, because a plugin runs unsandboxed:
 
-- **It builds and runs a helper binary.** With cargo present — the normal case —
-  `install.sh` compiles `helper/` and installs it to `~/.local/bin`. Nothing is
-  downloaded and piped to a shell, and no binary is committed to this repository.
-- **Without cargo it downloads one instead**, and only then. The expected
-  SHA-256 is **committed here** in [`helper/prebuilt.sha256`](helper/prebuilt.sha256),
-  so the download is checked against this repository rather than against the
-  server that served it — a hash fetched alongside the file it describes
-  verifies nothing. A mismatch installs nothing and tells you to install Rust.
-  If you would rather not trust a binary at all, install Rust first and the
-  download never happens.
+- **It builds a helper binary, on your machine, from this source.** `install.sh`
+  compiles `helper/` with cargo and installs it to `~/.local/bin`. Nothing is
+  downloaded and executed, nothing is piped to a shell, and no binary is
+  committed to this repository. Without cargo the install stops and tells you to
+  install Rust.
+
+  There used to be a fallback that downloaded a prebuilt helper and checked it
+  against a SHA-256 committed here. That proved the bytes matched the ones we
+  published; it did not prove those bytes were built from this source, because
+  nothing tied the executable to the commit. A marketplace security review
+  raised it and they were right — "verified" meant less than it looked like it
+  meant. Restoring it would need a CI build with signed provenance that the
+  installer actually checks, and until that exists the honest thing is not to
+  ship a downloaded executable at all.
 - **It runs Lua that you may not have written.** That is the product: a cart is
   a program. Carts get `math`, `string` and `table` and nothing else — no `io`,
   no `os`, no `require` — plus a per-frame instruction budget and a memory
@@ -340,10 +344,10 @@ scripts/publish.sh --dry-run # what would go up, and where
 scripts/publish.sh           # upload the carts and the catalog, then check
 ```
 
-Shipping bumps the version, and the catalog url, the web player's data and the
-binary pin are all keyed to it. `scripts/release.sh` does all three in order and
-verifies each, because any one of them missed leaves a release that looks fine
-and is broken in a way only the next person to install it discovers:
+Shipping bumps the version, and both the catalog url and the web player's data
+are keyed to it. `scripts/release.sh` does them in order and verifies each,
+because either one missed leaves a release that looks fine and is broken in a
+way only the next person to install it discovers:
 
 ```bash
 pearl ship && scripts/release.sh

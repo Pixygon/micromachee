@@ -56,6 +56,75 @@ pub fn catalog_url() -> String {
     std::env::var("MICROMACHEE_CATALOG").unwrap_or_else(|_| DEFAULT_CATALOG.into())
 }
 
+/// The host the shelf is published on, taken from the default catalog rather
+/// than written out again, so the two cannot drift apart.
+pub fn catalog_host(url: &str) -> Option<String> {
+    let rest = url.strip_prefix("https://")?;
+    let host = rest.split(['/', '?', '#']).next()?;
+    let host = host.rsplit('@').next()?; // ignore any userinfo
+    let host = host.split(':').next()?; // and any port
+    if host.is_empty() {
+        None
+    } else {
+        Some(host.to_ascii_lowercase())
+    }
+}
+
+/// Addresses a catalog must never be able to send this program at.
+///
+/// Not a general SSRF defence and not presented as one — a name that resolves
+/// to an internal address is still a name, and stopping that needs resolving it
+/// here and connecting by address, which is a DNS client this program does not
+/// have. What it does stop is the direct forms: the cloud metadata endpoint,
+/// loopback, and the private ranges written as literals. The real protection is
+/// the host allowlist below, which leaves nothing for this to catch on the
+/// shipped shelf.
+fn is_local_address(host: &str) -> bool {
+    if host == "localhost" || host.ends_with(".localhost") || host == "[::1]" {
+        return true;
+    }
+    let octets: Vec<&str> = host.split('.').collect();
+    if octets.len() == 4 {
+        if let Ok(a) = octets[0].parse::<u8>() {
+            let b = octets[1].parse::<u8>().unwrap_or(0);
+            if octets.iter().all(|o| o.parse::<u8>().is_ok()) {
+                return a == 127                       // loopback
+                    || a == 10                        // private
+                    || a == 0                         // this network
+                    || (a == 172 && (16..=31).contains(&b))
+                    || (a == 192 && b == 168)
+                    || (a == 169 && b == 254)         // link-local, and 169.254.169.254
+                    || (a == 100 && (64..=127).contains(&b)); // carrier NAT
+            }
+        }
+    }
+    host.starts_with('[') // any other IPv6 literal
+}
+
+/// Whether a url in a catalog is one this program is willing to follow.
+///
+/// `sync` used to hand each entry's url straight to curl, which speaks a great
+/// many protocols this program has no business speaking — `file:`, `dict:`,
+/// `gopher:`, `scp:` — and would follow any host at all. A catalog is somebody
+/// else's file, so it does not get to choose either.
+pub fn allowed_url(url: &str, expect_host: Option<&str>) -> Result<(), String> {
+    if !url.starts_with("https://") {
+        return Err("only https urls are followed".into());
+    }
+    let Some(host) = catalog_host(url) else {
+        return Err("that url has no host".into());
+    };
+    if is_local_address(&host) {
+        return Err(format!("{host} is a local or internal address"));
+    }
+    if let Some(want) = expect_host {
+        if host != want.to_ascii_lowercase() {
+            return Err(format!("{host} is not {want}, where the shelf is published"));
+        }
+    }
+    Ok(())
+}
+
 /// Every directory carts may come from, in the order they win ties.
 ///
 /// A `carts/` beside the working directory comes first so that working on a
@@ -325,7 +394,21 @@ fn fetch_at_most(url: &str, limit: usize) -> Result<Vec<u8>, String> {
     // whole HTTP client to download a text file now and then is not a trade
     // worth making. `doctor` says so if curl is missing.
     let mut child = Command::new("curl")
-        .args(["-fsSL", "--max-time", "20", "--max-filesize", &limit.to_string(), url])
+        // `--proto` and `--proto-redir` are the belt to the allowlist's braces:
+        // even if a url slipped past the check, curl will not speak anything
+        // but https, and a redirect cannot downgrade it to something local.
+        .args([
+            "-fsSL",
+            "--proto",
+            "=https",
+            "--proto-redir",
+            "=https",
+            "--max-time",
+            "20",
+            "--max-filesize",
+            &limit.to_string(),
+            url,
+        ])
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
@@ -397,15 +480,49 @@ pub fn compare(local: Option<&[u8]>, want_sha: Option<&str>) -> Local {
 /// one, because the whole reason for not overwriting was that the file might
 /// have been yours.
 pub fn sync(update: bool) -> i32 {
-    let url = catalog_url();
-    println!("→ {url}");
-    let body = match fetch_at_most(&url, MAX_CATALOG_BYTES) {
-        Ok(b) => b,
-        Err(e) => {
-            eprintln!("✗ {e}");
-            return 1;
+    // A local catalog, for developing against a shelf that is not published
+    // yet. Deliberately a SEPARATE variable holding a path rather than a
+    // `file:` url through the fetcher: the point of the scheme check is that a
+    // catalog cannot send this program at a local resource, and that stays true
+    // if the only way to read one is an explicit choice made here, by whoever
+    // is running the command, with no url involved anywhere.
+    let (body, host, url) = if let Ok(path) = std::env::var("MICROMACHEE_CATALOG_FILE") {
+        let path = std::path::PathBuf::from(path);
+        println!("→ {} (local)", path.display());
+        match crate::safeio::read_regular_at_most(&path, MAX_CATALOG_BYTES) {
+            // A local catalog has no origin of its own, so its entries are
+            // still held to the published one. Otherwise this path would be the
+            // one place an arbitrary host could be reached, which is exactly
+            // what the check exists to prevent.
+            Ok(Some(b)) => (b, catalog_host(DEFAULT_CATALOG), path.display().to_string()),
+            Ok(None) => {
+                eprintln!("✗ {} is not there", path.display());
+                return 1;
+            }
+            Err(e) => {
+                eprintln!("✗ {e}");
+                return 1;
+            }
+        }
+    } else {
+        let url = catalog_url();
+        println!("→ {url}");
+        // An override may point somewhere else, but not at a different KIND of
+        // thing: still https, still not an internal address.
+        if let Err(e) = allowed_url(&url, None) {
+            eprintln!("✗ {url}: {e}");
+            return 2;
+        }
+        let host = catalog_host(&url);
+        match fetch_at_most(&url, MAX_CATALOG_BYTES) {
+            Ok(b) => (b, host, url),
+            Err(e) => {
+                eprintln!("✗ {e}");
+                return 1;
+            }
         }
     };
+    let _ = &url;
     let catalog: Value = match serde_json::from_slice(&body) {
         Ok(v) => v,
         Err(e) => {
@@ -471,7 +588,14 @@ pub fn sync(update: bool) -> i32 {
         let fetched = match entry.get("code").and_then(|v| v.as_str()) {
             Some(code) => Ok(code.as_bytes().to_vec()),
             None => match entry.get("url").and_then(|v| v.as_str()) {
-                Some(u) => fetch_at_most(u, MAX_CART_BYTES),
+                Some(u) => match allowed_url(u, host.as_deref()) {
+                    // Pinned to the host the catalog itself came from. On the
+                    // shipped shelf that is one origin and nothing else is
+                    // reachable, which is what makes the address checks above
+                    // a backstop rather than the defence.
+                    Ok(()) => fetch_at_most(u, MAX_CART_BYTES),
+                    Err(e) => Err(format!("{u}: {e}")),
+                },
                 None => continue,
             },
         };
@@ -566,6 +690,79 @@ pub fn sync(update: bool) -> i32 {
         println!("`micromachee sync --update` replaces them and keeps your copies as .lua.bak");
     }
     i32::from(failed > 0 && got == 0)
+}
+
+#[cfg(test)]
+mod url_tests {
+    use super::*;
+
+    const HOST: &str = "pixygontech.b-cdn.net";
+
+    #[test]
+    fn the_published_shelf_is_reachable() {
+        assert!(allowed_url(DEFAULT_CATALOG, None).is_ok(), "{DEFAULT_CATALOG}");
+        assert_eq!(catalog_host(DEFAULT_CATALOG).as_deref(), Some(HOST));
+        let cart = format!("https://{HOST}/releases/micromachee/9.9.9/snake.lua");
+        assert!(allowed_url(&cart, Some(HOST)).is_ok());
+    }
+
+    #[test]
+    fn nothing_but_https_is_followed() {
+        // curl speaks a great many protocols this program has no business
+        // speaking, and each entry's url used to go straight to it.
+        for bad in [
+            "file:///etc/passwd",
+            "file://localhost/etc/shadow",
+            "dict://127.0.0.1:11211/stat",
+            "gopher://127.0.0.1:6379/_INFO",
+            "scp://host/x",
+            "http://pixygontech.b-cdn.net/x.lua",
+            "ftp://pixygontech.b-cdn.net/x.lua",
+            "/etc/passwd",
+            "",
+        ] {
+            assert!(allowed_url(bad, None).is_err(), "{bad} was allowed");
+        }
+    }
+
+    #[test]
+    fn a_catalog_cannot_point_at_the_machine_it_is_running_on() {
+        for bad in [
+            "https://169.254.169.254/latest/meta-data/",   // cloud metadata
+            "https://127.0.0.1/x",
+            "https://localhost/x",
+            "https://10.0.0.5/x",
+            "https://192.168.1.1/x",
+            "https://172.16.0.1/x",
+            "https://172.31.255.255/x",
+            "https://[::1]/x",
+            "https://0.0.0.0/x",
+        ] {
+            assert!(allowed_url(bad, None).is_err(), "{bad} was allowed");
+        }
+        // and the ones that only look private
+        assert!(allowed_url("https://172.32.0.1/x", None).is_ok());
+        assert!(allowed_url("https://11.0.0.1/x", None).is_ok());
+    }
+
+    #[test]
+    fn an_entry_may_not_leave_the_origin_its_catalog_came_from() {
+        for bad in [
+            "https://evil.example/snake.lua",
+            "https://pixygontech.b-cdn.net.evil.example/snake.lua",
+            "https://user@evil.example/snake.lua",
+        ] {
+            assert!(allowed_url(bad, Some(HOST)).is_err(), "{bad} was allowed");
+        }
+    }
+
+    #[test]
+    fn userinfo_and_ports_cannot_disguise_the_host() {
+        // `https://real-host@evil/` is a url whose HOST is evil.
+        assert_eq!(catalog_host("https://a@evil.example/x").as_deref(), Some("evil.example"));
+        assert_eq!(catalog_host("https://host.example:8443/x").as_deref(), Some("host.example"));
+        assert_eq!(catalog_host("https://HOST.example/x").as_deref(), Some("host.example"));
+    }
 }
 
 #[cfg(test)]

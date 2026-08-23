@@ -21,41 +21,28 @@ build_from_source() {
   install -Dm755 "$here/helper/target/release/$bin" "$prefix/bin/$bin"
 }
 
-fetch_prebuilt() {
-  local arch pinned url tmp got
-  arch="$(uname -m)"
-  [ "$arch" = "x86_64" ] || return 1
-  [ -r "$here/helper/prebuilt.sha256" ] || return 1
-
-  # <sha256>  <version>  <arch>
-  pinned="$(awk -v v="$version" -v a="$arch" '$2 == v && $3 == a { print $1 }' \
-            "$here/helper/prebuilt.sha256")"
-  [ -n "$pinned" ] || return 1
-
-  url="https://pixygontech.b-cdn.net/releases/micromachee/$version/$bin-$arch-linux.bin"
-  tmp="$(mktemp)"
-  echo "no cargo here — fetching the $version build and checking it against the hash in this repo…"
-  curl -fsSL --max-time 120 -o "$tmp" "$url" || { rm -f "$tmp"; return 1; }
-  got="$(sha256sum < "$tmp" | cut -d" " -f1)"
-  if [ "$got" != "$pinned" ]; then
-    rm -f "$tmp"
-    echo "  ✗ what arrived is not what this repository says it should be — not installing it." >&2
-    return 1
-  fi
-  install -Dm755 "$tmp" "$prefix/bin/$bin"
-  rm -f "$tmp"
-  echo "  ✓ verified against helper/prebuilt.sha256"
-}
-
-if command -v cargo >/dev/null; then
-  build_from_source
-elif fetch_prebuilt; then
-  :
-else
-  echo "This needs Rust to build the helper: sudo pacman -S rust" >&2
-  echo "(or a matching prebuilt binary, which is not available for this version/arch)" >&2
+# Built from source, always.
+#
+# There used to be a fallback here that downloaded a prebuilt helper and checked
+# it against a SHA-256 committed to this repository. That proved the bytes
+# matched the ones we published — it did not prove those bytes were built from
+# this source. Nothing tied the executable to the commit you are reading, so
+# "verified" meant rather less than it looked like it meant.
+#
+# The honest options were a CI build with signed provenance that the installer
+# checks, or no downloaded executable at all. This plugin is a few thousand
+# lines of Rust and Arch is one command away from a compiler, so it is the
+# second one: what runs on your machine is built on your machine, from the
+# source you can read.
+if ! command -v cargo >/dev/null; then
+  echo "Micromachee builds its helper from source and needs Rust to do it:" >&2
+  echo "" >&2
+  echo "    sudo pacman -S rust" >&2
+  echo "" >&2
+  echo "Then run this again. Nothing is downloaded and run — the binary is built here." >&2
   exit 1
 fi
+build_from_source
 
 echo "✓ installed $prefix/bin/$bin"
 
@@ -82,10 +69,15 @@ echo "✓ installed $added cart(s) to $carts${kept:+ (kept $kept already there)}
 # The sound bank is generated, not shipped: eight short WAVs written by the
 # helper itself. Regenerating on every install means the files always match the
 # binary that plays them, and it keeps audio out of the repository.
-if "$prefix/bin/$id" sounds >/dev/null 2>&1; then
+# `$bin`, not `$id`. This ran the plugin id as if it were a program for two
+# releases, and because the failure was sent to /dev/null the only symptom was
+# a console that never made a sound and a note that did not say why. Errors are
+# shown now: a step that can only report success is a step nobody can debug.
+if sound_err="$("$prefix/bin/$bin" sounds 2>&1 >/dev/null)"; then
   echo "✓ generated the sound bank"
 else
-  echo "  note: could not generate sounds — the console will be quiet"
+  echo "  note: could not generate sounds — the console will be quiet" >&2
+  [ -n "$sound_err" ] && echo "  $(printf '%s' "$sound_err" | tail -1)" >&2
 fi
 
 case ":$PATH:" in

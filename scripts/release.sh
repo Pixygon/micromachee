@@ -3,14 +3,13 @@
 #
 #   pearl ship && scripts/release.sh
 #
-# Shipping bumps the version, and three things in this repository are keyed to
-# it. Any one of them missed leaves a release that looks fine and is broken in a
-# way nobody sees until someone else installs it:
+# Shipping bumps the version, and two things in this repository are keyed to
+# it. Either one missed leaves a release that looks fine and is broken in a way
+# nobody sees until someone else installs it:
 #
 #   * the catalog url carries the version, so a new release points at a shelf
 #     that does not exist until it is published
 #   * `web/console-data.js` is generated with that url inside it
-#   * `helper/prebuilt.sha256` pins a binary built from THIS version's source
 #
 # So this does them together, verifies each, and leaves one commit to push.
 set -euo pipefail
@@ -22,10 +21,10 @@ version="$(sed -n '/^\[package\]/,/^\[dependencies\]/ s/^version = "\(.*\)"/\1/p
 echo "releasing $version"
 echo
 
-echo "[1/5] building"
+echo "[1/4] building"
 cargo build --release --manifest-path helper/Cargo.toml
 
-echo "[2/5] regenerating the web player's data (it carries the catalog url)"
+echo "[2/4] regenerating the web player's data (it carries the catalog url)"
 MICROMACHEE_WRITE_PALETTES=1 cargo test --manifest-path helper/Cargo.toml \
   the_committed_palettes >/dev/null
 grep -q "$version" web/console-data.js || {
@@ -33,13 +32,10 @@ grep -q "$version" web/console-data.js || {
   exit 1
 }
 
-echo "[3/5] publishing the shelf"
+echo "[3/4] publishing the shelf"
 ./scripts/publish.sh | tail -2
 
-echo "[4/5] building, pinning and uploading the binary"
-./scripts/release-binary.sh | grep -E '✓|✗'
-
-echo "[5/5] checking it the way a stranger would"
+echo "[4/4] checking it the way a stranger would"
 tmp="$(mktemp -d)"
 MICROMACHEE_CARTS="$tmp" ./helper/target/release/omarchy-micromachee sync | tail -1
 rm -rf "$tmp"
