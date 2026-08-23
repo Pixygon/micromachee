@@ -19,6 +19,7 @@ mod make;
 mod mega;
 mod palettes;
 mod png;
+mod safeio;
 mod sha256;
 mod shelf;
 mod theme;

@@ -165,8 +165,14 @@ impl Cart {
             .file_stem()
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_else(|| "cart".into());
-        let source =
-            std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        // Bounded at the descriptor, and a symlink is refused. `parse` checks
+        // the size too, but only once the whole file is already in memory —
+        // which is no help at all if the file is enormous, and this is the read
+        // every command goes through to load a cart.
+        let body = crate::safeio::read_regular_at_most(path, MAX_CART_BYTES)?
+            .ok_or_else(|| format!("{} is not there", path.display()))?;
+        let source = String::from_utf8(body)
+            .map_err(|_| format!("{} is not text", path.display()))?;
         Cart::parse(&id, &source)
     }
 

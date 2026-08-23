@@ -259,16 +259,27 @@ fn cart_path(id: &str) -> PathBuf {
 fn save(id: &str, code: &str, history: &[Value]) -> Result<(), String> {
     let dir = drafts_dir();
     std::fs::create_dir_all(&dir).map_err(|e| format!("could not make {}: {e}", dir.display()))?;
-    std::fs::write(cart_path(id), code).map_err(|e| format!("could not write the cart: {e}"))?;
-    std::fs::write(history_path(id), Value::Array(history.to_vec()).to_string())
-        .map_err(|e| format!("could not write the history: {e}"))?;
+    // Drafts live in the same user-writable directory as everything else, so
+    // they are staged and renamed rather than written through whatever name
+    // happens to be sitting there.
+    crate::safeio::write_new_then_rename(&cart_path(id), code.as_bytes())
+        .map_err(|e| format!("could not write the cart: {e}"))?;
+    crate::safeio::write_new_then_rename(
+        &history_path(id),
+        Value::Array(history.to_vec()).to_string().as_bytes(),
+    )
+    .map_err(|e| format!("could not write the history: {e}"))?;
     Ok(())
 }
 
+/// A conversation with the model about one draft. Large, but not unbounded.
+const MAX_HISTORY_BYTES: usize = 512 * 1024;
+
 fn load_history(id: &str) -> Vec<Value> {
-    std::fs::read_to_string(history_path(id))
+    crate::safeio::read_regular_at_most(&history_path(id), MAX_HISTORY_BYTES)
         .ok()
-        .and_then(|t| serde_json::from_str::<Value>(&t).ok())
+        .flatten()
+        .and_then(|b| serde_json::from_slice::<Value>(&b).ok())
         .and_then(|v| v.as_array().cloned())
         .unwrap_or_default()
 }
@@ -376,7 +387,11 @@ pub fn revise(id: &str, prompt: &str) -> i32 {
     if history.is_empty() {
         // A draft whose history was lost can still be revised: hand the model
         // the code back and carry on.
-        let code = std::fs::read_to_string(&path).unwrap_or_default();
+        let code = crate::safeio::read_regular_at_most(&path, shelf::MAX_DRAFT_BYTES)
+            .ok()
+            .flatten()
+            .and_then(|b| String::from_utf8(b).ok())
+            .unwrap_or_default();
         history.push(json!({
             "role": "user",
             "content": format!("Here is a micromachee cart:\n\n{code}"),
@@ -421,8 +436,18 @@ pub fn publish(id: &str) -> i32 {
         eprintln!("✗ there is no draft called {id}");
         return 2;
     }
-    let code = match std::fs::read_to_string(&from) {
-        Ok(c) => c,
+    let code = match crate::safeio::read_regular_at_most(&from, shelf::MAX_DRAFT_BYTES) {
+        Ok(Some(b)) => match String::from_utf8(b) {
+            Ok(c) => c,
+            Err(_) => {
+                eprintln!("✗ that draft is not text");
+                return 1;
+            }
+        },
+        Ok(None) => {
+            eprintln!("✗ there is no draft called {id}");
+            return 2;
+        }
         Err(e) => {
             eprintln!("✗ could not read the draft: {e}");
             return 1;
@@ -443,7 +468,7 @@ pub fn publish(id: &str) -> i32 {
         return 1;
     }
     let to = dir.join(format!("{id}.lua"));
-    if let Err(e) = std::fs::write(&to, &code) {
+    if let Err(e) = crate::safeio::write_new_then_rename(&to, code.as_bytes()) {
         eprintln!("✗ could not write {}: {e}", to.display());
         return 1;
     }

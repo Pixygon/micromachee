@@ -153,22 +153,30 @@ pub fn find(id: &str) -> Option<PathBuf> {
 
 // ── what the console remembers ──────────────────────────────────────────────
 
+/// The most the state file may be. It holds settings and one small object of
+/// saved values per cart; anything approaching this is not our state any more.
+const MAX_STATE_BYTES: usize = 1024 * 1024;
+
+/// A draft is a cart that has not been published yet, and is bounded like one.
+pub const MAX_DRAFT_BYTES: usize = MAX_CART_BYTES;
+
 pub fn load_state() -> Value {
-    std::fs::read_to_string(state_path())
-        .ok()
-        .and_then(|t| serde_json::from_str(&t).ok())
-        .unwrap_or_else(|| json!({}))
+    // Bounded, and refused if it is a symlink or stopped being a regular file
+    // while it was opened. This is read on nearly every command, so an
+    // enormous or redirected state file was the cheapest thing to leave lying
+    // around for this program to walk into.
+    match crate::safeio::read_regular_at_most(&state_path(), MAX_STATE_BYTES) {
+        Ok(Some(body)) => serde_json::from_slice(&body).unwrap_or_else(|_| json!({})),
+        _ => json!({}),
+    }
 }
 
 fn save_state(v: &Value) {
-    let path = state_path();
-    if let Some(dir) = path.parent() {
-        let _ = std::fs::create_dir_all(dir);
-        let tmp = dir.join("state.json.tmp");
-        if std::fs::write(&tmp, serde_json::to_string(v).unwrap_or_else(|_| "{}".into())).is_ok() {
-            let _ = std::fs::rename(tmp, &path);
-        }
-    }
+    // Staged under a name that is created exclusively and never reused, then
+    // renamed. The previous version wrote through a fixed `state.json.tmp`,
+    // which is a name anyone could sit a symlink on and wait for.
+    let body = serde_json::to_string(v).unwrap_or_else(|_| "{}".into());
+    let _ = crate::safeio::write_new_then_rename(&state_path(), body.as_bytes());
 }
 
 /// The theme the player chose, if they chose one.
@@ -430,21 +438,22 @@ pub fn sync(update: bool) -> i32 {
         }
         let dest = dir.join(format!("{id}.lua"));
 
-        // `fs::write` follows a symlink at the destination, so a link sitting
-        // where a cart should be would have this write through it to wherever
-        // it points. Anyone able to place that link can already drop a cart in
-        // here, so it is not a privilege boundary — but writing through a link
-        // nobody asked for is never what was meant.
-        if std::fs::symlink_metadata(&dest).map(|m| m.file_type().is_symlink()).unwrap_or(false) {
-            println!("  ✗ {id} is a symlink here — refused");
-            failed += 1;
-            continue;
-        }
-
         // What is already here, and is it the same thing the catalog is
         // offering? Without the second half of that question, "already here" is
         // indistinguishable from "already up to date".
-        let local = std::fs::read(&dest).ok();
+        //
+        // Bounded and symlink-refusing: this is a file something else on the
+        // machine can replace, so it is read the same careful way as anything
+        // off the network. A link here would otherwise be followed and its
+        // target copied into the backup below.
+        let local = match crate::safeio::read_regular_at_most(&dest, MAX_CART_BYTES) {
+            Ok(v) => v,
+            Err(e) => {
+                println!("  ✗ {id}: {e}");
+                failed += 1;
+                continue;
+            }
+        };
         match compare(local.as_deref(), entry.get("sha256").and_then(|v| v.as_str())) {
             Local::Absent => {}
             Local::Current => {
@@ -496,10 +505,20 @@ pub fn sync(update: bool) -> i32 {
                             let title = Cart::parse(id, &old)
                                 .map(|o| o.title)
                                 .unwrap_or_else(|_| id.to_string());
-                            let _ = std::fs::write(dir.join(format!("{id}.lua.bak")), b);
+                            // The backup gets the same treatment as the cart.
+                            // It was the one write still going out through
+                            // plain `fs::write`, and a link at `<id>.lua.bak`
+                            // would have been followed.
+                            let _ = crate::safeio::write_new_then_rename(
+                                &dir.join(format!("{id}.lua.bak")),
+                                b,
+                            );
                             title
                         });
-                        if std::fs::write(&dest, &text).is_ok() {
+                        // Never opens `dest`. Staged and renamed, so there is
+                        // no window between deciding it is safe to write and
+                        // writing — the destination is only ever replaced.
+                        if crate::safeio::write_new_then_rename(&dest, text.as_bytes()).is_ok() {
                             match was {
                                 Some(old) if old != c.title => {
                                     println!("  ↻ {id} — {} by {} (was {old}, old copy kept as {id}.lua.bak)", c.title, c.author);
