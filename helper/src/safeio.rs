@@ -138,6 +138,47 @@ pub fn write_new_then_rename(dest: &Path, data: &[u8]) -> Result<(), String> {
     Err(format!("could not find a free name to write {} ({last})", dest.display()))
 }
 
+/// Read a spawned child's output with a hard ceiling on the body.
+///
+/// `Command::output()` and `wait_with_output()` both buffer to completion,
+/// which hands the child — or whatever is on the other end of it — the decision
+/// of how much memory this process allocates. Every place that shells out to
+/// curl for something off the network goes through here instead: the body is
+/// read from the pipe up to `limit`, and the moment it goes over, the child is
+/// killed rather than drained.
+///
+/// stdout FIRST, then stderr. curl's `-w` status and any complaint are written
+/// only once the transfer ends, so draining stderr to EOF before the body
+/// deadlocks the instant the body outgrows a pipe buffer: the child blocks
+/// writing stdout while this blocks reading stderr. The body is the big one, so
+/// it goes first; stderr is small and capped.
+///
+/// The child must be spawned with stdout and stderr piped. Returns the body,
+/// the (bounded) stderr, and the exit status; `Err` if the body exceeded the
+/// limit or the child could not be waited on.
+pub fn read_child_bounded(
+    mut child: std::process::Child,
+    limit: usize,
+) -> Result<(Vec<u8>, Vec<u8>, std::process::ExitStatus), String> {
+    let mut body = Vec::new();
+    if let Some(out) = child.stdout.take() {
+        // limit + 1, so going over is detectable rather than a silent truncation.
+        let _ = out.take(limit as u64 + 1).read_to_end(&mut body);
+    }
+    if body.len() > limit {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(format!("the response is larger than {limit} bytes — refused"));
+    }
+    let mut note = Vec::new();
+    if let Some(err) = child.stderr.take() {
+        // A status line and maybe one line of complaint, never a payload.
+        let _ = err.take(4096).read_to_end(&mut note);
+    }
+    let status = child.wait().map_err(|e| format!("the command did not finish: {e}"))?;
+    Ok((body, note, status))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -160,6 +201,35 @@ mod tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn a_flooding_child_is_bounded_and_killed() {
+        use std::process::{Command, Stdio};
+        // yes writes an endless stream; the reader must stop at the limit and
+        // kill it rather than buffer forever.
+        let child = Command::new("yes")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn();
+        let Ok(child) = child else { return }; // no `yes` here; skip rather than fail
+        let r = read_child_bounded(child, 64 * 1024);
+        assert!(r.is_err(), "an endless child was not refused");
+        assert!(r.unwrap_err().contains("larger than"));
+    }
+
+    #[test]
+    fn a_small_child_returns_its_output_and_status() {
+        use std::process::{Command, Stdio};
+        let child = Command::new("printf")
+            .arg("hello")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn();
+        let Ok(child) = child else { return };
+        let (body, _note, status) = read_child_bounded(child, 1024).unwrap();
+        assert_eq!(body, b"hello");
+        assert!(status.success());
     }
 
     #[test]

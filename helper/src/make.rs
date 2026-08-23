@@ -122,6 +122,12 @@ fn config_value(raw: &str) -> String {
     out
 }
 
+/// The most an API response may be. A response carries one cart — at most 24K
+/// of Lua — inside a JSON envelope, plus whatever the model said around it.
+/// Two orders of magnitude of headroom over that is still nothing against a
+/// compromised or misbehaving endpoint streaming without end.
+const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
+
 fn ask(messages: &[Value]) -> Result<String, String> {
     let auth = auth()?;
     let body = request_body(messages);
@@ -183,14 +189,21 @@ fn ask(messages: &[Value]) -> Result<String, String> {
         sink.write_all(config.as_bytes())
             .map_err(|e| format!("could not send the request: {e}"))?;
     }
-    let out = child.wait_with_output().map_err(|e| format!("could not run curl: {e}"))?;
-    if !out.status.success() {
+
+    // Bounded at the pipe, the same primitive shelf.rs uses for the catalog: a
+    // compromised or runaway endpoint does not get to decide how much memory
+    // this process allocates before anything is parsed.
+    let (body, err_note, status) = crate::safeio::read_child_bounded(child, MAX_RESPONSE_BYTES)
+        .map_err(|_| {
+            format!("the response never ended (over {MAX_RESPONSE_BYTES} bytes) — refused")
+        })?;
+    if !status.success() {
         return Err(format!(
             "the request failed: {}",
-            String::from_utf8_lossy(&out.stderr).trim()
+            String::from_utf8_lossy(&err_note).trim()
         ));
     }
-    let v: Value = serde_json::from_slice(&out.stdout)
+    let v: Value = serde_json::from_slice(&body)
         .map_err(|_| "the API sent something that is not JSON".to_string())?;
 
     if let Some(err) = v.get("error") {
