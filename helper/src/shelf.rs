@@ -394,11 +394,30 @@ fn fetch_at_most(url: &str, limit: usize) -> Result<Vec<u8>, String> {
     // whole HTTP client to download a text file now and then is not a trade
     // worth making. `doctor` says so if curl is missing.
     let mut child = Command::new("curl")
-        // `--proto` and `--proto-redir` are the belt to the allowlist's braces:
-        // even if a url slipped past the check, curl will not speak anything
-        // but https, and a redirect cannot downgrade it to something local.
+        // Redirects are not followed at all.
+        //
+        // The allowlist runs before this, once, on the url we were given. `-L`
+        // then handed curl permission to go somewhere else entirely: a 302 from
+        // an allowed host could point at an internal https endpoint and nothing
+        // would check it, because the check had already happened. Restricting
+        // the redirect PROTOCOL does not help — the destination host is the
+        // problem, and curl cannot ask us about it.
+        //
+        // So the check and the request are made to be about the same URL. The
+        // shelf serves 200 directly and has never redirected; if it ever needs
+        // to, the right answer is to read the Location, put it through
+        // `allowed_url` and fetch again — deliberately, not as a side effect of
+        // a flag.
         .args([
-            "-fsSL",
+            "-fsS",
+            // The status, on stderr, so it cannot be confused with the body.
+            // `-f` covers 4xx and 5xx; without this a 3xx we refuse to follow
+            // would arrive as a short body and be reported as malformed JSON,
+            // which says nothing about what actually happened.
+            "-w",
+            "%{stderr}%{http_code}",
+            "--max-redirs",
+            "0",
             "--proto",
             "=https",
             "--proto-redir",
@@ -410,15 +429,27 @@ fn fetch_at_most(url: &str, limit: usize) -> Result<Vec<u8>, String> {
             url,
         ])
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("could not run curl: {e}"))?;
 
+    // STDOUT FIRST. `-w` writes the status only once the transfer is finished,
+    // so draining stderr to EOF before reading the body deadlocks the moment
+    // the body is larger than a pipe buffer: curl blocks writing stdout while
+    // this blocks reading stderr. The body is the big one, so it goes first,
+    // and the status — a few bytes that exist only at the end — after.
     let mut body = Vec::new();
     if let Some(out) = child.stdout.take() {
         // limit + 1, so going over is detectable rather than a silent truncation
         // that would then fail a checksum for a reason nobody could work out.
         let _ = out.take(limit as u64 + 1).read_to_end(&mut body);
+    }
+
+    let mut note = Vec::new();
+    if let Some(mut err) = child.stderr.take() {
+        // Small and bounded: this is a status code and possibly one line of
+        // curl complaint, never a payload.
+        let _ = err.take(4096).read_to_end(&mut note);
     }
     if body.len() > limit {
         let _ = child.kill();
@@ -426,6 +457,27 @@ fn fetch_at_most(url: &str, limit: usize) -> Result<Vec<u8>, String> {
         return Err(format!("{url} is larger than {limit} bytes — refused"));
     }
     let status = child.wait().map_err(|e| format!("curl did not finish: {e}"))?;
+
+    // A redirect we declined to follow.
+    //
+    // `-w` writes at the very end, so the status is the TRAILING digits. Taking
+    // every digit in the buffer instead would fold in any curl message that
+    // happens to contain one — `curl: (35) SSL connect error` followed by `000`
+    // reads as 35000, which starts with a three and would be reported as a
+    // redirect that never happened.
+    let note = String::from_utf8_lossy(&note);
+    let code: String = note
+        .chars()
+        .rev()
+        .take_while(|c| c.is_ascii_digit())
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
+    if code.len() == 3 && code.starts_with('3') {
+        return Err(format!("{url} answered {code} — redirects are not followed"));
+    }
+
     if !status.success() {
         // 63 is curl's own "exceeded the maximum allowed file size". On a
         // chunked response there is no Content-Length to check up front, so

@@ -12,7 +12,7 @@
 
 use std::io::Write;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use serde_json::{json, Value};
 
@@ -98,29 +98,92 @@ fn request_body(messages: &[Value]) -> Value {
     })
 }
 
+/// Escape a value for a curl config file.
+///
+/// Config values are quoted and understand backslash escapes, so the two
+/// characters that can end or extend a value have to be neutralised. Nothing
+/// here is expected to contain either — an API key does not — but a request
+/// body is JSON full of quotes, and "it will not contain that" is how escaping
+/// bugs are written.
+fn config_value(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len() + 8);
+    for c in raw.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            // A literal newline would end the config line and turn the rest of
+            // the value into commands. serde_json does not emit one, and this
+            // is here so that staying true is not load-bearing.
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
 fn ask(messages: &[Value]) -> Result<String, String> {
     let auth = auth()?;
     let body = request_body(messages);
 
-    let mut cmd = Command::new("curl");
-    cmd.args(["-sS", "--max-time", "300", "https://api.anthropic.com/v1/messages"])
-        .args(["-H", "content-type: application/json"])
-        .args(["-H", "anthropic-version: 2023-06-01"]);
+    // Everything sensitive goes to curl on STDIN, as a config file, and none of
+    // it appears in the command line.
+    //
+    // The key used to be passed as `-H "x-api-key: ..."`. On Linux
+    // /proc/<pid>/cmdline is mode 444, so for as long as that request was in
+    // flight the credential was readable by every process on the machine,
+    // whoever it belonged to. The request body went the same way, which is a
+    // smaller thing but the same mistake.
+    //
+    // stdin rather than a file with tight permissions: a 0600 temp file would
+    // also keep it out of the command line, but it puts a credential on disk,
+    // and something has to remember to delete it even if this process is killed
+    // in between. A pipe has neither problem.
+    let mut config = String::new();
+    config.push_str("header = \"content-type: application/json\"\n");
+    config.push_str("header = \"anthropic-version: 2023-06-01\"\n");
     match &auth {
         Auth::Key(k) => {
-            cmd.args(["-H", &format!("x-api-key: {k}")])
-                .args(["-H", "anthropic-beta: server-side-fallback-2026-07-01"]);
+            config.push_str(&format!("header = \"x-api-key: {}\"\n", config_value(k)));
+            config.push_str(
+                "header = \"anthropic-beta: server-side-fallback-2026-07-01\"\n",
+            );
         }
         Auth::Bearer(t) => {
-            cmd.args(["-H", &format!("authorization: Bearer {t}")]).args([
-                "-H",
-                "anthropic-beta: server-side-fallback-2026-07-01,oauth-2025-04-20",
-            ]);
+            config.push_str(&format!("header = \"authorization: Bearer {}\"\n", config_value(t)));
+            config.push_str(
+                "header = \"anthropic-beta: server-side-fallback-2026-07-01,oauth-2025-04-20\"\n",
+            );
         }
     }
-    cmd.args(["-d", &body.to_string()]);
+    config.push_str(&format!("data-binary = \"{}\"\n", config_value(&body.to_string())));
 
-    let out = cmd.output().map_err(|e| format!("could not run curl: {e}"))?;
+    let mut child = Command::new("curl")
+        .args([
+            "-sS",
+            "--max-time",
+            "300",
+            "--proto",
+            "=https",
+            "--proto-redir",
+            "=https",
+            "--max-redirs",
+            "0",
+            "-K",
+            "-",
+            "https://api.anthropic.com/v1/messages",
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("could not run curl: {e}"))?;
+    if let Some(mut sink) = child.stdin.take() {
+        use std::io::Write;
+        sink.write_all(config.as_bytes())
+            .map_err(|e| format!("could not send the request: {e}"))?;
+    }
+    let out = child.wait_with_output().map_err(|e| format!("could not run curl: {e}"))?;
     if !out.status.success() {
         return Err(format!(
             "the request failed: {}",
@@ -498,6 +561,62 @@ pub fn discard(id: &str) -> i32 {
     let _ = std::fs::remove_file(history_path(id));
     println!("{id} is gone");
     0
+}
+
+#[cfg(test)]
+mod credential_tests {
+    use super::*;
+
+    #[test]
+    fn a_body_full_of_json_survives_being_a_config_value() {
+        // The escaping exists so the request arrives intact; if it did not,
+        // the symptom would be an API error nobody could trace to quoting.
+        let body = serde_json::json!({
+            "messages": [{"role": "user", "content": "a \"quoted\" prompt with \\ backslash"}]
+        })
+        .to_string();
+        let escaped = config_value(&body);
+        assert!(!escaped.contains("\\\"") || escaped.contains("\\\\\""), "quotes left unescaped");
+        // Undo what curl will undo, and the original has to come back.
+        let mut out = String::new();
+        let mut chars = escaped.chars();
+        while let Some(c) = chars.next() {
+            if c == '\\' {
+                match chars.next() {
+                    Some('n') => out.push('\n'),
+                    Some('r') => out.push('\r'),
+                    Some(other) => out.push(other),
+                    None => {}
+                }
+            } else {
+                out.push(c);
+            }
+        }
+        assert_eq!(out, body, "the body did not survive the round trip");
+    }
+
+    #[test]
+    fn nothing_in_a_value_can_end_the_config_line() {
+        // A newline here would turn the rest of a credential or a prompt into
+        // curl directives.
+        for nasty in [
+            "abc\ninsecure\n",
+            "abc\r\nproxy = \"http://evil\"",
+            "with \"quotes\"",
+            "with \\ backslash",
+        ] {
+            let v = config_value(nasty);
+            assert!(!v.contains('\n'), "{nasty:?} kept a newline");
+            assert!(!v.contains('\r'), "{nasty:?} kept a carriage return");
+            // every quote is preceded by a backslash
+            let bytes: Vec<char> = v.chars().collect();
+            for (i, c) in bytes.iter().enumerate() {
+                if *c == '"' {
+                    assert!(i > 0 && bytes[i - 1] == '\\', "{nasty:?} left a bare quote");
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]
