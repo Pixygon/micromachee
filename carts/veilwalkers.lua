@@ -62,17 +62,17 @@ local FOES = {
   wisp   = { "VEIL WISP", 16, 6, 1, 6, 6, 4, 3, true },
   husk   = { "HUSK", 26, 8, 4, 3, 1, 7, 5, true },
   drift  = { "DRIFTER", 22, 9, 3, 5, 3, 6, 4, false },
-  maw    = { "STONE MAW", 40, 11, 7, 2, 5, 12, 10, false },
-  shade  = { "SHADE", 30, 13, 3, 7, 2, 14, 9, true },
+  maw    = { "STONE MAW", 40, 11, 7, 2, 5, 12, 10, false, "atkdn" },
+  shade  = { "SHADE", 30, 13, 3, 7, 2, 14, 9, true, "poison" },
 }
 -- tower bosses: one per tower, in tower order; grant ASPECTS[i]
 local WARDS = {
-  { "GOLEM WARD", 110, 13, 9, 3, 5, 60, 60, false },
-  { "BEAST WARD", 130, 18, 5, 8, 3, 80, 80, false },
-  { "SUN WARD", 150, 15, 7, 6, 4, 100, 100, true },
-  { "MOON WARD", 175, 17, 8, 7, 6, 130, 130, true },
+  { "GOLEM WARD", 110, 13, 9, 3, 5, 60, 60, false, "defdn" },
+  { "BEAST WARD", 130, 18, 5, 8, 3, 80, 80, false, "atkdn" },
+  { "SUN WARD", 150, 15, 7, 6, 4, 100, 100, true, "burn" },
+  { "MOON WARD", 175, 17, 8, 7, 6, 130, 130, true, "slow" },
 }
-local TOWER = { "THE TOWER", 240, 22, 10, 8, 4, 0, 0, false }
+local TOWER = { "THE TOWER", 240, 22, 10, 8, 4, 0, 0, false, "poison" }
 
 -- ── the overworld ────────────────────────────────────────────────────────────
 -- Letters/digits are portals and features (see PORTAL/step_special). Caul is at
@@ -153,7 +153,8 @@ local FOLK = {
 local function hero(name, sign, hp, mp, atk, def, spd, skill, cost, kind, col)
   return { name = name, sign = sign, hp = hp, maxhp = hp, mp = mp, maxmp = mp,
     atk = atk, def = def, spd = spd, skill = skill, cost = cost, kind = kind,
-    col = col, alive = true, guard = false, xp = 0, lvl = 1, wpn = 0, arm = 0 }
+    col = col, alive = true, guard = false, xp = 0, lvl = 1, wpn = 0, arm = 0,
+    job = 0, st = {} }
 end
 local party
 local function new_party()
@@ -168,18 +169,67 @@ end
 -- effective stats after gear and aspects
 local aspbits
 local function has_aspect(i) return aspbits % (2 ^ i) >= 2 ^ (i - 1) end
+local function st_atk(c) return (stat(c, "atkup") and 3 or 0) - (stat(c, "atkdn") and 3 or 0) end
+local function st_def(c) return (stat(c, "defup") and 5 or 0) - (stat(c, "defdn") and 3 or 0) end
+local function st_spd(c) return (stat(c, "haste") and 4 or 0) - (stat(c, "slow") and 3 or 0) end
+
 local function eatk(h)
-  local b = h.atk + (h.wpn > 0 and GEAR[h.wpn][3] or 0)
+  local b = h.atk + (h.wpn > 0 and GEAR[h.wpn][3] or 0) + job_of(h)[2] + st_atk(h)
   if has_aspect(2) then b = b + 3 end                 -- BEAST
   return b
 end
 local function edef(h)
-  local b = h.def + (h.arm > 0 and GEAR[h.arm][3] or 0)
+  local b = h.def + (h.arm > 0 and GEAR[h.arm][3] or 0) + job_of(h)[3] + st_def(h)
   if has_aspect(1) then b = b + 3 end                 -- GOLEM
   return b
 end
+local function espd(h) return h.spd + job_of(h)[4] + st_spd(h) end
+-- foes carry status too
+local function fatk(f) return f.atk + st_atk(f) end
+local function fdef(f) return f.def + st_def(f) end
+local function fspd(f) return f.spd + st_spd(f) end
+
+-- Each class (the hero's sign) has a small skill tree, unlocked by level. A
+-- skill is {name, mp cost, unlock level, effect kind, power}. The battle SIGN
+-- menu lists the ones a hero has grown into.
+local SKILLS = {
+  WHALE = {
+    { "TIDE", 3, 1, "shield", 0 }, { "CRASH", 5, 4, "hit", 1.9 },
+    { "BULWARK", 4, 8, "selfdef", 0 },
+  },
+  SERPENT = {
+    { "COIL", 3, 1, "twice", 1.0 }, { "VENOM", 4, 4, "poison", 1.0 },
+    { "FLICKER", 3, 8, "haste", 0 },
+  },
+  FLAME = {
+    { "FLAME", 4, 1, "burnall", 1.0 }, { "SCORCH", 3, 4, "burn", 1.4 },
+    { "PYRE", 8, 8, "hit", 2.7 },
+  },
+  SPARROW = {
+    { "GRACE", 4, 1, "heal", 0 }, { "MEND", 3, 4, "regen", 0 },
+    { "DAWN", 8, 8, "revive", 0 },
+  },
+}
+
+-- A second job, assigned in the menu: stat changes and one more skill. NONE is
+-- the default. {name, +atk, +def, +spd, +mp, skill-or-nil}.
+local JOBS = {
+  { "NONE", 0, 0, 0, 0 },
+  { "WARRIOR", 2, 0, 0, 0, { "CLEAVE", 4, 1, "hitall", 0.8 } },
+  { "SENTINEL", 0, 3, 0, 0, { "RALLY", 3, 1, "shield", 0 } },
+  { "MYSTIC", 0, 0, 0, 5, { "DRAIN", 4, 1, "drain", 1.1 } },
+  { "SEER", 0, 0, 2, 0, { "HASTEN", 5, 1, "hasteall", 0 } },
+}
+
+-- Status effects live in a combatant's `st` table as name -> turns left. Damage
+-- and heal over time land at the start of that combatant's turn; the stat ones
+-- are read by the effective-stat helpers below.
+local DOT = { burn = 3, poison = 5 }
+function stat(c, k) return c.st and c.st[k] end
+function job_of(h) return JOBS[(h.job or 0) + 1] end
+
 local function emaxhp(h) return h.maxhp + (has_aspect(3) and 10 or 0) end
-local function emaxmp(h) return h.maxmp + (has_aspect(4) and 5 or 0) end
+local function emaxmp(h) return h.maxmp + (has_aspect(4) and 5 or 0) + job_of(h)[5] end
 
 -- ── run state ────────────────────────────────────────────────────────────────
 local state, tick
@@ -440,6 +490,7 @@ end
 function start_battle(kind)
   btlkind = kind
   wardfight = (kind == "ward")
+  for i = 1, #party do party[i].st = {} end
   foes = {}
   if kind == "ward" then
     local w = WARDS[dtower]
@@ -453,6 +504,7 @@ function start_battle(kind)
   end
   build_order()
   turn, sel, target, anim, result = 1, 1, 1, 0, nil
+  picking, turnticked = nil, false
   log, logt = "", 0
   state = "battle"
   sfx(2)
@@ -462,7 +514,8 @@ function rrndbattle(n) return flr(rnd(n)) end
 
 function mkfoe(t)
   return { name = t[1], hp = t[2], maxhp = t[2], atk = t[3], def = t[4],
-    spd = t[5], col = t[6], xp = t[7], gold = t[8], burns = t[9], alive = true }
+    spd = t[5], col = t[6], xp = t[7], gold = t[8], burns = t[9],
+    inflict = t[10], alive = true, st = {} }
 end
 
 function build_order()
@@ -471,11 +524,11 @@ function build_order()
   for i = 1, #foes do if foes[i].alive then order[#order + 1] = 100 + i end end
   for i = 2, #order do
     local a = order[i]
-    local sa = a > 100 and foes[a - 100].spd or party[a].spd
+    local sa = a > 100 and fspd(foes[a - 100]) or espd(party[a])
     local j = i - 1
     while j >= 1 do
       local b = order[j]
-      local sb = b > 100 and foes[b - 100].spd or party[b].spd
+      local sb = b > 100 and fspd(foes[b - 100]) or espd(party[b])
       if sb >= sa then break end
       order[j + 1] = order[j] j = j - 1
     end
@@ -489,6 +542,32 @@ function foes_alive() local n = 0 for i = 1, #foes do if foes[i].alive then n = 
 function party_alive() local n = 0 for i = 1, #party do if party[i].alive then n = n + 1 end end return n end
 function first_foe() for i = 1, #foes do if foes[i].alive then return i end end return 1 end
 function saylog(t) log, logt = t, 40 end
+
+-- apply a status, keeping the longer of any existing duration
+function give(c, name, turns)
+  c.st = c.st or {}
+  c.st[name] = math.max(c.st[name] or 0, turns)
+end
+
+-- one combatant's over-time effects at the start of its turn; returns whether
+-- it is stunned this turn. Everything decays by one.
+function tick_status(c)
+  local s = c.st
+  if not s then return false end
+  local dmg = 0
+  for k, per in pairs(DOT) do if s[k] then dmg = dmg + per end end
+  if dmg > 0 and c.alive then
+    hurt(c, dmg) saylog(c.name .. " SUFFERS " .. dmg) sfx(5)
+  end
+  if s.regen and c.alive then
+    local cap = c.maxhp
+    if c.job ~= nil then cap = emaxhp(c) end
+    c.hp = mid(0, c.hp + 8, cap)
+  end
+  local stunned = s.stun ~= nil
+  for k, v in pairs(s) do s[k] = v - 1 if s[k] <= 0 then s[k] = nil end end
+  return stunned and c.alive
+end
 
 function damage(a, d, guard)
   local base = a - flr(d / 2) + flr(rnd(3)) - 1
@@ -507,42 +586,106 @@ function do_hero(h, action)
   if action == "strike" then
     local f = foes[target]
     if not f.alive then target = first_foe() f = foes[target] end
-    saylog(h.name .. " HITS " .. f.name .. " " .. hurt(f, damage(eatk(h), f.def, false)))
+    saylog(h.name .. " HITS " .. f.name .. " " .. hurt(f, damage(eatk(h), fdef(f), false)))
     sfx(1)
   elseif action == "guard" then
     h.guard = true saylog(h.name .. " GUARDS") sfx(0)
-  elseif action == "skill" then
-    if h.mp < h.cost then saylog("NO SIGN LEFT") return false end
-    h.mp = h.mp - h.cost
-    if h.kind == "heal" then
-      local who, worst = nil, 1e9
-      for i = 1, #party do local a = party[i]
-        if not a.alive then who = a break end
-        if a.hp - emaxhp(a) < worst then worst = a.hp - emaxhp(a) who = a end
-      end
-      who = who or h
-      local amt = 16 + eatk(h)
-      if not who.alive then who.alive = true amt = flr(emaxhp(who) / 2) end
-      who.hp = mid(0, who.hp + amt, emaxhp(who))
-      saylog(h.name .. " MENDS " .. who.name) sfx(6)
-    elseif h.kind == "shield" then
-      for i = 1, #party do party[i].guard = true end
-      saylog(h.name .. " SHIELDS THE LINE") sfx(6)
-    elseif h.kind == "twice" then
-      local f = foes[target] if not f.alive then target = first_foe() f = foes[target] end
-      local d1 = hurt(f, damage(eatk(h), f.def, false))
-      local d2 = f.alive and hurt(f, damage(eatk(h), f.def, false)) or 0
-      saylog(h.name .. " COILS " .. (d1 + d2)) sfx(1)
-    elseif h.kind == "burn" then
-      for i = 1, #foes do local f = foes[i]
-        if f.alive then
-          local d = damage(eatk(h) + 6, f.def, false)
-          if f.burns then d = flr(d * 1.6) end
-          hurt(f, d)
-        end
-      end
-      saylog(h.name .. " BURNS THEM ALL") sfx(2)
+  end
+  return true
+end
+
+-- the skills a hero can use now: class skills grown into, plus the job's one
+function skills_for(h)
+  local l = {}
+  for _, sk in ipairs(SKILLS[h.sign]) do if h.lvl >= sk[3] then l[#l + 1] = sk end end
+  local j = job_of(h)
+  if j[6] then l[#l + 1] = j[6] end
+  return l
+end
+
+function cur_foe()
+  local f = foes[target]
+  if not f or not f.alive then target = first_foe() f = foes[target] end
+  return f
+end
+
+function most_hurt(include_down)
+  local who, worst = nil, 1e9
+  for i = 1, #party do local a = party[i]
+    if include_down and not a.alive then return a end
+    if a.alive and a.hp - emaxhp(a) < worst then worst = a.hp - emaxhp(a) who = a end
+  end
+  return who
+end
+
+-- sk = {name, cost, unlock, kind, power}. Returns false if it could not fire.
+function apply_skill(h, sk)
+  if h.mp < sk[2] then saylog("NO SIGN LEFT") return false end
+  h.mp = h.mp - sk[2]
+  local kind, pow = sk[4], sk[5]
+  if kind == "hit" then
+    local f = cur_foe()
+    saylog(h.name .. " " .. sk[1] .. " " .. hurt(f, damage(flr(eatk(h) * pow), fdef(f), false)))
+    sfx(1)
+  elseif kind == "twice" then
+    local f = cur_foe()
+    local d1 = hurt(f, damage(eatk(h), fdef(f), false))
+    local d2 = f.alive and hurt(f, damage(eatk(h), fdef(f), false)) or 0
+    saylog(h.name .. " COILS " .. (d1 + d2)) sfx(1)
+  elseif kind == "hitall" then
+    for i = 1, #foes do local f = foes[i]
+      if f.alive then hurt(f, damage(flr(eatk(h) * pow), fdef(f), false)) end
     end
+    saylog(h.name .. " " .. sk[1] .. "S ALL") sfx(1)
+  elseif kind == "burn" then
+    local f = cur_foe()
+    hurt(f, damage(flr(eatk(h) * pow), fdef(f), false)) give(f, "burn", 3)
+    saylog(h.name .. " SCORCHES " .. f.name) sfx(2)
+  elseif kind == "burnall" then
+    for i = 1, #foes do local f = foes[i]
+      if f.alive then
+        local d = damage(eatk(h) + 4, fdef(f), false)
+        if f.burns then d = flr(d * 1.6) end
+        hurt(f, d) give(f, "burn", 3)
+      end
+    end
+    saylog(h.name .. " BURNS THEM ALL") sfx(2)
+  elseif kind == "poison" then
+    local f = cur_foe()
+    hurt(f, damage(eatk(h), fdef(f), false)) give(f, "poison", 4)
+    saylog(h.name .. " POISONS " .. f.name) sfx(1)
+  elseif kind == "heal" then
+    local who = most_hurt(true) or h
+    local amt = 16 + eatk(h)
+    if not who.alive then who.alive = true amt = flr(emaxhp(who) / 2) end
+    who.hp = mid(0, who.hp + amt, emaxhp(who))
+    saylog(h.name .. " MENDS " .. who.name) sfx(6)
+  elseif kind == "regen" then
+    local who = most_hurt(false) or h
+    give(who, "regen", 4)
+    saylog(h.name .. " BLESSES " .. who.name) sfx(6)
+  elseif kind == "revive" then
+    for i = 1, #party do local a = party[i]
+      if not a.alive then a.alive = true a.hp = flr(emaxhp(a) / 2) end
+      a.st = {}
+    end
+    saylog(h.name .. " CALLS THE DAWN") sfx(6)
+  elseif kind == "shield" then
+    for i = 1, #party do give(party[i], "defup", 3) end
+    saylog(h.name .. " SHIELDS THE LINE") sfx(6)
+  elseif kind == "selfdef" then
+    give(h, "defup", 4) give(h, "regen", 3)
+    saylog(h.name .. " STANDS FAST") sfx(6)
+  elseif kind == "haste" then
+    give(h, "haste", 3) saylog(h.name .. " QUICKENS") sfx(0)
+  elseif kind == "hasteall" then
+    for i = 1, #party do give(party[i], "haste", 2) end
+    saylog(h.name .. " HASTENS ALL") sfx(0)
+  elseif kind == "drain" then
+    local f = cur_foe()
+    local d = hurt(f, damage(flr(eatk(h) * pow), fdef(f), false))
+    h.hp = mid(0, h.hp + flr(d / 2), emaxhp(h))
+    saylog(h.name .. " DRAINS " .. d) sfx(1)
   end
   return true
 end
@@ -551,7 +694,7 @@ function enemy_turn(f)
   if (wardfight or btlkind == "final") and rnd(1) < 0.3 then
     saylog(f.name .. " SWEEPS ALL")
     for i = 1, #party do local h = party[i]
-      if h.alive then hurt(h, damage(f.atk - 2, edef(h), h.guard)) end
+      if h.alive then hurt(h, damage(fatk(f) - 2, edef(h), h.guard)) end
     end
     sfx(5) return
   end
@@ -560,11 +703,15 @@ function enemy_turn(f)
     if h.alive and h.hp < low then low = h.hp who = h end
   end
   if not who then return end
-  saylog(f.name .. " HITS " .. who.name .. " " .. hurt(who, damage(f.atk, edef(who), who.guard)))
+  local d = hurt(who, damage(fatk(f), edef(who), who.guard))
+  saylog(f.name .. " HITS " .. who.name .. " " .. d)
+  -- a shade poisons, a maw weakens; the wards carry their own bane
+  if f.inflict and who.alive and rnd(1) < 0.5 then give(who, f.inflict, 3) end
   sfx(5)
 end
 
 function next_turn()
+  turnticked = false
   turn = turn + 1
   if turn > #order then build_order() end
   local g = 0
@@ -605,7 +752,8 @@ function count_aspects()
   local n = 0 for i = 1, 4 do if has_aspect(i) then n = n + 1 end end return n
 end
 
-local CMDS = { "STRIKE", "SIGN", "GUARD" }
+local CMDS = { "STRIKE", "SKILL", "GUARD" }
+local picking, skillsel, turnticked
 
 function update_battle()
   if logt > 0 then logt = logt - 1 end
@@ -643,7 +791,31 @@ function update_battle()
   if not id then build_order() return end
   local one = actorof(id)
   if not one.alive then next_turn() return end
+
+  -- statuses tick once, when this actor's turn begins
+  if not turnticked then
+    turnticked = true
+    local stunned = tick_status(one)
+    if not one.alive then anim = 16 return end
+    if stunned then saylog(one.name .. " IS STUNNED") anim = 16 return end
+  end
+
   if id > 100 then enemy_turn(one) anim = 22 return end
+
+  -- the skill submenu
+  if picking then
+    local n = #picking
+    if btnp(2) then skillsel = (skillsel - 2) % n + 1 sfx(0) end
+    if btnp(3) then skillsel = skillsel % n + 1 sfx(0) end
+    if btnp(5) then picking = nil sfx(0) end
+    if btnp(4) then
+      local sk = picking[skillsel]
+      if one.mp >= sk[2] then
+        if apply_skill(one, sk) then picking = nil anim = 22 end
+      else sfx(5) end
+    end
+    return
+  end
 
   if btnp(2) then sel = (sel - 2) % 3 + 1 sfx(0) end
   if btnp(3) then sel = sel % 3 + 1 sfx(0) end
@@ -654,7 +826,10 @@ function update_battle()
   if btnp(4) then
     if CMDS[sel] == "STRIKE" then if do_hero(one, "strike") then anim = 22 end
     elseif CMDS[sel] == "GUARD" then do_hero(one, "guard") anim = 14
-    elseif CMDS[sel] == "SIGN" then if do_hero(one, "skill") then anim = 22 else sfx(5) end end
+    elseif CMDS[sel] == "SKILL" then
+      local sk = skills_for(one)
+      if #sk > 0 then picking, skillsel = sk, 1 sfx(0) else sfx(5) end
+    end
   end
 end
 
@@ -713,15 +888,24 @@ function update_menu()
   end
 
   if btnp(5) then state = "world" save_game() return end
-  if btnp(1) then menutab = menutab % 3 + 1 menusel = 1 sfx(0) return end
-  if btnp(0) then menutab = (menutab - 2) % 3 + 1 menusel = 1 sfx(0) return end
+  if btnp(1) then menutab = menutab % 4 + 1 menusel = 1 sfx(0) return end
+  if btnp(0) then menutab = (menutab - 2) % 4 + 1 menusel = 1 sfx(0) return end
 
   if menutab == 2 then
     -- eight rows: each hero's weapon then armour slot
     if btnp(2) then menusel = (menusel - 2) % 8 + 1 sfx(0) end
     if btnp(3) then menusel = menusel % 8 + 1 sfx(0) end
     if btnp(4) then menupick = true menuitem = 1 sfx(0) end
-  elseif menutab == 1 then
+  elseif menutab == 3 then
+    -- jobs: pick a hero, O cycles their job
+    if btnp(2) then menusel = (menusel - 2) % 4 + 1 sfx(0) end
+    if btnp(3) then menusel = menusel % 4 + 1 sfx(0) end
+    if btnp(4) then
+      local h = party[menusel]
+      h.job = (h.job + 1) % #JOBS
+      sfx(3)
+    end
+  else
     if btnp(2) then menusel = (menusel - 2) % 4 + 1 sfx(0) end
     if btnp(3) then menusel = menusel % 4 + 1 sfx(0) end
   end
@@ -744,7 +928,7 @@ function save_game()
   local p = {}
   for i = 1, #party do local h = party[i]
     p[#p + 1] = table.concat({ h.hp, h.maxhp, h.mp, h.maxmp, h.atk, h.def, h.spd,
-      h.lvl, h.xp, h.wpn, h.arm, h.alive and 1 or 0 }, ",")
+      h.lvl, h.xp, h.wpn, h.arm, h.alive and 1 or 0, h.job or 0 }, ",")
   end
   local iv = {}
   for id = 1, #GEAR do iv[#iv + 1] = inv[id] or 0 end
@@ -785,6 +969,7 @@ function load_game()
       h.hp, h.maxhp, h.mp, h.maxmp, h.atk, h.def, h.spd, h.lvl, h.xp, h.wpn, h.arm =
         f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9], f[10], f[11]
       h.alive = f[12] == 1
+      h.job = f[13] or 0
     end
     hi = hi + 1
   end
@@ -934,6 +1119,17 @@ function bar(x, y, w, cur, max, c)
   if max > 0 then rect(x, y, flr(w * mid(0, cur, max) / max), 3, c) end
 end
 
+-- a row of coloured pips for the statuses a combatant carries
+function status_pips(c, x, y)
+  if not c.st then return end
+  local pip = { burn = 2, poison = 5, regen = 4, defup = 6, defdn = 1,
+    atkdn = 3, haste = 4, slow = 1, stun = 2 }
+  local i = 0
+  for k, v in pairs(c.st) do
+    if v > 0 then rect(x + i * 4, y, 3, 3, pip[k] or 7) i = i + 1 end
+  end
+end
+
 function draw_battle()
   cls(0)
   local n = #foes
@@ -948,6 +1144,7 @@ function draw_battle()
         rect(fx - 2, fy - (big and 16 or 10), 4, 3, 4)
       end
       bar(fx - 12, fy + (big and 14 or 8), 24, f.hp, f.maxhp, 2)
+      status_pips(f, fx - 10, fy + (big and 18 or 12))
     else print("X", fx - 2, fy - 2, 5) end
   end
   if logt > 0 or result then draw_box(4, 48, 120, 12, 6) print(log, 8, 51, 7) end
@@ -964,17 +1161,33 @@ function draw_battle()
       bar(30, y + 1, 32, h.hp, emaxhp(h), 2)
       bar(30, y + 6, 32, h.mp, emaxmp(h), 6)
       print(h.hp .. "", 64, y, 7)
+      status_pips(h, 78, y + 6)
     end
     if acting then draw_bmenu(h, 86, y) end
   end
 end
 
 function draw_bmenu(h, x, y)
+  if picking then draw_skillmenu(h) return end
   for i = 1, 3 do
     local c = i == sel and 4 or 1
-    local label = CMDS[i] == "SIGN" and h.skill or CMDS[i]
-    local col = (CMDS[i] == "SIGN" and h.mp < h.cost) and 5 or c
-    print((i == sel and ">" or " ") .. label, x, y + (i - 1) * 4 - 4, col)
+    print((i == sel and ">" or " ") .. CMDS[i], x, y + (i - 1) * 4 - 4, c)
+  end
+end
+
+-- the skill list, over the party area, when a hero is choosing one
+function draw_skillmenu(h)
+  local list = picking
+  local w = 78
+  draw_box(24, 64, w, 60, 4)
+  print(h.name .. " SIGNS", 28, 68, h.col)
+  for i = 1, #list do
+    local sk = list[i]
+    local y = 78 + (i - 1) * 9
+    if i == skillsel then rect(26, y - 1, w - 4, 8, 1) end
+    local afford = h.mp >= sk[2]
+    print(sk[1], 30, y, afford and (i == skillsel and 4 or 7) or 5)
+    print(sk[2] .. "MP", 84, y, afford and 6 or 5)
   end
 end
 
@@ -1002,10 +1215,10 @@ end
 
 function draw_menu()
   cls(0)
-  local tabs = { "PARTY", "GEAR", "ASPECTS" }
-  for i = 1, 3 do
-    local x = 4 + (i - 1) * 42
-    if i == menutab then rect(x - 2, 2, 40, 10, 1) end
+  local tabs = { "PARTY", "GEAR", "JOBS", "ASPECT" }
+  for i = 1, 4 do
+    local x = 2 + (i - 1) * 32
+    if i == menutab then rect(x - 1, 2, 31, 10, 1) end
     print(tabs[i], x, 4, i == menutab and 4 or 5)
   end
   line(0, 13, 127, 13, 5)
@@ -1039,6 +1252,25 @@ function draw_menu()
     end
     print("O:EQUIP  <>:TAB  X:BACK", 6, 119, 1)
     if menupick then draw_picker() end
+  elseif menutab == 3 then
+    for i = 1, 4 do
+      local h = party[i]
+      local y = 16 + (i - 1) * 25
+      if i == menusel then rect(0, y - 1, 128, 24, 1) end
+      portrait(h, 2, y, false)
+      print(h.name, 22, y, h.col)
+      local j = job_of(h)
+      print("JOB: " .. j[1], 22, y + 8, 4)
+      -- what the job changes
+      local mods = ""
+      if j[2] ~= 0 then mods = mods .. "ATK+" .. j[2] .. " " end
+      if j[3] ~= 0 then mods = mods .. "DEF+" .. j[3] .. " " end
+      if j[4] ~= 0 then mods = mods .. "SPD+" .. j[4] .. " " end
+      if j[5] ~= 0 then mods = mods .. "MP+" .. j[5] .. " " end
+      if j[6] then mods = mods .. j[6][1] end
+      print(mods == "" and "no change" or mods, 22, y + 15, 6)
+    end
+    print("O:CHANGE JOB  <>:TAB  X:BACK", 4, 119, 1)
   else
     for i = 1, 4 do
       local a = ASPECTS[i]
