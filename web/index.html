@@ -1,17 +1,35 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>Micromachee</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0d0d12">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="format-detection" content="telephone=no">
 <meta name="description" content="A tiny 8-bit fantasy console. 128x128, eight colours, one Lua file per game.">
 
 <style>
   :root { --body: #101014; --ink: #e8e8ee; --dim: #8a8a99; }
   * { box-sizing: border-box; }
+  html, body { height: 100%; }
   body {
     margin: 0; background: var(--body); color: var(--ink);
     font: 14px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     display: flex; flex-direction: column; align-items: center;
     padding: 24px 16px 48px; min-height: 100vh;
+    /* a game is not a scrolling document: no pinch-zoom, no rubber-band,
+       no tap-highlight flash, no long-press callout on the buttons */
+    overscroll-behavior: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+  }
+  /* while a cart is running the page is the console — lock it to the viewport
+     so the address bar and scroll cannot fight the controls */
+  body.playing {
+    padding: 8px; height: 100dvh; overflow: hidden;
+    justify-content: center;
   }
   h1 { font-size: 20px; letter-spacing: 3px; margin: 0 0 2px; font-weight: 600; }
   .sub { color: var(--dim); margin-bottom: 22px; text-align: center; }
@@ -68,6 +86,25 @@
   button.plain:hover { color: var(--ink); border-color: #4a4a5c; }
   #topbar { display: flex; gap: 8px; margin-bottom: 18px; }
   #err { color: #ff6a86; max-width: 520px; text-align: center; }
+
+  /* Phones and other coarse-pointer devices: bigger thumbs, bigger targets,
+     and a layout that fills the screen instead of a small centred card. */
+  @media (pointer: coarse), (max-width: 640px) {
+    body { padding: 12px; }
+    #topbar { margin-bottom: 10px; }
+    #body { padding: 10px; width: 100%; max-width: 460px; }
+    #deck { gap: 8px; width: 100%; }
+    #pad { margin-top: 10px; gap: 8px; }
+    .dpad { grid-template-columns: repeat(3, 15vw); grid-template-rows: repeat(3, 15vw); }
+    .dpad .key { max-width: 60px; max-height: 60px; }
+    .key { font-size: 4vw; }
+    .round { width: 17vw; height: 17vw; max-width: 68px; max-height: 68px; font-size: 5vw; }
+    .roundwrap small { font-size: 3vw; }
+    #shelf { grid-template-columns: repeat(auto-fill, minmax(28vw, 1fr)); gap: 10px; }
+    #meta, #hint { font-size: 12px; }
+    /* the keyboard hint is meaningless on a touch device */
+    #hint.touch-hidden { display: none; }
+  }
 </style>
 
 <h1>MICROMACHEE</h1>
@@ -192,6 +229,8 @@ async function choose(entry) {
   $("shelf").classList.add("hidden");
   $("deck").classList.remove("hidden");
   $("back").classList.remove("hidden");
+  document.body.classList.add("playing");
+  fitScreen();
   $("title").textContent = entry.title;
   $("score").textContent = "0";
   fitScreen();
@@ -303,6 +342,7 @@ function stop() {
 
 function toShelf() {
   stop();
+  document.body.classList.remove("playing");
   $("info").classList.add("hidden");
   $("deck").classList.add("hidden");
   $("back").classList.add("hidden");
@@ -317,8 +357,15 @@ function paint(cart) {
 /// One console pixel is a whole number of screen pixels, always: at a
 /// fractional scale some pixels are wider than others and the screen shimmers.
 function fitScreen() {
-  const room = Math.min(window.innerWidth - 80, 420);
-  const scale = Math.max(1, Math.floor(room / W));
+  // Fit to WIDTH and HEIGHT both: on a phone the controls and bars sit below
+  // the screen, so budgeting only width makes a screen too tall to fit with its
+  // own d-pad. The reserve is larger on a touch device, where the controls are.
+  const coarse = window.matchMedia("(pointer: coarse)").matches
+    || window.innerWidth <= 640;
+  const reserve = coarse ? 260 : 150;
+  const wRoom = Math.min(window.innerWidth - (coarse ? 28 : 80), 460);
+  const hRoom = window.innerHeight - reserve;
+  const scale = Math.max(1, Math.floor(Math.min(wRoom, hRoom) / W));
   const c = $("screen");
   c.style.width = W * scale + "px";
   c.style.height = H * scale + "px";
@@ -379,6 +426,29 @@ $("theme").onclick = () => {
   else if (armed) paint(armed.cart);
 };
 addEventListener("resize", fitScreen);
+addEventListener("orientationchange", () => setTimeout(fitScreen, 100));
+
+// A game is not a document. Block the browser gestures that would otherwise
+// zoom or select while thumbs are on the controls.
+for (const ev of ["gesturestart", "gesturechange", "gestureend"]) {
+  addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+}
+let lastTouchEnd = 0;
+addEventListener("touchend", (e) => {
+  const now = Date.now();
+  if (now - lastTouchEnd < 350) e.preventDefault();  // double-tap zoom
+  lastTouchEnd = now;
+}, { passive: false });
+document.addEventListener("contextmenu", (e) => {
+  if (e.target.closest && e.target.closest(".key")) e.preventDefault();
+});
+
+// On a touch device the "arrows or WASD" hint is noise — the buttons are right
+// there. Swap it for a touch-appropriate line.
+if (window.matchMedia("(pointer: coarse)").matches) {
+  const hint = document.getElementById("hint");
+  if (hint) hint.textContent = "tap the pad and buttons · back for the shelf";
+}
 
 buildShelf();
 </script>
