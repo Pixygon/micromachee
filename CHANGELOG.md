@@ -4,6 +4,16 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.28.1] — 2026-08-24
+
+### Added
+- Veilwalkers now has a full class, skill, and job system. Each hero's class grows a small skill tree as they level up (e.g. Whale grows Tide into Crash into Bulwark), and a new Jobs tab lets you assign a second job that adjusts stats and grants an extra skill. Status effects like burn, poison, stun, haste, and slow now factor into combat, with small icons showing what's affecting each combatant. _(a3766ca)_
+- Carts can now be marked as paid rather than free, with pricing shown in the shelf, catalog, and store. Veilwalkers is the first paid cart, priced at $5. _(a3766ca)_
+
+### Improved
+- The web player is now properly playable on phones: pinch-zoom, double-tap zoom, rubber-banding, and long-press menus are disabled while playing, the layout and controls resize to fit touch screens, and the on-screen hint text adapts for touch devices. _(a3766ca)_
+
+
 ## [0.28.0] — 2026-08-24
 
 ### Fixed
