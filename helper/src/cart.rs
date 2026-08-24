@@ -58,6 +58,11 @@ pub struct Cart {
     /// Whether a few seconds of this makes a round in Mega Micromachee. A
     /// nonogram or a farm is a fine game and a terrible ten seconds.
     pub in_mega: bool,
+    /// Price in Lumen (Pixygon's currency; 1 Lumen = $0.01), or 0 for free.
+    /// A priced cart is sold, not synced: it is delivered by an entitlement-
+    /// gated endpoint, never bundled where anyone could read it. The number
+    /// only travels so the shelf and the store can show what it costs.
+    pub price: u32,
     pub code: String,
     pub bytes: usize,
 }
@@ -167,6 +172,7 @@ impl Cart {
             author: meta("author").unwrap_or_else(|| "anonymous".into()),
             about: meta("about").unwrap_or_default(),
             in_mega: meta("mega").map(|v| v != "no").unwrap_or(true),
+            price: meta("price").and_then(|v| v.trim().parse::<u32>().ok()).unwrap_or(0),
             code: source.to_string(),
             bytes,
         })
@@ -320,6 +326,22 @@ function _draw()
 end
 "#;
     TEMPLATE.replace("{{TITLE}}", title).replace("{{AUTHOR}}", "you")
+}
+
+#[cfg(test)]
+mod price_tests {
+    use super::*;
+
+    #[test]
+    fn a_cart_is_free_unless_it_names_a_price() {
+        let free = Cart::parse("t", "function _draw() end").unwrap();
+        assert_eq!(free.price, 0);
+        let paid = Cart::parse("t", "-- price: 500\nfunction _draw() end").unwrap();
+        assert_eq!(paid.price, 500, "a price in Lumen should be read");
+        // garbage is free, not a parse error — a cart still runs
+        let junk = Cart::parse("t", "-- price: lots\nfunction _draw() end").unwrap();
+        assert_eq!(junk.price, 0);
+    }
 }
 
 #[cfg(test)]

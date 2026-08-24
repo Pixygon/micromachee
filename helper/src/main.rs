@@ -819,6 +819,7 @@ fn cmd_catalog(args: &[String]) -> i32 {
             // Whether a few seconds of it is a game, which Mega needs to know
             // before it deals the cart out.
             "mega": cart.in_mega,
+            "price": cart.price,
             "sha256": sha256::hex(text.as_bytes()),
             "url": format!("{base}/{id}.lua"),
             // The source travels inside the catalog as well as beside it. The

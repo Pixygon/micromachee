@@ -194,6 +194,7 @@ pub fn list_json() -> Value {
             // and offers to publish or throw it away.
             "draft": is_draft(&c.id),
             "mega": c.in_mega,
+      "price": c.price,
         }))
         .collect::<Vec<_>>())
 }

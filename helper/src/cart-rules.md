@@ -187,3 +187,13 @@ depths, towns, shops, menus — may run to a larger ceiling, because it never
 travels over the network and never appears in the shelf's catalog. If you are
 writing a normal cart, ignore this: stay under 24K. `veilwalkers.lua` is the one
 worked example, and it is bundle-only for exactly this reason.
+
+
+## A priced cart
+
+`-- price: 500` marks a cart as sold rather than free — the number is Pixygon
+Lumen (1 Lumen = $0.01), so 500 is $5. A free cart omits the line. A priced cart
+is **never synced or bundled in the open**: its source is delivered only after
+the buyer's entitlement is checked, because client-side code anyone can read is
+not something a paywall can protect. The number travels so a shelf or a store
+can show the cost; the selling itself is the platform's job.

@@ -2,6 +2,7 @@
 -- author: pixygon
 -- about: gather the four aspects. turn off the Veil
 -- mega: no
+-- price: 500
 
 -- The first pearl, as a campaign. Caul is the genesis-island under the Veil and
 -- its people are the Veilwalkers; you lead the last lineage of four, each born
