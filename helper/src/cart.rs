@@ -37,6 +37,15 @@ use crate::console;
 /// load as well as on publish, so an oversized cart cannot arrive by any route.
 pub const MAX_CART_BYTES: usize = 24 * 1024;
 
+/// The ceiling for a cart on disk. A cart FETCHED over `sync` is held to
+/// `MAX_CART_BYTES` — that cap is the console's shareable-cart identity and a
+/// DoS guard the marketplace reviewed, and it does not move. But a cart bundled
+/// with the plugin and installed from the repo is not distributed over the
+/// network and not on the shelf's catalog, so it may be a full campaign: an
+/// overworld, procedural depths, towers, shops, menus. That is a different kind
+/// of object, and this is its ceiling. Nothing synced ever reaches it.
+pub const MAX_LOCAL_CART_BYTES: usize = 192 * 1024;
+
 /// How much of a metadata value is kept.
 pub const META_MAX: usize = 48;
 
@@ -101,10 +110,13 @@ impl Cart {
 
     pub fn parse(id: &str, source: &str) -> Result<Cart, String> {
         let bytes = source.len();
-        if bytes > MAX_CART_BYTES {
+        // The absolute ceiling. The 24K shelf cap is enforced by `sync` on the
+        // bytes it fetched, before it ever gets here, so a synced cart is
+        // already small; this is the wall a bundled campaign cart cannot pass.
+        if bytes > MAX_LOCAL_CART_BYTES {
             return Err(format!(
-                "this cart is {bytes} bytes and a cart has to fit in {MAX_CART_BYTES} — {} too many",
-                bytes - MAX_CART_BYTES
+                "this cart is {bytes} bytes and the ceiling is {MAX_LOCAL_CART_BYTES} — {} too many",
+                bytes - MAX_LOCAL_CART_BYTES
             ));
         }
         if source.trim().is_empty() {
@@ -169,7 +181,7 @@ impl Cart {
         // the size too, but only once the whole file is already in memory —
         // which is no help at all if the file is enormous, and this is the read
         // every command goes through to load a cart.
-        let body = crate::safeio::read_regular_at_most(path, MAX_CART_BYTES)?
+        let body = crate::safeio::read_regular_at_most(path, MAX_LOCAL_CART_BYTES)?
             .ok_or_else(|| format!("{} is not there", path.display()))?;
         let source = String::from_utf8(body)
             .map_err(|_| format!("{} is not text", path.display()))?;
@@ -398,9 +410,16 @@ mod tests {
 
     #[test]
     fn oversized_carts_are_refused_and_say_by_how_much() {
-        let big = format!("-- title: Big\nfunction _draw() end\n{}", "-".repeat(MAX_CART_BYTES));
-        let err = Cart::parse("big", &big).unwrap_err();
-        assert!(err.contains("24576"), "{err}");
+        // parse enforces the ABSOLUTE ceiling, not the 24K shelf cap. A cart
+        // between the two is a legal bundled campaign; only past the local
+        // ceiling is it refused. (The 24K sync cap is enforced in shelf.rs, on
+        // the fetched bytes, before parse — tested there.)
+        let campaign = format!("-- title: Big\nfunction _draw() end\n{}", "-".repeat(MAX_CART_BYTES * 2));
+        assert!(Cart::parse("big", &campaign).is_ok(), "a 48K bundled cart should load");
+
+        let huge = format!("-- title: Big\nfunction _draw() end\n{}", "-".repeat(MAX_LOCAL_CART_BYTES));
+        let err = Cart::parse("big", &huge).unwrap_err();
+        assert!(err.contains(&MAX_LOCAL_CART_BYTES.to_string()), "{err}");
         assert!(err.contains("too many"), "an author needs the number: {err}");
     }
 

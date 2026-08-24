@@ -33,7 +33,7 @@ use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use cart::{Cart, MAX_CART_BYTES};
+use cart::{Cart, MAX_CART_BYTES, MAX_LOCAL_CART_BYTES};
 use vm::{Machine, FPS};
 
 fn base64(data: &[u8]) -> String {
@@ -431,14 +431,22 @@ fn cmd_check(file: &str) -> i32 {
             return 1;
         }
     };
-    println!(
-        "  {} by {} — {} bytes of {} ({}% of a cart)",
-        cart.title,
-        cart.author,
-        cart.bytes,
-        MAX_CART_BYTES,
-        cart.bytes * 100 / MAX_CART_BYTES
-    );
+    // A cart within the shelf cap is measured against it; a bundled campaign
+    // over it is measured against the local ceiling and told it is bundle-only,
+    // because it can no longer travel over sync.
+    if cart.bytes <= MAX_CART_BYTES {
+        println!(
+            "  {} by {} — {} bytes of {} ({}% of a cart)",
+            cart.title, cart.author, cart.bytes, MAX_CART_BYTES,
+            cart.bytes * 100 / MAX_CART_BYTES
+        );
+    } else {
+        println!(
+            "  {} by {} — {} bytes ({}% of the {} campaign ceiling) — over 24K, so bundle-only, not for sync",
+            cart.title, cart.author, cart.bytes,
+            cart.bytes * 100 / MAX_LOCAL_CART_BYTES, MAX_LOCAL_CART_BYTES
+        );
+    }
 
     for w in cart.warnings() {
         println!("  ⚠ {w}");
@@ -787,6 +795,14 @@ fn cmd_catalog(args: &[String]) -> i32 {
             eprintln!("✗ could not read {}", path.display());
             return 1;
         };
+        // A campaign cart over the shelf cap cannot be synced — sync refuses
+        // anything past 24K by design — so it does not belong in the catalog at
+        // all. It ships bundled with the plugin instead. Skip it rather than
+        // publish an entry every client would reject.
+        if text.len() > MAX_CART_BYTES {
+            println!("  · skipping {id} ({} bytes) — bundle-only, over the 24K sync cap", text.len());
+            continue;
+        }
         let cart = match Cart::parse(id, &text) {
             Ok(c) => c,
             Err(e) => {
@@ -819,7 +835,7 @@ fn cmd_catalog(args: &[String]) -> i32 {
         eprintln!("✗ could not write {out}: {e}");
         return 1;
     }
-    println!("wrote {out} — {} cart(s), urls under {base}", files.len());
+    println!("wrote {out} — {} cart(s), urls under {base}", carts.len());
     println!("upload the carts and this file, then `micromachee sync` finds them.");
     0
 }

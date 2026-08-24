@@ -174,3 +174,16 @@ The `-- title:` line matters — it is what the shelf shows.
 Write a game that is actually playable: it must have a way to lose or a score
 that goes up, respond to the buttons, and be readable at 128 pixels. Reply with
 the Lua file and nothing else.
+
+
+## Big campaign carts
+
+A cart is **at most 24K**, and that is the cap for anything shared on the shelf
+or fetched with `sync`. It is the whole point of the format and it does not move.
+
+One exception exists for a cart **bundled with the plugin** and installed from
+the repository rather than downloaded: a campaign — an overworld, procedural
+depths, towns, shops, menus — may run to a larger ceiling, because it never
+travels over the network and never appears in the shelf's catalog. If you are
+writing a normal cart, ignore this: stay under 24K. `veilwalkers.lua` is the one
+worked example, and it is bundle-only for exactly this reason.
