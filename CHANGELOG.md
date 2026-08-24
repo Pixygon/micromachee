@@ -4,6 +4,12 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.28.0] — 2026-08-24
+
+### Fixed
+- Fixed a crash that could occur when drawing circles with a center point far off-screen; coordinates are now safely clamped instead of causing an arithmetic overflow.
+
+
 ## [0.27.0] — 2026-08-22
 
 ### Changed

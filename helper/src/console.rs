@@ -152,7 +152,10 @@ impl Screen {
         let rr = r * r;
         for dy in -r..=r {
             let span = ((rr - dy * dy) as f64).sqrt() as i32;
-            self.rect(cx - span, cy + dy, span * 2 + 1, 1, c);
+            // Saturating: the radius is clamped, but the CENTRE is not, so
+            // cx - span can still run past i32::MIN. rect clips, so a saturated
+            // coordinate draws the same thing without the debug-build panic.
+            self.rect(cx.saturating_sub(span), cy.saturating_add(dy), span * 2 + 1, 1, c);
         }
     }
 
@@ -162,10 +165,14 @@ impl Screen {
         }
         let r = r.min(DRAW_LIMIT);
         let (mut x, mut y, mut d) = (r, 0, 1 - r);
+        // Same as circ: clamped radius, unclamped centre, so the eight points
+        // are formed with saturating arithmetic. pset clips off-screen.
+        let sa = |a: i32, b: i32| a.saturating_add(b);
+        let ss = |a: i32, b: i32| a.saturating_sub(b);
         while x >= y {
             for (px, py) in [
-                (cx + x, cy + y), (cx + y, cy + x), (cx - y, cy + x), (cx - x, cy + y),
-                (cx - x, cy - y), (cx - y, cy - x), (cx + y, cy - x), (cx + x, cy - y),
+                (sa(cx, x), sa(cy, y)), (sa(cx, y), sa(cy, x)), (ss(cx, y), sa(cy, x)), (ss(cx, x), sa(cy, y)),
+                (ss(cx, x), ss(cy, y)), (ss(cx, y), ss(cy, x)), (sa(cx, y), ss(cy, x)), (sa(cx, x), ss(cy, y)),
             ] {
                 self.pset(px, py, c);
             }
