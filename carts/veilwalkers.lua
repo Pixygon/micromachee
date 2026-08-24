@@ -1,82 +1,160 @@
 -- title: Veilwalkers
 -- author: pixygon
--- about: the last lineage of Caul. turn off the Veil
+-- about: gather the four aspects. turn off the Veil
 -- mega: no
 
--- The first pearl, at 128x128. Caul is the genesis-island under the Veil — the
--- magic — and its people are the Veilwalkers. You lead the last lineage of four,
--- each born under one of the Nine Signs, out of the settlement, across the
--- wilds, to the Pillar of Light. Reaching it and turning the Veil off is the
--- first apocalypse: Caul ends and Amebrak is born. That is the whole arc, and
--- it is a real ending rather than a score.
+-- The first pearl, as a campaign. Caul is the genesis-island under the Veil and
+-- its people are the Veilwalkers; you lead the last lineage of four, each born
+-- under one of the Nine Signs. To reach the Pillar of Light and turn the Veil
+-- off — the first apocalypse, where Caul ends and Amebrak is born — you must
+-- first climb four towers and take from each the aspect of a sign the four of
+-- you were not born under. Only then does the final gate open, and the Tower
+-- itself is what waits behind it.
 --
--- Everything shares one 32x24 tile map. The overworld reads it for collision
--- and draws a camera window of it; the town is the same map with houses for
--- walls and people standing on the path; encounters fire on the grass. Three
--- states — WORLD, TALK, BATTLE — and a couple of end cards. No second map format
--- and no room table: one grid is the world.
---
--- The four signs are the party and the party is four roles, straight from the
--- Codex's own descriptions of the signs:
---   WHALE     the foundation everything rests on   — most HP, shields the line
---   SERPENT   coiling, cunning, agile              — fast, strikes twice
---   FIREKEEPER protect the dying light, ruin all   — the Veil-fire, hits hard
---   SPARROW   the hope that guides to the temple   — mends the others
+-- This is a bundled campaign cart, above the 24K shelf cap on purpose: an
+-- overworld, three towns with shops, procedurally generated caves and towers,
+-- turn-based battle, equippable gear, portraits and menus, and progress that
+-- saves. It is built out of a few reused ideas rather than many one-off ones:
+--   * every place is a grid of tile characters — authored maps and generated
+--     dungeons are the same structure, so movement, collision, drawing and
+--     encounters are written once
+--   * one dungeon generator makes both caves and tower floors, parameterised
+--   * the four party roles are four of the Nine Signs, straight from the Codex
+--   * save/load packs the whole run into one string
 
 local TILE = 8
-local MAPW, MAPH = 32, 24
-local VIEWW, VIEWH = 16, 13         -- tiles shown; the rest is HUD
+local VW, VH = 15, 12               -- tiles shown; a HUD strip fills the rest
+local FPS = 30
 
--- The island. # tree/wall, ~ water, . grass (encounters), = path (safe),
--- H shrine (heal), P pillar, and lowercase letters are people to talk to.
-local MAP = {
-  "################################",
-  "#===========#........~~~~~~~~~~~#",
-  "#=a=b=====c=#..........~~~~~~~~~#",
-  "#=========H=#####.###.....~~~~~~#",
-  "#===========#...#.#.#........~~~#",
-  "#=====d=====gg..............~~~~#",
-  "#===========#...............#####",
-  "#####==######......#####........#",
-  "#....==........###..#...#..####.#",
-  "#....==..####..#.#..#.#.#..#..#.#",
-  "#....==..#..#..#.#....#....#..#.#",
-  "#....==.....#..#.###.####..####.#",
-  "#....==########..................",
-  "#....==.......................e.#",
-  "#....========............########",
-  "#...........=====.......#.......#",
-  "#..~~~~........=========.....B...#",
-  "#.~~~~~~~........#####.==........#",
-  "#.~~~~~~~..........#...==....P...#",
-  "#..~~~~~..........#.#..==........#",
-  "#.................#.#..==........#",
-  "#.....f...........#....==........#",
-  "#=====================.==========#",
-  "################################",
+-- ── tiles ────────────────────────────────────────────────────────────────────
+-- Walls block; floors walk; some floors roll for an encounter. Special tiles do
+-- something when you step on them, resolved in step_special().
+local BLOCK = { ["#"] = true, ["~"] = true, ["T"] = true }
+local ENCTILE = { ["."] = true, [","] = true }   -- grass, cave floor
+
+-- ── data: gear ───────────────────────────────────────────────────────────────
+-- id -> name, slot (1 weapon, 2 armour), bonus, price. Found in caves and sold
+-- in shops; a hero's two slots point at ids, 0 for empty.
+local GEAR = {
+  { "RUST EDGE", 1, 2, 12 },
+  { "VEIL BLADE", 1, 5, 45 },
+  { "TIDE SPEAR", 1, 9, 130 },
+  { "STAR IRON", 1, 15, 340 },
+  { "CLOTH WRAP", 2, 2, 12 },
+  { "SCALE COAT", 2, 5, 45 },
+  { "WARD MAIL", 2, 9, 130 },
+  { "LIGHTPLATE", 2, 15, 340 },
 }
 
--- Who stands on the lettered tiles, and what they say. Lore first, because a
--- town that only points at the dungeon is a menu with houses.
+-- ── data: the four aspects, one per tower ────────────────────────────────────
+-- Each is a sign the party was NOT born under, and each is a party-wide passive
+-- and a key the final gate reads. Earned as a bitmask.
+local ASPECTS = {
+  { "GOLEM", "stone", "+def all" },
+  { "BEAST", "fury", "+atk all" },
+  { "SUN", "warmth", "+life all" },
+  { "MOON", "veil", "+sign all" },
+}
+
+-- ── data: enemies ────────────────────────────────────────────────────────────
+-- name, hp, atk, def, spd, colour, xp, gold, flame-weak
+local FOES = {
+  wisp   = { "VEIL WISP", 16, 6, 1, 6, 6, 4, 3, true },
+  husk   = { "HUSK", 26, 8, 4, 3, 1, 7, 5, true },
+  drift  = { "DRIFTER", 22, 9, 3, 5, 3, 6, 4, false },
+  maw    = { "STONE MAW", 40, 11, 7, 2, 5, 12, 10, false },
+  shade  = { "SHADE", 30, 13, 3, 7, 2, 14, 9, true },
+}
+-- tower bosses: one per tower, in tower order; grant ASPECTS[i]
+local WARDS = {
+  { "GOLEM WARD", 110, 13, 9, 3, 5, 60, 60, false },
+  { "BEAST WARD", 130, 18, 5, 8, 3, 80, 80, false },
+  { "SUN WARD", 150, 15, 7, 6, 4, 100, 100, true },
+  { "MOON WARD", 175, 17, 8, 7, 6, 130, 130, true },
+}
+local TOWER = { "THE TOWER", 240, 22, 10, 8, 4, 0, 0, false }
+
+-- ── the overworld ────────────────────────────────────────────────────────────
+-- Letters/digits are portals and features (see PORTAL/step_special). Caul is at
+-- the top-left; the towns and towers spread across the wilds; the final gate Z
+-- sits before the Pillar and opens only with all four aspects.
+local OVER = {
+  "############################################",
+  "#===A===#....,,,,....########....~~~~~~~~~~~#",
+  "#=======#..,,,,,,,,....#.....1..~~~~~~~~~~~~#",
+  "#===H===#....,,,,....#....#....#..~~~~~~~~~~#",
+  "#=======########.........#....#....~~~~~~~~~#",
+  "#=====x==....#.......###.......#......~~~~~~#",
+  "#=======.....#..,,,,..#....###........,,,,,,#",
+  "########.....#..,,,,..#......#....,...,,,,,,#",
+  "#....,,,,,,..#........#......#....,,,,,,,,,,,#",
+  "#..,,,,,,,,,,........,,,,....#....,,,2,,,,,,,#",
+  "#....,,,,,,..######.,,,,,,,..#....,,,,,,,,,,,#",
+  "#............#....#..,,,,....######.....#####",
+  "#.....##.....#....#.........,,,,........#...#",
+  "#..,,,,,,....#....#..,,,,,,,,,,,,....#...#.C.#",
+  "#,,,,,,,,,,..#....########.,,,,......#...#===#",
+  "#..,,,,,,....#............#....#....y#...#===#",
+  "#....,,......#....3....#..#....#.....#...#####",
+  "#....##......#........#...#....#.,,,,,,......#",
+  "#............#.####...#...####...,,,,,,..###.#",
+  "#..,,,,,,,,,,....#....#......#...,,,,,,....4.#",
+  "#,,,,,,,,,,,,....#........#..#.......#.......#",
+  "#..,,,,,,,,,.....########.#..######..#..ZP..#",
+  "#............................#...........####",
+  "############################################",
+}
+
+-- ── towns: small authored interiors ──────────────────────────────────────────
+-- S shop, I inn (heal), s save shrine, o the way out, letters are folk.
+local CAUL = {
+  "##########+#########",
+  "#=================H#",
+  "#==a===========b===#",
+  "#=====s============#",
+  "#==================#",
+  "#=========c========#",
+  "#==================#",
+  "####################",
+}
+local PORT = {
+  "##########+#########",
+  "#===S=========I====#",
+  "#=====d============#",
+  "#==============e===#",
+  "#=====s============#",
+  "#=========f========#",
+  "#==================#",
+  "####################",
+}
+local HOLD = {
+  "##########+#########",
+  "#==S====I=========#",
+  "#=========g========#",
+  "#===s==============#",
+  "#=======h==========#",
+  "#==================#",
+  "#==================#",
+  "####################",
+}
+
 local FOLK = {
-  a = { "ELDER MORN", "the veil is the light", "we are born inside it", "and we give it back" },
-  b = { "KEEPER", "nine signs turn above caul", "you four were born under", "whale serpent flame sparrow" },
-  c = { "CHILD", "is it true the pillar", "eats the whole sky?", "grandmother walked in once" },
-  d = { "SMITH", "your blades are old.", "older than the island.", "they were always leaving." },
-  e = { "HERMIT", "past the wilds a ward stands", "it wears a sign that is not", "yours. it will not simply move" },
-  f = { "FISHER", "the water does not end.", "nothing here does.", "it only becomes the next thing" },
+  a = { "ELDER MORN", "the veil is the light.", "we are born inside it,", "and we give it back." },
+  b = { "KEEPER", "four towers stand in the", "wilds. each holds an aspect", "of a sign not yours." },
+  c = { "CHILD", "past the last gate", "is the pillar. it eats", "the whole sky, they say." },
+  d = { "TRADER", "gear wears out like", "everything on caul.", "buy what the deep gives up." },
+  e = { "SAILOR", "the water does not end.", "nothing here does.", "it becomes the next thing." },
+  f = { "WIDOW", "my line walked the towers", "and did not come back.", "yours might. carry them." },
+  g = { "WARDEN", "the moon tower is cruel.", "come stone-warded first,", "or do not come at all." },
+  h = { "SEER", "when all four aspects burn", "in you, the last gate", "will know, and open." },
 }
 
--- ── party: the four signs ────────────────────────────────────────────────────
-
+-- ── party: four of the Nine Signs ────────────────────────────────────────────
 local function hero(name, sign, hp, mp, atk, def, spd, skill, cost, kind, col)
-  return {
-    name = name, sign = sign, hp = hp, maxhp = hp, mp = mp, maxmp = mp,
-    atk = atk, def = def, spd = spd, skill = skill, cost = cost,
-    kind = kind, col = col, alive = true, guard = false, xp = 0, lvl = 1,
-  }
+  return { name = name, sign = sign, hp = hp, maxhp = hp, mp = mp, maxmp = mp,
+    atk = atk, def = def, spd = spd, skill = skill, cost = cost, kind = kind,
+    col = col, alive = true, guard = false, xp = 0, lvl = 1, wpn = 0, arm = 0 }
 end
-
 local party
 local function new_party()
   party = {
@@ -87,355 +165,475 @@ local function new_party()
   }
 end
 
--- ── enemies ──────────────────────────────────────────────────────────────────
+-- effective stats after gear and aspects
+local aspbits
+local function has_aspect(i) return aspbits % (2 ^ i) >= 2 ^ (i - 1) end
+local function eatk(h)
+  local b = h.atk + (h.wpn > 0 and GEAR[h.wpn][3] or 0)
+  if has_aspect(2) then b = b + 3 end                 -- BEAST
+  return b
+end
+local function edef(h)
+  local b = h.def + (h.arm > 0 and GEAR[h.arm][3] or 0)
+  if has_aspect(1) then b = b + 3 end                 -- GOLEM
+  return b
+end
+local function emaxhp(h) return h.maxhp + (has_aspect(3) and 10 or 0) end
+local function emaxmp(h) return h.maxmp + (has_aspect(4) and 5 or 0) end
 
--- name, hp, atk, def, spd, colour, xp, and whether flame burns it worse
-local FOES = {
-  { "VEIL WISP", 14, 6, 1, 6, 6, 4, true },
-  { "HUSK", 22, 7, 4, 3, 1, 6, true },
-  { "DRIFTER", 18, 8, 3, 5, 3, 5, false },
-}
-local WARD = { "THE WARD", 120, 12, 6, 6, 4, 0, false }
-
--- ── state ────────────────────────────────────────────────────────────────────
-
-local px, py, step, facing, tick
-local state, msg, msgi, msgwho
-local wardbeaten, veiloff
+-- ── run state ────────────────────────────────────────────────────────────────
+local state, tick
+local map, mapname, portals, camx, camy
+local px, py, step, facing
+local gold, inv                     -- inv[id] = count
+local msg, msgi, msgwho
+local shopsel, shopmode, menutab, menusel, menupick, menuitem
+local dungeon, dfloor, dtower, dreturn
+local returnmap, returnx, returny   -- where a town/dungeon exit drops you
+local wardsdown                     -- wardsdown[i] = true
+local rng
 
 -- battle
-local foes, order, turn, sel, cmd, target, log, logt, bmenu, anim, wardfight, result
+local foes, order, turn, sel, target, log, logt, anim, wardfight, result, btlkind
 
-local function tile(x, y)
-  if x < 0 or y < 0 or x >= MAPW or y >= MAPH then return "#" end
-  return MAP[y + 1]:sub(x + 1, x + 1)
+-- ── tiny rng, seedable for reproducible dungeons within a run ────────────────
+local function rand() rng = (rng * 1103515245 + 12345) % 2147483648 return rng end
+local function rrnd(n) return rand() % n end
+
+-- ── grid helpers ─────────────────────────────────────────────────────────────
+local function gw() return #map[1] end
+local function gh() return #map end
+local function at(x, y)
+  if x < 0 or y < 0 or x >= gw() or y >= gh() then return "#" end
+  return map[y + 1]:sub(x + 1, x + 1)
 end
-
-local function walkable(x, y)
-  local t = tile(x, y)
-  return t == "=" or t == "." or t == "H" or t == "g"
-      or t == "P" or t == "B"
+local function setat(x, y, ch)
+  local row = map[y + 1]
+  map[y + 1] = row:sub(1, x) .. ch .. row:sub(x + 2)
 end
+local function walkable(x, y) return not BLOCK[at(x, y)] end
 
-local function folk_at(x, y)
-  local t = tile(x, y)
-  return FOLK[t] and t or nil
-end
-
-function _init()
-  new_party()
-  px, py = 1, 1
-  step, facing, tick = 0, 3, 0
-  state, msg = "world", nil
-  wardbeaten, veiloff = false, false
-  score(0)
-end
-
--- ── the overworld ────────────────────────────────────────────────────────────
-
-local function try_move(dx, dy)
-  facing = dx < 0 and 0 or dx > 0 and 1 or dy < 0 and 2 or 3
-  local nx, ny = px + dx, py + dy
-  -- Talk by walking into someone.
-  local who = folk_at(nx, ny)
-  if who then
-    msg, msgi, msgwho = FOLK[who], 1, who
-    state = "talk"
-    sfx(0)
-    return
+-- ── portals: which special tiles lead where ──────────────────────────────────
+-- Built per map. Overworld portals go to towns/dungeons; a town's '+' is the
+-- door back out. Dungeons use '<' '>' and 'o' handled in step_special.
+local function build_portals()
+  portals = {}
+  if mapname == "over" then
+    portals = {
+      A = { town = "caul" }, B = { town = "port" }, C = { town = "hold" },
+      ["1"] = { tower = 1 }, ["2"] = { tower = 2 }, ["3"] = { tower = 3 }, ["4"] = { tower = 4 },
+      x = { cave = 1 }, y = { cave = 2 },
+    }
   end
-  if not walkable(nx, ny) then return end
-  px, py = nx, ny
+end
 
-  -- The ward blocks the last path to the pillar until it is beaten.
-  if tile(px, py) == "B" and not wardbeaten then
-    start_battle(true)
-    return
+-- ══ maps: entering places ════════════════════════════════════════════════════
+
+local function copy_map(src)
+  local m = {}
+  for i = 1, #src do m[i] = src[i] end
+  return m
+end
+
+local function find_tile(ch)
+  for y = 0, gh() - 1 do for x = 0, gw() - 1 do
+    if at(x, y) == ch then return x, y end
+  end end
+end
+
+function enter_over(spawn_at)
+  map, mapname = copy_map(OVER), "over"
+  build_portals()
+  if spawn_at then px, py = spawn_at[1], spawn_at[2]
+  else px, py = find_tile("A") end
+  -- open the final gate once all four aspects are held
+  if aspbits >= 15 then
+    local zx, zy = find_tile("Z")
+    if zx then setat(zx, zy, "=") end
   end
-  if tile(px, py) == "H" then heal_party() sfx(6) end
-  if tile(px, py) == "P" then
-    if wardbeaten then
-      veiloff = true
-      state = "win"
-      win()
-      sfx(6)
-    else
-      msg, msgi, msgwho = { "THE PILLAR", "it will not open while", "the ward still stands" }, 1, nil
-      state = "talk"
+  state = "world"
+end
+
+local TOWNMAP = { caul = CAUL, port = PORT, hold = HOLD }
+function enter_town(name)
+  returnmap, returnx, returny = "over", px, py
+  map, mapname = copy_map(TOWNMAP[name]), name
+  build_portals()
+  local dx, dy = find_tile("+")
+  px, py = dx, dy + 1
+  save_game()
+  state = "world"
+end
+
+-- ── one dungeon generator, for caves and tower floors ────────────────────────
+-- Rooms carved from solid rock and joined by corridors, like the raycaster's
+-- tower but top-down. Returns a fresh grid plus where the stairs and any chest
+-- landed. `up` is the way deeper, `down`/`o` the way back.
+function gen_dungeon(w, h, floorch, want_up, want_chest, chestitem)
+  local g = {}
+  for y = 1, h do g[y] = ("#"):rep(w) end
+  local M = { }              -- swap map in so setat works, then read back
+  local savem, savename = map, mapname
+  map = g
+  local rooms = {}
+  local n = 4 + rrnd(3)
+  for _ = 1, n do
+    local rw, rh = 3 + rrnd(4), 3 + rrnd(3)
+    local rx, ry = 1 + rrnd(w - rw - 2), 1 + rrnd(h - rh - 2)
+    for yy = ry, ry + rh - 1 do for xx = rx, rx + rw - 1 do setat(xx, yy, floorch) end end
+    rooms[#rooms + 1] = { x = rx + flr(rw / 2), y = ry + flr(rh / 2) }
+  end
+  for i = 2, #rooms do
+    local a, b = rooms[i - 1], rooms[i]
+    local x = a.x
+    while x ~= b.x do setat(x, a.y, floorch) x = x + (b.x > a.x and 1 or -1) end
+    local y = a.y
+    while y ~= b.y do setat(b.x, y, floorch) y = y + (b.y > a.y and 1 or -1) end
+  end
+  local first, last = rooms[1], rooms[#rooms]
+  setat(first.x, first.y, "o")                     -- exit, where you came in
+  if want_up then setat(last.x, last.y, "<") else setat(last.x, last.y, ">") end
+  local ex, ey = first.x, first.y
+  local ux, uy = last.x, last.y
+  if want_chest and #rooms > 2 then
+    local r = rooms[2 + rrnd(#rooms - 2)]
+    setat(r.x, r.y, "$")
+  end
+  local grid = map
+  map, mapname = savem, savename
+  return grid, ex, ey, ux, uy
+end
+
+function enter_cave(n)
+  returnmap, returnx, returny = "over", px, py
+  rng = (n * 7919 + tick) % 2147483648 + 1
+  local g, ex, ey = gen_dungeon(26, 20, ",", false, true, nil)
+  map, mapname = g, "cave"
+  dungeon = { kind = "cave", n = n }
+  build_portals()
+  px, py = ex + 1, ey
+  if BLOCK[at(px, py)] then px, py = ex, ey end
+  state = "world"
+end
+
+function enter_tower(n, floor)
+  dtower, dfloor = n, floor or 1
+  if floor == nil then returnmap, returnx, returny = "over", px, py end
+  rng = (n * 104729 + dfloor * 6151) % 2147483648 + 1
+  local top = (dfloor >= 3)                          -- three floors; boss on top
+  local g, ex, ey, ux, uy = gen_dungeon(24, 18, ",", not top, dfloor == 2, nil)
+  map, mapname = g, "tower"
+  dungeon = { kind = "tower", n = n }
+  build_portals()
+  px, py = ex + 1, ey
+  if BLOCK[at(px, py)] then px, py = ex, ey end
+  -- the boss sits on the top floor's up-stair spot
+  if top then
+    local sx, sy = find_tile("<")
+    if not sx then sx, sy = ux, uy end
+    setat(sx, sy, "B")
+  end
+  state = "world"
+end
+
+-- ══ stepping on special tiles ═════════════════════════════════════════════════
+
+function step_special()
+  local t = at(px, py)
+  local p = portals[t]
+  if p then
+    if p.town then enter_town(p.town) return true end
+    if p.tower then
+      if wardsdown[p.tower] then
+        msgbox(nil, { "this tower is spent.", "its aspect is yours." })
+      else enter_tower(p.tower) end
+      return true
     end
-    return
+    if p.cave then enter_cave(p.cave) return true end
   end
+  if t == "+" then enter_over({ returnx, returny }) return true end   -- town door out
+  if t == "o" then                                                    -- dungeon exit
+    enter_over({ returnx, returny }) return true
+  end
+  if t == "<" then enter_tower(dtower, dfloor + 1) return true end     -- deeper
+  if t == ">" then enter_over({ returnx, returny }) return true end   -- cave bottom out
+  if t == "S" then shopmode, shopsel, state = "buy", 1, "shop" return true end
+  if t == "I" then heal_party() msgbox(nil, { "you rest. the line", "is whole again." }) return true end
+  if t == "s" then save_game() msgbox(nil, { "the run is kept.", "walk on." }) return true end
+  if t == "H" then heal_party() sfx(6) return true end
+  if t == "$" then                                                     -- chest
+    setat(px, py, ",")
+    local g = 1 + rrnd(4) + (dungeon and dungeon.kind == "tower" and 2 or 1)
+    give_gear(g)
+    gold = gold + 10 + rrnd(20)
+    msgbox(nil, { "a chest: " .. GEAR[g][1], "and some gold." })
+    sfx(3)
+    return true
+  end
+  if t == "B" then
+    start_battle("ward")
+    return true
+  end
+  if t == "Z" then
+    msgbox(nil, { "the last gate holds.", "four aspects will open it." })
+    return true
+  end
+  if t == "P" then
+    if aspbits >= 15 then start_battle("final") else
+      msgbox(nil, { "the pillar will not open", "until the tower falls." })
+    end
+    return true
+  end
+  return false
+end
 
-  -- Grass is where the island is least settled, so that is where things find
-  -- you. Not on the very first steps out of town.
-  if tile(px, py) == "." and rnd(1) < 0.10 then
-    start_battle(false)
-  end
+function msgbox(who, lines)
+  msg, msgi, msgwho = lines, 1, who
+  state = "talk"
+  sfx(0)
 end
 
 function heal_party()
   for i = 1, #party do
     local h = party[i]
-    h.hp, h.mp, h.alive = h.maxhp, h.maxmp, true
+    h.hp, h.mp, h.alive = emaxhp(h), emaxmp(h), true
   end
 end
 
--- ── battle ───────────────────────────────────────────────────────────────────
+function give_gear(id)
+  inv[id] = (inv[id] or 0) + 1
+end
 
-function start_battle(isward)
-  wardfight = isward
+-- ── movement ─────────────────────────────────────────────────────────────────
+function try_move(dx, dy)
+  facing = dx < 0 and 0 or dx > 0 and 1 or dy < 0 and 2 or 3
+  local nx, ny = px + dx, py + dy
+  local who = FOLK[at(nx, ny)] and at(nx, ny)
+  if who then msgbox(who, FOLK[who]) return end
+  if not walkable(nx, ny) then return end
+  px, py = nx, ny
+  if step_special() then return end
+  -- encounters in grass and cave/tower floors
+  if ENCTILE[at(px, py)] and rnd(1) < enc_rate() then start_battle("wild") end
+end
+
+function enc_rate()
+  if mapname == "over" then return 0.07 end
+  return 0.12
+end
+
+-- ══ battle ════════════════════════════════════════════════════════════════════
+
+function roster_for()
+  -- which wild foes appear, by where you are and how far you have come
+  if mapname == "tower" then
+    local pool = { "husk", "drift", "maw", "shade" }
+    return pool
+  elseif mapname == "cave" then
+    return { "wisp", "husk", "maw" }
+  end
+  local base = { "wisp", "drift", "husk" }
+  if aspbits >= 3 then base[#base + 1] = "shade" end
+  return base
+end
+
+function start_battle(kind)
+  btlkind = kind
+  wardfight = (kind == "ward")
   foes = {}
-  if isward then
-    local w = WARD
-    foes[1] = { name = w[1], hp = w[2], maxhp = w[2], atk = w[3], def = w[4],
-                spd = w[5], col = w[6], xp = w[7], burns = w[8], alive = true }
+  if kind == "ward" then
+    local w = WARDS[dtower]
+    foes[1] = mkfoe(w)
+  elseif kind == "final" then
+    foes[1] = mkfoe(TOWER)
   else
-    local n = 1 + flr(rnd(3))
-    for i = 1, n do
-      local f = FOES[1 + flr(rnd(#FOES))]
-      foes[i] = { name = f[1], hp = f[2], maxhp = f[2], atk = f[3], def = f[4],
-                  spd = f[5], col = f[6], xp = f[7], burns = f[8], alive = true }
-    end
+    local pool = roster_for()
+    local n = 1 + rrndbattle(3)
+    for i = 1, n do foes[i] = mkfoe(FOES[pool[1 + rrndbattle(#pool)]]) end
   end
   build_order()
-  turn, sel, cmd, target = 1, 1, 1, 1
-  bmenu, anim, result = true, 0, nil
+  turn, sel, target, anim, result = 1, 1, 1, 0, nil
   log, logt = "", 0
   state = "battle"
   sfx(2)
 end
 
+function rrndbattle(n) return flr(rnd(n)) end
+
+function mkfoe(t)
+  return { name = t[1], hp = t[2], maxhp = t[2], atk = t[3], def = t[4],
+    spd = t[5], col = t[6], xp = t[7], gold = t[8], burns = t[9], alive = true }
+end
+
 function build_order()
-  -- Everyone alive, fastest first, re-sorted each round. Heroes are 1..4 and
-  -- foes are 101.. so one number says which side an actor is on.
   order = {}
   for i = 1, #party do if party[i].alive then order[#order + 1] = i end end
   for i = 1, #foes do if foes[i].alive then order[#order + 1] = 100 + i end end
   for i = 2, #order do
     local a = order[i]
-    local sa = (a > 100 and foes[a - 100].spd or party[a].spd)
+    local sa = a > 100 and foes[a - 100].spd or party[a].spd
     local j = i - 1
     while j >= 1 do
       local b = order[j]
-      local sb = (b > 100 and foes[b - 100].spd or party[b].spd)
+      local sb = b > 100 and foes[b - 100].spd or party[b].spd
       if sb >= sa then break end
-      order[j + 1] = order[j]
-      j = j - 1
+      order[j + 1] = order[j] j = j - 1
     end
     order[j + 1] = a
   end
   turn = 1
 end
 
-local function actor(id)
-  if id > 100 then return foes[id - 100] else return party[id] end
-end
+function actorof(id) if id > 100 then return foes[id - 100] else return party[id] end end
+function foes_alive() local n = 0 for i = 1, #foes do if foes[i].alive then n = n + 1 end end return n end
+function party_alive() local n = 0 for i = 1, #party do if party[i].alive then n = n + 1 end end return n end
+function first_foe() for i = 1, #foes do if foes[i].alive then return i end end return 1 end
+function saylog(t) log, logt = t, 40 end
 
-local function foes_alive()
-  local n = 0
-  for i = 1, #foes do if foes[i].alive then n = n + 1 end end
-  return n
-end
-
-local function party_alive()
-  local n = 0
-  for i = 1, #party do if party[i].alive then n = n + 1 end end
-  return n
-end
-
-local function first_live_foe()
-  for i = 1, #foes do if foes[i].alive then return i end end
-  return 1
-end
-
-local function say(t) log, logt = t, 40 end
-
-local function hurt(defender, amount)
-  amount = flr(amount)
-  if amount < 1 then amount = 1 end
-  defender.hp = defender.hp - amount
-  if defender.hp <= 0 then
-    defender.hp, defender.alive = 0, false
-  end
-  return amount
-end
-
-local function damage(atk, def, guard)
-  local base = atk - flr(def / 2)
-  base = base + flr(rnd(3)) - 1
+function damage(a, d, guard)
+  local base = a - flr(d / 2) + flr(rnd(3)) - 1
   if guard then base = flr(base / 2) end
   return base
 end
+function hurt(x, amt)
+  amt = flr(amt) if amt < 1 then amt = 1 end
+  x.hp = x.hp - amt
+  if x.hp <= 0 then x.hp, x.alive = 0, false end
+  return amt
+end
 
--- One hero's chosen action, then the turn advances. Enemies act on their own.
-local function do_hero(h, action)
+function do_hero(h, action)
   h.guard = false
   if action == "strike" then
     local f = foes[target]
-    if not f.alive then target = first_live_foe() f = foes[target] end
-    local d = hurt(f, damage(h.atk, f.def, false))
-    say(h.name .. " HITS " .. f.name .. " " .. d)
+    if not f.alive then target = first_foe() f = foes[target] end
+    saylog(h.name .. " HITS " .. f.name .. " " .. hurt(f, damage(eatk(h), f.def, false)))
     sfx(1)
   elseif action == "guard" then
-    h.guard = true
-    say(h.name .. " GUARDS")
-    sfx(0)
+    h.guard = true saylog(h.name .. " GUARDS") sfx(0)
   elseif action == "skill" then
-    if h.mp < h.cost then say("NO SIGN LEFT") return false end
+    if h.mp < h.cost then saylog("NO SIGN LEFT") return false end
     h.mp = h.mp - h.cost
     if h.kind == "heal" then
-      -- the most hurt ally, or a fallen one raised at half
       local who, worst = nil, 1e9
-      for i = 1, #party do
-        local a = party[i]
+      for i = 1, #party do local a = party[i]
         if not a.alive then who = a break end
-        if a.hp < a.maxhp and a.hp - a.maxhp < worst then worst = a.hp - a.maxhp who = a end
+        if a.hp - emaxhp(a) < worst then worst = a.hp - emaxhp(a) who = a end
       end
       who = who or h
-      local amt = 14 + h.atk
-      if not who.alive then who.alive = true amt = flr(who.maxhp / 2) end
-      who.hp = mid(0, who.hp + amt, who.maxhp)
-      say(h.name .. " MENDS " .. who.name)
-      sfx(6)
+      local amt = 16 + eatk(h)
+      if not who.alive then who.alive = true amt = flr(emaxhp(who) / 2) end
+      who.hp = mid(0, who.hp + amt, emaxhp(who))
+      saylog(h.name .. " MENDS " .. who.name) sfx(6)
     elseif h.kind == "shield" then
       for i = 1, #party do party[i].guard = true end
-      say(h.name .. " SHIELDS THE LINE")
-      sfx(6)
+      saylog(h.name .. " SHIELDS THE LINE") sfx(6)
     elseif h.kind == "twice" then
-      local f = foes[target]
-      if not f.alive then target = first_live_foe() f = foes[target] end
-      local d1 = hurt(f, damage(h.atk, f.def, false))
-      local d2 = f.alive and hurt(f, damage(h.atk, f.def, false)) or 0
-      say(h.name .. " COILS " .. (d1 + d2))
-      sfx(1)
+      local f = foes[target] if not f.alive then target = first_foe() f = foes[target] end
+      local d1 = hurt(f, damage(eatk(h), f.def, false))
+      local d2 = f.alive and hurt(f, damage(eatk(h), f.def, false)) or 0
+      saylog(h.name .. " COILS " .. (d1 + d2)) sfx(1)
     elseif h.kind == "burn" then
-      -- the Veil-fire: every foe, worse on what the Veil made
-      for i = 1, #foes do
-        local f = foes[i]
+      for i = 1, #foes do local f = foes[i]
         if f.alive then
-          local d = damage(h.atk + 6, f.def, false)
+          local d = damage(eatk(h) + 6, f.def, false)
           if f.burns then d = flr(d * 1.6) end
           hurt(f, d)
         end
       end
-      say(h.name .. " BURNS THEM ALL")
-      sfx(2)
+      saylog(h.name .. " BURNS THEM ALL") sfx(2)
     end
   end
   return true
 end
 
-local function enemy_turn(f)
-  -- Mostly the frailest living hero; sometimes, if it is the ward, everyone.
-  if wardfight and rnd(1) < 0.3 then
-    say(f.name .. " SWEEPS ALL")
-    for i = 1, #party do
-      local h = party[i]
-      if h.alive then hurt(h, damage(f.atk - 2, h.def, h.guard)) end
+function enemy_turn(f)
+  if (wardfight or btlkind == "final") and rnd(1) < 0.3 then
+    saylog(f.name .. " SWEEPS ALL")
+    for i = 1, #party do local h = party[i]
+      if h.alive then hurt(h, damage(f.atk - 2, edef(h), h.guard)) end
     end
-    sfx(5)
-    return
+    sfx(5) return
   end
   local who, low = nil, 1e9
-  for i = 1, #party do
-    local h = party[i]
+  for i = 1, #party do local h = party[i]
     if h.alive and h.hp < low then low = h.hp who = h end
   end
   if not who then return end
-  local d = hurt(who, damage(f.atk, who.def, who.guard))
-  say(f.name .. " HITS " .. who.name .. " " .. d)
+  saylog(f.name .. " HITS " .. who.name .. " " .. hurt(who, damage(f.atk, edef(who), who.guard)))
   sfx(5)
 end
 
-local function next_turn()
+function next_turn()
   turn = turn + 1
   if turn > #order then build_order() end
-  -- skip the dead
-  local guard = 0
-  while turn <= #order and not actor(order[turn]).alive do
-    turn = turn + 1
-    guard = guard + 1
+  local g = 0
+  while turn <= #order and not actorof(order[turn]).alive do
+    turn = turn + 1 g = g + 1
     if turn > #order then build_order() end
-    if guard > 40 then break end
+    if g > 40 then break end
   end
 end
 
-local function win_battle()
-  local total = 0
-  for i = 1, #foes do total = total + foes[i].xp end
-  for i = 1, #party do
-    local h = party[i]
+function win_battle()
+  local xp, g = 0, 0
+  for i = 1, #foes do xp = xp + foes[i].xp g = g + foes[i].gold end
+  gold = gold + g
+  for i = 1, #party do local h = party[i]
     if h.alive then
-      h.xp = h.xp + total
-      -- a level every 20, capped so numbers stay legible
-      while h.xp >= h.lvl * 20 and h.lvl < 20 do
-        h.xp = h.xp - h.lvl * 20
+      h.xp = h.xp + xp
+      while h.xp >= h.lvl * 22 and h.lvl < 30 do
+        h.xp = h.xp - h.lvl * 22
         h.lvl = h.lvl + 1
-        h.maxhp = h.maxhp + 4
-        h.atk = h.atk + 1
-        if h.lvl % 2 == 0 then h.maxmp = h.maxmp + 2 end
-        h.hp = h.maxhp
-        h.mp = h.maxmp
+        h.maxhp = h.maxhp + 4 h.atk = h.atk + 1
+        if h.lvl % 2 == 0 then h.maxmp = h.maxmp + 2 h.def = h.def + 1 end
+        h.hp, h.mp = emaxhp(h), emaxmp(h)
       end
     end
   end
-  score(party[1].lvl + party[2].lvl + party[3].lvl + party[4].lvl)
-  if wardfight then wardbeaten = true end
-  result = "won"
+  -- a ward grants its aspect
+  if wardfight then
+    wardsdown[dtower] = true
+    aspbits = aspbits + (has_aspect(dtower) and 0 or 2 ^ (dtower - 1))
+    result = "aspect"
+  end
+  score(count_aspects())
+  result = result or "won"
+end
+
+function count_aspects()
+  local n = 0 for i = 1, 4 do if has_aspect(i) then n = n + 1 end end return n
 end
 
 local CMDS = { "STRIKE", "SIGN", "GUARD" }
 
-function _update()
-  tick = tick + 1
-
-  if state == "world" then
-    if step > 0 then step = step - 1 end
-    local dx, dy = 0, 0
-    if btn(0) then dx = -1 elseif btn(1) then dx = 1
-    elseif btn(2) then dy = -1 elseif btn(3) then dy = 1 end
-    if (dx ~= 0 or dy ~= 0) and step == 0 then
-      try_move(dx, dy)
-      step = 6
-    end
-
-  elseif state == "talk" then
-    if btnp(4) or btnp(5) then
-      msgi = msgi + 1
-      if msgi > #msg then state = "world" else sfx(0) end
-    end
-
-  elseif state == "battle" then
-    update_battle()
-
-  elseif state == "win" or state == "over" then
-    if btnp(4) then _init() end
-  end
-end
-
 function update_battle()
   if logt > 0 then logt = logt - 1 end
 
-  -- resolve end of battle after the last message has been read a moment
   if result and logt <= 0 then
-    if result == "won" then
-      if veiloff then return end
+    if result == "won" or result == "aspect" then
+      -- back to where the fight started
+      if dungeon and at(px, py) == "B" then setat(px, py, ",") end
       state = "world"
+      save_game()
+    elseif result == "final" then
+      state = "win" win() sfx(6)
     else
-      state = "over"
-      lose()
+      state = "over" lose()
     end
-    result = nil
-    return
+    result = nil return
   end
   if result then return end
 
   if anim > 0 then
     anim = anim - 1
     if anim == 0 then
-      -- check outcomes after an action resolves
-      if foes_alive() == 0 then win_battle() sfx(6) return end
-      if party_alive() == 0 then result = "lost" say("THE LINEAGE FALLS") return end
+      if foes_alive() == 0 then
+        win_battle()
+        if btlkind == "final" then result = "final" end
+        sfx(6) return
+      end
+      if party_alive() == 0 then result = "lost" saylog("THE LINEAGE FALLS") return end
       next_turn()
     end
     return
@@ -443,230 +641,477 @@ function update_battle()
 
   local id = order[turn]
   if not id then build_order() return end
-  local one = actor(id)
+  local one = actorof(id)
   if not one.alive then next_turn() return end
+  if id > 100 then enemy_turn(one) anim = 22 return end
 
-  if id > 100 then
-    -- enemy acts, with a short beat so you can read it
-    enemy_turn(one)
-    anim = 22
-    return
-  end
-
-  -- a hero's menu
   if btnp(2) then sel = (sel - 2) % 3 + 1 sfx(0) end
   if btnp(3) then sel = sel % 3 + 1 sfx(0) end
   if btnp(1) and CMDS[sel] == "STRIKE" then
-    target = target % #foes + 1
-    while not foes[target].alive do target = target % #foes + 1 end
+    repeat target = target % #foes + 1 until foes[target].alive
     sfx(0)
   end
   if btnp(4) then
-    local h = one
-    if CMDS[sel] == "STRIKE" then
-      if do_hero(h, "strike") then anim = 22 end
-    elseif CMDS[sel] == "GUARD" then
-      do_hero(h, "guard") anim = 14
-    elseif CMDS[sel] == "SIGN" then
-      if do_hero(h, "skill") then anim = 22 else sfx(5) end
-    end
+    if CMDS[sel] == "STRIKE" then if do_hero(one, "strike") then anim = 22 end
+    elseif CMDS[sel] == "GUARD" then do_hero(one, "guard") anim = 14
+    elseif CMDS[sel] == "SIGN" then if do_hero(one, "skill") then anim = 22 else sfx(5) end end
   end
 end
 
--- ══ drawing ══════════════════════════════════════════════════════════════════
+-- ══ shop ══════════════════════════════════════════════════════════════════════
 
-local function draw_tile(t, sx, sy)
-  if t == "#" then
-    rect(sx, sy, 8, 8, 5) rect(sx + 1, sy, 6, 5, 5)
-    rect(sx + 3, sy + 5, 2, 3, 3)                       -- a tree
+function update_shop()
+  local list = shopmode == "buy" and GEAR or inv_list()
+  local nrows = shopmode == "buy" and #GEAR or #list
+  if btnp(2) then shopsel = (shopsel - 2) % math.max(1, nrows) + 1 sfx(0) end
+  if btnp(3) then shopsel = shopsel % math.max(1, nrows) + 1 sfx(0) end
+  if btnp(5) then shopmode = shopmode == "buy" and "sell" or "buy" shopsel = 1 sfx(0) end
+  if btnp(4) then
+    if shopmode == "buy" then
+      local it = GEAR[shopsel]
+      if gold >= it[4] then gold = gold - it[4] give_gear(shopsel) sfx(3)
+      else sfx(5) end
+    else
+      local pick = list[shopsel]
+      if pick then
+        inv[pick] = inv[pick] - 1
+        if inv[pick] <= 0 then inv[pick] = nil end
+        gold = gold + flr(GEAR[pick][4] / 2)
+        sfx(3)
+        shopsel = 1
+      end
+    end
+  end
+  if btnp(1) then state = "world" end     -- right leaves the shop
+end
+
+function inv_list()
+  local l = {}
+  for id = 1, #GEAR do if (inv[id] or 0) > 0 then l[#l + 1] = id end end
+  return l
+end
+
+-- ══ the party / gear menu ═════════════════════════════════════════════════════
+-- Tabs: PARTY (portraits + stats), GEAR (equip per hero), ASPECTS (what is
+-- earned). X opens and closes it; up/down moves; O acts.
+function update_menu()
+  -- In the item picker, X backs out and everything else stays put.
+  if menupick then
+    local h = party[ceil2(menusel)]
+    local slot = (menusel - 1) % 2 + 1
+    local list = gear_for_slot(slot)
+    local n = #list + 1                       -- +1 for REMOVE at the top
+    if btnp(2) then menuitem = (menuitem - 2) % n + 1 sfx(0) end
+    if btnp(3) then menuitem = menuitem % n + 1 sfx(0) end
+    if btnp(5) then menupick = nil sfx(0) end
+    if btnp(4) then
+      local id = menuitem == 1 and 0 or list[menuitem - 1]
+      if slot == 1 then h.wpn = id else h.arm = id end
+      sfx(3) menupick = nil
+    end
+    return
+  end
+
+  if btnp(5) then state = "world" save_game() return end
+  if btnp(1) then menutab = menutab % 3 + 1 menusel = 1 sfx(0) return end
+  if btnp(0) then menutab = (menutab - 2) % 3 + 1 menusel = 1 sfx(0) return end
+
+  if menutab == 2 then
+    -- eight rows: each hero's weapon then armour slot
+    if btnp(2) then menusel = (menusel - 2) % 8 + 1 sfx(0) end
+    if btnp(3) then menusel = menusel % 8 + 1 sfx(0) end
+    if btnp(4) then menupick = true menuitem = 1 sfx(0) end
+  elseif menutab == 1 then
+    if btnp(2) then menusel = (menusel - 2) % 4 + 1 sfx(0) end
+    if btnp(3) then menusel = menusel % 4 + 1 sfx(0) end
+  end
+end
+
+function ceil2(n) return flr((n + 1) / 2) end
+
+function gear_for_slot(slot)
+  local l = {}
+  for id = 1, #GEAR do
+    if GEAR[id][2] == slot and (inv[id] or 0) > 0 then l[#l + 1] = id end
+  end
+  return l
+end
+
+-- ══ save / load ═══════════════════════════════════════════════════════════════
+-- The whole run in one string: party stats and gear, gold, inventory, aspects,
+-- towers cleared, and where you stood on the overworld.
+function save_game()
+  local p = {}
+  for i = 1, #party do local h = party[i]
+    p[#p + 1] = table.concat({ h.hp, h.maxhp, h.mp, h.maxmp, h.atk, h.def, h.spd,
+      h.lvl, h.xp, h.wpn, h.arm, h.alive and 1 or 0 }, ",")
+  end
+  local iv = {}
+  for id = 1, #GEAR do iv[#iv + 1] = inv[id] or 0 end
+  local wd = {}
+  for i = 1, 4 do wd[i] = wardsdown[i] and 1 or 0 end
+  local ox, oy = px, py
+  if mapname ~= "over" then ox, oy = returnx or px, returny or py end
+  local blob = table.concat({
+    "2", flr(gold), flr(aspbits),
+    table.concat(wd, ""), flr(ox), flr(oy),
+    table.concat(iv, "."), table.concat(p, "|"),
+  }, ";")
+  save("run", blob)
+end
+
+function load_game()
+  local blob = load("run")
+  if not blob or blob == "" then return false end
+  local parts = {}
+  for s in (blob .. ";"):gmatch("(.-);") do parts[#parts + 1] = s end
+  if parts[1] ~= "2" then return false end
+  new_party()
+  gold = tonumber(parts[2]) or 0
+  aspbits = tonumber(parts[3]) or 0
+  wardsdown = {}
+  for i = 1, 4 do wardsdown[i] = parts[4]:sub(i, i) == "1" end
+  local ox, oy = tonumber(parts[5]) or 1, tonumber(parts[6]) or 1
+  inv = {}
+  local id = 1
+  for c in (parts[7] .. "."):gmatch("(.-)%.") do
+    local n = tonumber(c) or 0 if n > 0 then inv[id] = n end id = id + 1
+  end
+  local hi = 1
+  for hs in (parts[8] .. "|"):gmatch("(.-)|") do
+    local f, h = {}, party[hi]
+    for v in (hs .. ","):gmatch("(.-),") do f[#f + 1] = tonumber(v) or 0 end
+    if h and #f >= 12 then
+      h.hp, h.maxhp, h.mp, h.maxmp, h.atk, h.def, h.spd, h.lvl, h.xp, h.wpn, h.arm =
+        f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9], f[10], f[11]
+      h.alive = f[12] == 1
+    end
+    hi = hi + 1
+  end
+  enter_over({ ox, oy })
+  return true
+end
+
+-- ══ init ══════════════════════════════════════════════════════════════════════
+function _init()
+  tick = 0
+  state = "title"
+  facing, step = 3, 0
+  rng = 1
+end
+
+function begin_new()
+  new_party()
+  gold, inv, aspbits = 20, {}, 0
+  wardsdown = {}
+  wardsdown[1], wardsdown[2], wardsdown[3], wardsdown[4] = false, false, false, false
+  enter_over(nil)
+  save_game()
+end
+
+-- ══ update ════════════════════════════════════════════════════════════════════
+function _update()
+  tick = tick + 1
+  if state == "title" then
+    if btnp(4) then begin_new()
+    elseif btnp(5) then if not load_game() then begin_new() end end
+    return
+  end
+  if state == "world" then
+    if btnp(5) then state = "menu" menutab, menusel, menupick = 1, 1, nil return end
+    if step > 0 then step = step - 1 end
+    local dx, dy = 0, 0
+    if btn(0) then dx = -1 elseif btn(1) then dx = 1
+    elseif btn(2) then dy = -1 elseif btn(3) then dy = 1 end
+    if (dx ~= 0 or dy ~= 0) and step == 0 then try_move(dx, dy) step = 5 end
+  elseif state == "talk" then
+    if btnp(4) or btnp(5) then msgi = msgi + 1 if msgi > #msg then state = "world" else sfx(0) end end
+  elseif state == "battle" then update_battle()
+  elseif state == "shop" then update_shop()
+  elseif state == "menu" then update_menu()
+  elseif state == "win" or state == "over" then
+    if btnp(4) then _init() end
+  end
+end
+
+-- ══ drawing ═══════════════════════════════════════════════════════════════════
+
+function draw_tile(t, sx, sy)
+  if t == "#" or t == "T" then
+    rect(sx, sy, 8, 8, 5) rect(sx + 1, sy, 6, 5, 5) rect(sx + 3, sy + 5, 2, 3, 3)
   elseif t == "~" then
     rect(sx, sy, 8, 8, 6)
     if (sx + sy + flr(tick / 8)) % 16 < 8 then pset(sx + 2, sy + 3, 7) end
   elseif t == "." then
     rect(sx, sy, 8, 8, 1) pset(sx + 2, sy + 5, 5) pset(sx + 5, sy + 2, 5)
-  elseif t == "H" then
+  elseif t == "," then
+    rect(sx, sy, 8, 8, 0) pset(sx + 1, sy + 6, 1) pset(sx + 6, sy + 1, 1)
+  elseif t == "H" or t == "I" then
     rect(sx, sy, 8, 8, 1) rect(sx + 2, sy + 1, 4, 6, 7) rect(sx + 3, sy + 2, 2, 2, 4)
+  elseif t == "S" then
+    rect(sx, sy, 8, 8, 1) rect(sx + 1, sy + 2, 6, 4, 3) rect(sx + 1, sy + 1, 6, 1, 4)
+  elseif t == "s" then
+    rect(sx, sy, 8, 8, 1) rect(sx + 3, sy + 1, 2, 6, 6) pset(sx + 3, sy, 7)
+  elseif t == "$" then
+    rect(sx, sy, 8, 8, 1) rect(sx + 1, sy + 3, 6, 4, 3) rect(sx + 1, sy + 2, 6, 1, 4) pset(sx + 3, sy + 4, 7)
+  elseif t == "<" then
+    rect(sx, sy, 8, 8, 0) rect(sx + 1, sy + 1, 6, 6, 5) print("^", sx + 2, sy + 1, 4)
+  elseif t == ">" or t == "o" then
+    rect(sx, sy, 8, 8, 0) rectb(sx + 1, sy + 1, 6, 6, 5)
+  elseif t == "B" then
+    rect(sx, sy, 8, 8, 0) rect(sx + 1, sy + 1, 6, 6, 2) pset(sx + 3, sy + 3, 4)
   elseif t == "P" then
     rect(sx, sy, 8, 8, 1) rect(sx + 3, sy - 2, 2, 12, 4) pset(sx + 3, sy, 7)
-  elseif t == "B" then
+  elseif t == "Z" then
+    rect(sx, sy, 8, 8, 1) rectb(sx + 1, sy, 6, 8, 2)
+  elseif t == "+" then
+    rect(sx, sy, 8, 8, 5) rect(sx + 2, sy + 2, 4, 6, 3)
+  elseif t == "=" then
     rect(sx, sy, 8, 8, 1)
-    if not wardbeaten then rect(sx + 1, sy + 1, 6, 6, 2) pset(sx + 3, sy + 3, 4) end
   else
-    -- path, gate, and anyone standing on it
     rect(sx, sy, 8, 8, 1)
-    if t ~= "=" and t ~= "g" then rect(sx, sy, 8, 8, 0) end
   end
 end
 
-local function draw_person(sx, sy, c)
-  rect(sx + 2, sy + 1, 4, 3, c)      -- head
-  rect(sx + 2, sy + 4, 4, 3, 7)      -- robe
-  pset(sx + 3, sy + 2, 0)
+function draw_person(sx, sy, c)
+  rect(sx + 2, sy + 1, 4, 3, c) rect(sx + 2, sy + 4, 4, 3, 7) pset(sx + 3, sy + 2, 0)
 end
 
-local function draw_world()
-  cls(1)
-  local camx = mid(0, px - VIEWW / 2, MAPW - VIEWW)
-  local camy = mid(0, py - VIEWH / 2, MAPH - VIEWH)
-  camx, camy = flr(camx), flr(camy)
-
-  for ry = 0, VIEWH - 1 do
-    for rx = 0, VIEWW - 1 do
-      local mx, my = camx + rx, camy + ry
-      local sx, sy = rx * TILE, ry * TILE + 12
-      local t = tile(mx, my)
-      draw_tile(t, sx, sy)
-      local who = FOLK[t] and t
-      if who then draw_person(sx, sy, 3) end
-    end
-  end
-
-  -- the party lead, always centred-ish
-  local hsx = (px - camx) * TILE
-  local hsy = (py - camy) * TILE + 12
+function draw_world()
+  cls((mapname == "cave" or mapname == "tower") and 0 or 1)
+  camx = flr(mid(0, px - VW / 2, gw() - VW))
+  camy = flr(mid(0, py - VH / 2, gh() - VH))
+  for ry = 0, VH - 1 do for rx = 0, VW - 1 do
+    local mx, my = camx + rx, camy + ry
+    local sx, sy = rx * TILE, ry * TILE + 12
+    local t = at(mx, my)
+    draw_tile(t, sx, sy)
+    if FOLK[t] then draw_person(sx, sy, 3) end
+  end end
+  local hsx, hsy = (px - camx) * TILE, (py - camy) * TILE + 12
   draw_person(hsx, hsy, 4)
-  -- a facing pip
-  local fx = { [0] = -1, [1] = 8, [2] = 3, [3] = 3 }
-  local fy = { [0] = 3, [1] = 3, [2] = -1, [3] = 8 }
-  pset(hsx + fx[facing], hsy + fy[facing], 7)
 
   rect(0, 0, 128, 12, 0)
   line(0, 11, 127, 11, 5)
-  print("CAUL", 2, 3, 7)
-  if wardbeaten then print("THE WARD IS DOWN", 44, 3, 4)
-  else print("FIND THE PILLAR", 46, 3, 6) end
+  local place = ({ over = "CAUL", caul = "SETTLEMENT", port = "TIDEPORT",
+    hold = "STONEHOLD", cave = "THE DEEP", tower = "TOWER" })[mapname] or "CAUL"
+  if mapname == "tower" then place = "TOWER " .. dtower .. "-" .. dfloor end
+  print(place, 2, 3, 7)
+  print(count_aspects() .. "/4", 92, 3, 4)
+  print("G" .. gold, 108, 3, 3)
 end
 
-local function draw_box(x, y, w, h, edge)
-  rect(x, y, w, h, 0)
-  rectb(x, y, w, h, edge or 5)
-end
+function draw_box(x, y, w, h, e) rect(x, y, w, h, 0) rectb(x, y, w, h, e or 5) end
 
-local function draw_talk()
+function draw_talk()
   draw_world()
   draw_box(4, 82, 120, 42, 6)
-  -- A named speaker gets their name in the header; the body lines reveal one at
-  -- a time as O is pressed, oldest at the top.
   local yy = 86
-  if msgwho then
-    print(msg[1], 8, yy, 4)
-    yy = yy + 10
-  end
+  if msgwho then print(msg[1], 8, yy, 4) yy = yy + 10 end
   local first = msgwho and 2 or 1
-  local last = first + msgi - 1
-  for i = first, mid(first, last, #msg) do
-    print(msg[i], 8, yy, 7)
-    yy = yy + 8
-  end
+  for i = first, mid(first, first + msgi - 1, #msg) do print(msg[i], 8, yy, 7) yy = yy + 8 end
   print("O", 116, 117, 3)
 end
 
-local function bar(x, y, w, cur, max, c)
+-- ── portraits: a face per sign, drawn from colour and a motif ─────────────────
+function portrait(h, x, y, big)
+  local s = big and 2 or 1
+  local c = h.alive and h.col or 5
+  rect(x, y, 16 * s, 16 * s, 1)
+  rect(x + 2 * s, y + 2 * s, 12 * s, 12 * s, c)      -- face
+  rect(x + 4 * s, y + 5 * s, 2 * s, 2 * s, 0)        -- eyes
+  rect(x + 9 * s, y + 5 * s, 2 * s, 2 * s, 0)
+  -- a sign motif on the brow
+  if h.sign == "WHALE" then rect(x + 4 * s, y + 10 * s, 8 * s, s, 6)
+  elseif h.sign == "SERPENT" then pset(x + 5 * s, y + 10 * s, 5) pset(x + 8 * s, y + 11 * s, 5) pset(x + 11 * s, y + 10 * s, 5)
+  elseif h.sign == "FLAME" then rect(x + 7 * s, y + 9 * s, 2 * s, 3 * s, 2)
+  else rect(x + 6 * s, y + 10 * s, 4 * s, s, 7) rect(x + 7 * s, y + 9 * s, 2 * s, s, 7) end
+  rectb(x, y, 16 * s, 16 * s, h.alive and 7 or 5)
+end
+
+function bar(x, y, w, cur, max, c)
   rect(x, y, w, 3, 1)
   if max > 0 then rect(x, y, flr(w * mid(0, cur, max) / max), 3, c) end
 end
 
-local function draw_battle()
+function draw_battle()
   cls(0)
-  -- foes across the top
   local n = #foes
   for i = 1, n do
     local f = foes[i]
-    local fx = flr((i - 0.5) * 128 / n)
-    local fy = 30
+    local fx, fy = flr((i - 0.5) * 128 / n), 28
     if f.alive then
-      if wardfight then
-        rect(fx - 12, fy - 10, 24, 22, f.col)
-        rect(fx - 6, fy - 4, 4, 4, 4) rect(fx + 2, fy - 4, 4, 4, 4)
-        rect(fx - 8, fy + 14, 16, 3, 2)
-      else
-        rect(fx - 6, fy - 6, 12, 12, f.col)
-        pset(fx - 3, fy - 2, 0) pset(fx + 3, fy - 2, 0)
-      end
-      -- a marker over the strike target when a hero is choosing
+      local big = f.maxhp > 100
+      if big then rect(fx - 12, fy - 12, 24, 24, f.col) rect(fx - 6, fy - 4, 4, 4, 4) rect(fx + 2, fy - 4, 4, 4, 4)
+      else rect(fx - 6, fy - 6, 12, 12, f.col) pset(fx - 3, fy - 2, 0) pset(fx + 3, fy - 2, 0) end
       if order[turn] and order[turn] <= 100 and CMDS[sel] == "STRIKE" and target == i then
-        rect(fx - 2, fy - 14, 4, 3, 4)
+        rect(fx - 2, fy - (big and 16 or 10), 4, 3, 4)
       end
-      bar(fx - 12, fy + 18, 24, f.hp, f.maxhp, 2)
-    else
-      print("X", fx - 2, fy - 2, 5)
-    end
+      bar(fx - 12, fy + (big and 14 or 8), 24, f.hp, f.maxhp, 2)
+    else print("X", fx - 2, fy - 2, 5) end
   end
+  if logt > 0 or result then draw_box(4, 48, 120, 12, 6) print(log, 8, 51, 7) end
 
-  -- the log
-  if logt > 0 or result then
-    draw_box(4, 52, 120, 12, 6)
-    print(log, 8, 55, 7)
-  end
-
-  -- the party, four rows at the bottom
-  local base = 70
+  local base = 66
   for i = 1, #party do
     local h = party[i]
-    local y = base + (i - 1) * 14
+    local y = base + (i - 1) * 15
     local acting = order[turn] and order[turn] == i and not result and anim == 0
-    if acting then rect(0, y - 1, 128, 13, h.alive and 1 or 0) end
-    local c = h.alive and h.col or 5
-    print(h.name, 2, y, c)
-    if not h.alive then print("DOWN", 2, y + 6, 5)
+    if acting then rect(0, y - 1, 128, 14, h.alive and 1 or 0) end
+    print(h.name, 2, y, h.alive and h.col or 5)
+    if not h.alive then print("DOWN", 2, y + 7, 5)
     else
-      bar(30, y + 1, 34, h.hp, h.maxhp, 2)
-      bar(30, y + 6, 34, h.mp, h.maxmp, 6)
-      print(h.hp .. "", 66, y, 7)
+      bar(30, y + 1, 32, h.hp, emaxhp(h), 2)
+      bar(30, y + 6, 32, h.mp, emaxmp(h), 6)
+      print(h.hp .. "", 64, y, 7)
     end
-    if acting then draw_menu(h, 88, y) end
+    if acting then draw_bmenu(h, 86, y) end
   end
 end
 
-function draw_menu(h, x, y)
+function draw_bmenu(h, x, y)
   for i = 1, 3 do
-    local c = (i == sel) and 4 or 1
-    if CMDS[i] == "SIGN" then
-      print((i == sel and ">" or " ") .. h.skill, x, y + (i - 1) * 4 - 4, h.mp >= h.cost and c or 5)
-    else
-      print((i == sel and ">" or " ") .. CMDS[i], x, y + (i - 1) * 4 - 4, c)
-    end
+    local c = i == sel and 4 or 1
+    local label = CMDS[i] == "SIGN" and h.skill or CMDS[i]
+    local col = (CMDS[i] == "SIGN" and h.mp < h.cost) and 5 or c
+    print((i == sel and ">" or " ") .. label, x, y + (i - 1) * 4 - 4, col)
   end
+end
+
+function draw_shop()
+  cls(0)
+  print(shopmode == "buy" and "BUY" or "SELL", 4, 4, 4)
+  print("G" .. gold, 96, 4, 3)
+  line(0, 12, 127, 12, 5)
+  local list = shopmode == "buy" and nil or inv_list()
+  local nrows = shopmode == "buy" and #GEAR or #list
+  for i = 1, nrows do
+    local id = shopmode == "buy" and i or list[i]
+    local g = GEAR[id]
+    local y = 16 + (i - 1) * 11
+    if i == shopsel then rect(0, y - 1, 128, 10, 1) end
+    print(g[1], 4, y, i == shopsel and 4 or 7)
+    print((g[2] == 1 and "ATK+" or "DEF+") .. g[3], 66, y, 6)
+    if shopmode == "buy" then print("G" .. g[4], 104, y, 3)
+    else print("x" .. (inv[id] or 0) .. " G" .. flr(g[4] / 2), 96, y, 3) end
+  end
+  if nrows == 0 then print("NOTHING TO SELL", 20, 40, 5) end
+  line(0, 116, 127, 116, 5)
+  print("O TAKE  X BUY/SELL  > LEAVE", 6, 119, 1)
+end
+
+function draw_menu()
+  cls(0)
+  local tabs = { "PARTY", "GEAR", "ASPECTS" }
+  for i = 1, 3 do
+    local x = 4 + (i - 1) * 42
+    if i == menutab then rect(x - 2, 2, 40, 10, 1) end
+    print(tabs[i], x, 4, i == menutab and 4 or 5)
+  end
+  line(0, 13, 127, 13, 5)
+
+  if menutab == 1 then
+    for i = 1, 4 do
+      local h = party[i]
+      local y = 16 + (i - 1) * 27
+      portrait(h, 4, y, false)
+      print(h.name, 24, y, h.col)
+      print(h.sign, 24, y + 6, 5)
+      print("LV" .. h.lvl, 96, y, 7)
+      bar(24, y + 13, 46, h.hp, emaxhp(h), 2)
+      bar(24, y + 18, 46, h.mp, emaxmp(h), 6)
+      print("A" .. eatk(h) .. " D" .. edef(h), 76, y + 13, 4)
+      print("HP" .. h.hp .. "/" .. emaxhp(h), 76, y + 19, 1)
+    end
+  elseif menutab == 2 then
+    for i = 1, 4 do
+      local h = party[i]
+      local y = 16 + (i - 1) * 25
+      portrait(h, 2, y, false)
+      print(h.name, 22, y, h.col)
+      local wn = h.wpn > 0 and GEAR[h.wpn][1] or "-"
+      local an = h.arm > 0 and GEAR[h.arm][1] or "-"
+      local wrow, arow = (i - 1) * 2 + 1, (i - 1) * 2 + 2
+      if menusel == wrow then rect(20, y + 7, 108, 8, 1) end
+      if menusel == arow then rect(20, y + 14, 108, 8, 1) end
+      print("W:" .. wn, 22, y + 8, menusel == wrow and 4 or 6)
+      print("A:" .. an, 22, y + 15, menusel == arow and 4 or 6)
+    end
+    print("O:EQUIP  <>:TAB  X:BACK", 6, 119, 1)
+    if menupick then draw_picker() end
+  else
+    for i = 1, 4 do
+      local a = ASPECTS[i]
+      local y = 18 + (i - 1) * 22
+      local got = has_aspect(i)
+      rectb(6, y, 18, 18, got and 4 or 1)
+      if got then rect(9, y + 3, 12, 12, ({ 6, 2, 4, 7 })[i]) end
+      print(a[1], 30, y, got and 4 or 5)
+      print(a[3], 30, y + 8, got and 7 or 1)
+    end
+    print(count_aspects() .. " OF 4 ASPECTS", 24, 108, 4)
+    if aspbits >= 15 then print("THE LAST GATE IS OPEN", 12, 116, 2) end
+  end
+end
+
+function draw_picker()
+  local h = party[ceil2(menusel)]
+  local slot = (menusel - 1) % 2 + 1
+  local list = gear_for_slot(slot)
+  draw_box(28, 24, 72, 84, 4)
+  print(h.name .. " " .. (slot == 1 and "WEAPON" or "ARMOUR"), 32, 28, 4)
+  local rows = { "REMOVE" }
+  for _, id in ipairs(list) do rows[#rows + 1] = id end
+  for i = 1, #rows do
+    local y = 40 + (i - 1) * 9
+    if i == menuitem then rect(30, y - 1, 68, 8, 1) end
+    if rows[i] == "REMOVE" then print("- NONE", 34, y, 5)
+    else local g = GEAR[rows[i]] print(g[1], 34, y, 7) print("+" .. g[3], 84, y, 6) end
+  end
+end
+
+function draw_title()
+  cls(1)
+  rect(0, 92, 128, 36, 6)
+  rect(60, 8, 8, 96, 4) rect(63, 0, 2, 108, 7)
+  for i = 0, 3 do draw_person(28 + i * 18, 82, ({ 6, 5, 2, 4 })[i + 1]) end
+  rect(0, 40, 128, 34, 0)
+  print("VEILWALKERS", (128 - 11 * 4 * 2) / 2, 44, 6, 2)
+  print("O  NEW", 30, 60, 5)
+  print("X  CONTINUE", 30, 68, 7)
 end
 
 function draw_win()
   cls(0)
-  -- the Veil goes dark: the screen empties as the pillar rises
-  local t = tick % 200
   for i = 0, 40 do
-    local a = (i * 97) % 128
-    local b = (i * 53) % 90 + 12
-    if (i * 7 + flr(tick / 3)) % 40 > (tick / 3) % 40 then pset(a, b, 1) end
+    if (i * 7 + flr(tick / 3)) % 40 > (tick / 3) % 40 then pset((i * 97) % 128, (i * 53) % 90 + 12, 1) end
   end
-  rect(61, 20, 6, 100, 4)
-  rect(63, 10, 2, 110, 7)
-  draw_box(10, 44, 108, 40, 4)
+  rect(61, 10, 6, 110, 4) rect(63, 4, 2, 116, 7)
+  draw_box(8, 44, 112, 42, 4)
   print("THE VEIL GOES DARK", 22, 50, 4)
   print("CAUL ENDS.", 44, 60, 7)
   print("AMEBRAK IS BORN.", 30, 68, 6)
-  print("PRESS O", 50, 76, 3)
+  print("PRESS O", 50, 78, 3)
 end
 
 function _draw()
-  if state == "world" then draw_world()
+  if state == "title" then draw_title()
+  elseif state == "world" then draw_world()
   elseif state == "talk" then draw_talk()
   elseif state == "battle" then draw_battle()
+  elseif state == "shop" then draw_shop()
+  elseif state == "menu" then draw_menu()
   elseif state == "win" then draw_win()
   elseif state == "over" then
-    cls(0)
-    draw_box(14, 50, 100, 28, 2)
-    print("THE LINEAGE FALLS", 24, 58, 2)
-    print("PRESS O", 50, 68, 3)
+    cls(0) draw_box(14, 50, 100, 28, 2)
+    print("THE LINEAGE FALLS", 24, 58, 2) print("PRESS O", 50, 68, 3)
   end
 end
 
 function _cover()
-  -- Drawn on purpose rather than a screenshot: the pillar, the shore, and the
-  -- four walkers in their sign colours, which is what the game is about.
   cls(1)
   rect(0, 96, 128, 32, 6)
-  rect(60, 8, 8, 100, 4)
-  rect(63, 0, 2, 112, 7)
+  rect(60, 8, 8, 100, 4) rect(63, 0, 2, 112, 7)
   for i = 0, 3 do draw_person(30 + i * 18, 84, ({ 6, 5, 2, 4 })[i + 1]) end
   rect(0, 102, 128, 26, 0)
   print("VEILWALKERS", (128 - 11 * 4 * 2) / 2, 110, 6, 2)
