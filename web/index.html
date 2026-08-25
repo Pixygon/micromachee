@@ -116,7 +116,6 @@
 </div>
 
 <div id="err"></div>
-<div id="shelf"></div>
 
 <div id="deck" class="hidden">
   <div id="body">
@@ -149,13 +148,14 @@
 
 <script src="./node_modules/wasmoon/dist/index.js"></script>
 <script type="module">
-import { loadCart, blit, localStore, THEMES, W, H } from "./micromachee.js";
+import { loadCart, blit, localStore, THEMES, W, H, Screen } from "./micromachee.js";
 import { Mega, megaCover, MEGA_ID, MEGA_TITLE, MEGA_ABOUT } from "./mega.js";
 // One request for the whole shelf: the catalog carries each cart's source, and
 // .json is the only thing the CDN sends CORS headers for anyway. The url is
 // generated from the helper, so the page always asks for a shelf that exists.
 import { CATALOG } from "./console-data.js";
 import { Speaker } from "./sound.js";
+import { Browse } from "./browse.js";
 
 const speaker = new Speaker();
 const FPS = 30;
@@ -167,7 +167,6 @@ let themeIds = Object.keys(THEMES);
 let theme = themeIds[0];
 let carts = [];
 let running = null;      // the cart being played
-let armed = null;        // chosen, waiting for X
 let held = 0;
 // Bits pressed since the last frame was handed to the cart. A tap that goes
 // down and up between two frames would otherwise be sampled as "never pressed",
@@ -177,7 +176,16 @@ let timer = null;
 
 const palette = () => THEMES[theme];
 
-// ── the shelf ──────────────────────────────────────────────────────────────
+// ── the shelf, drawn INSIDE the console ──────────────────────────────────────
+// The console is always on screen; the shelf is a Browse frame drawn onto it,
+// navigated by the same buttons a game uses — the browser twin of what the
+// desktop plugin does. There is no HTML grid to lose its pictures on the way
+// back, and the theme is the palette every frame is blitted with, so it swaps
+// live whether you are on the shelf or inside a game.
+let shelfBrowse = null;
+let loading = false;
+const ctx = () => $("screen").getContext("2d");
+
 async function buildShelf() {
   let list;
   try {
@@ -187,172 +195,124 @@ async function buildShelf() {
     return;
   }
   carts = [
-    { id: MEGA_ID, title: MEGA_TITLE, about: MEGA_ABOUT, author: "pixygon", code: "" },
+    { id: MEGA_ID, title: MEGA_TITLE, about: MEGA_ABOUT, author: "pixygon", code: "", isMega: true },
     ...(list.carts || []),
   ];
-  $("shelf").innerHTML = "";
-  for (const entry of carts) {
-    const el = document.createElement("button");
-    el.className = "cart";
-    el.innerHTML = `<canvas width="${W}" height="${H}"></canvas><div class="name"></div>`;
-    el.querySelector(".name").textContent = entry.title;
-    el.onclick = () => choose(entry);
-    $("shelf").appendChild(el);
-    entry._canvas = el.querySelector("canvas");
-    drawCover(entry);   // fetched and drawn per cart, so one slow one blocks nothing
-  }
+
+  // The console shows immediately; covers fill in as each renders.
+  $("deck").classList.remove("hidden");
+  document.body.classList.add("playing");
+  fitScreen();
+
+  const entries = carts.map((c) => ({
+    id: c.id, title: c.title, author: c.author || "pixygon",
+    about: c.about || "", best: 0, inMega: c.mega !== false && !c.isMega,
+    isMega: !!c.isMega, art: new Screen(),
+  }));
+  shelfBrowse = new Browse(entries, false);  // no make tile: the web cannot generate
+  startLoop();
+
+  // Render each cover into its Browse entry's Screen. One slow cart blocks none.
+  for (let i = 0; i < carts.length; i++) renderCover(carts[i], entries[i]);
 }
 
-/// The cover is drawn by running the cart's own `_cover()` — the same thing the
-/// console does, because it is the same console.
-async function drawCover(entry) {
-  if (entry.id === MEGA_ID) {
-    blit(megaCover(), entry._canvas.getContext("2d"), palette(), 1);
-    return;
-  }
+async function renderCover(entry, into) {
   try {
+    if (entry.isMega) { into.art.px.set(megaCover().px); return; }
     const cart = await loadCart(factory, entry.code);
     cart.init();
     if (cart.hasCover()) cart.cover();
-    else for (let i = 0; i < 45; i++) { cart.update(); cart.draw(); }
-    blit(cart.screen, entry._canvas.getContext("2d"), palette(), 1);
+    else for (let k = 0; k < 45; k++) { cart.update(); cart.draw(); }
+    into.art.px.set(cart.screen.px);
     cart.close();
-  } catch (e) {
-    /* a cart that will not load simply has no picture */
-  }
+  } catch (e) { /* a cart that will not load simply has no picture */ }
 }
 
-// ── playing ────────────────────────────────────────────────────────────────
-async function choose(entry) {
-  stop();
+// ── the one loop: play a cart, or show the shelf ─────────────────────────────
+function startLoop() {
+  if (timer) return;
+  timer = setInterval(() => {
+    const input = held | latch;
+    latch = 0;
+    if (running) {
+      running.setHeld(input);
+      try { running.update(); running.draw(); }
+      catch (e) { $("err").textContent = String(e.message || e); backToShelf(); return; }
+      blit(running.screen, ctx(), palette(), 1);
+    } else if (running === null && megaRun) {
+      // handled by its own async ticker
+    } else if (shelfBrowse && !loading) {
+      const scr = shelfBrowse.frame(input);
+      blit(scr, ctx(), palette(), 1);
+      if (shelfBrowse.picked) {
+        const id = shelfBrowse.picked;
+        shelfBrowse.picked = null;
+        playById(id);
+      }
+    }
+  }, 1000 / FPS);
+}
+
+let megaRun = null;
+
+async function playById(id) {
+  const entry = carts.find((c) => c.id === id);
+  if (!entry) return;
   $("err").textContent = "";
-  $("shelf").classList.add("hidden");
-  $("deck").classList.remove("hidden");
   $("back").classList.remove("hidden");
-  document.body.classList.add("playing");
-  fitScreen();
-  $("title").textContent = entry.title;
-  $("score").textContent = "0";
-  fitScreen();
-
-  if (entry.id === MEGA_ID) {
-    // Nothing to load: its cover is drawn, and X builds the meta-game.
-    const shot = megaCover();
-    blit(shot, $("screen").getContext("2d"), palette(), 1);
-    armed = { entry, cart: { close() {}, screen: shot } };
-    showStart(entry);
-    return;
-  }
-  const cart = await loadCart(factory, entry.code, {
-    onSfx: (n) => speaker.play(n),
-    onScore: (n) => ($("score").textContent = String(n)),
-    storage: localStore(entry.id),
-  });
-  cart.init();
-  if (cart.hasCover()) cart.cover();
-  else cart.draw();
-  paint(cart);
-  armed = { entry, cart };
-  showStart(entry);
-}
-
-/// The cover, the prompt, and the card behind O.
-function showStart(entry) {
-  $("infoTitle").textContent = entry.title;
-  $("infoAbout").textContent = entry.about || "";
-  $("infoBy").textContent = "by " + (entry.author || "pixygon");
-  $("info").classList.add("hidden");
-  $("start").classList.remove("hidden");
-}
-
-function toggleInfo() {
-  if (!armed) return;
-  const showing = !$("info").classList.contains("hidden");
-  $("info").classList.toggle("hidden", showing);
-  $("start").classList.toggle("hidden", !showing);
-}
-
-function start() {
-  if (!armed) return;
-  $("start").classList.add("hidden");
-  $("info").classList.add("hidden");
-  if (armed.entry.id === MEGA_ID) { startMega(); return; }
-  // A fresh engine, so a cover drawn from `_init` never leaks into the game.
-  const { entry } = armed;
-  armed.cart.close();
-  armed = null;
-  // The X that started the game is not a move in it. Without this the press
-  // carries into the first frame and the cart acts on it.
-  held = 0;
-  latch = 0;
-  paintKeys();
-  loadCart(factory, entry.code, {
-    onSfx: (n) => speaker.play(n),
-    onScore: (n) => ($("score").textContent = String(n)),
-    // Per cart, in this browser: a farm planted today is still growing tomorrow.
-    storage: localStore(entry.id),
-  })
-    .then((cart) => {
-      running = cart;
-      cart.init();
-      timer = setInterval(() => {
-        cart.setHeld(held | latch);
-        latch = 0;
-        try { cart.update(); cart.draw(); }
-        catch (e) { $("err").textContent = String(e.message || e); stop(); return; }
-        paint(cart);
-      }, 1000 / FPS);
-    });
-}
-
-/// The meta-game runs the same loop, except a round begins with an await, so
-/// each tick is skipped rather than overlapped while one is loading.
-function startMega() {
-  const { entry } = armed;
-  armed.cart.close();
-  armed = null;
   held = 0; latch = 0; paintKeys();
+
+  if (entry.isMega) { startMega(); return; }
+  loading = true;
+  try {
+    const cart = await loadCart(factory, entry.code, {
+      onSfx: (n) => speaker.play(n),
+      onScore: (n) => ($("score").textContent = String(n)),
+      storage: localStore(entry.id),
+    });
+    cart.init();
+    running = cart;
+  } catch (e) {
+    $("err").textContent = String(e.message || e);
+  }
+  loading = false;
+}
+
+/// The meta-game runs its own async ticker, since a round begins with an await.
+function startMega() {
+  loading = true;
   const mega = new Mega(factory, carts, (n) => speaker.play(n));
-  running = { close() {}, screen: mega.out, mega };
+  megaRun = mega;
+  running = { close() {}, screen: mega.out, mega, isMegaHost: true };
+  loading = false;
   let busy = false;
-  timer = setInterval(async () => {
-    if (busy) return;
+  megaTimer = setInterval(async () => {
+    if (busy || !megaRun) return;
     busy = true;
     try {
       await mega.step(held | latch);
       latch = 0;
       $("score").textContent = String(mega.score);
-      blit(mega.out, $("screen").getContext("2d"), palette(), 1);
-    } catch (e) {
-      $("err").textContent = String(e.message || e);
-      stop();
-    }
+      blit(mega.out, ctx(), palette(), 1);
+    } catch (e) { $("err").textContent = String(e.message || e); backToShelf(); }
     busy = false;
   }, 1000 / FPS);
-  void entry;
 }
+let megaTimer = null;
 
-function stop() {
-  if (timer) { clearInterval(timer); timer = null; }
-  if (running) { running.close(); running = null; }
-  if (armed) { armed.cart.close(); armed = null; }
-  held = 0;
-  paintKeys();
-}
-
-function toShelf() {
-  stop();
-  document.body.classList.remove("playing");
-  $("info").classList.add("hidden");
-  $("deck").classList.add("hidden");
+function backToShelf() {
+  if (megaTimer) { clearInterval(megaTimer); megaTimer = null; }
+  megaRun = null;
+  if (running) { running.close && running.close(); running = null; }
+  held = 0; latch = 0; paintKeys();
   $("back").classList.add("hidden");
-  $("shelf").classList.remove("hidden");
-  $("start").classList.add("hidden");
+  $("err").textContent = "";
+  // the console stays on screen; the loop resumes drawing the shelf
 }
 
-function paint(cart) {
-  blit(cart.screen, $("screen").getContext("2d"), palette(), 1);
-}
+// kept as the name the buttons/keys call
+function stop() { backToShelf(); }
+function toShelf() { backToShelf(); }
 
 /// One console pixel is a whole number of screen pixels, always: at a
 /// fractional scale some pixels are wider than others and the screen shimmers.
@@ -390,13 +350,11 @@ function setBit(bit, down) {
   if (down) latch |= 1 << bit;
   held = next;
   paintKeys();
-  // X plays; O is the other one — it shows what the game is.
-  if (armed && down && bit === 5) start();
-  else if (armed && down && bit === 4) toggleInfo();
 }
 
 addEventListener("keydown", (e) => {
   if (e.key === "Escape") { toShelf(); return; }
+  if (e.key === "t" || e.key === "T") { $("theme").onclick(); return; }
   const bit = KEYS[e.key];
   if (bit === undefined) return;
   e.preventDefault();
@@ -421,10 +379,11 @@ $("back").onclick = toShelf;
 $("theme").onclick = () => {
   theme = themeIds[(themeIds.indexOf(theme) + 1) % themeIds.length];
   $("theme").textContent = "theme: " + theme;
-  for (const entry of carts) if (entry._canvas) drawCover(entry);
-  if (running) paint(running);
-  else if (armed) paint(armed.cart);
-};
+  // Everything is blitted with palette() every frame, so the swap is live on the
+  // shelf and inside a game alike; this just avoids a one-frame wait.
+  if (running) blit(running.screen, ctx(), palette(), 1);
+  else if (shelfBrowse) blit(shelfBrowse.out, ctx(), palette(), 1);
+}
 addEventListener("resize", fitScreen);
 addEventListener("orientationchange", () => setTimeout(fitScreen, 100));
 
