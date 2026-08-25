@@ -238,7 +238,7 @@ local map, mapname, portals, camx, camy
 local px, py, step, facing
 local gold, inv                     -- inv[id] = count
 local msg, msgi, msgwho
-local shopsel, shopmode, menutab, menusel, menupick, menuitem
+local shopsel, shopmode, menutab, menusel, menupick, menuitem, menuchar
 local dungeon, dfloor, dtower, dreturn
 local returnmap, returnx, returny   -- where a town/dungeon exit drops you
 local wardsdown                     -- wardsdown[i] = true
@@ -579,7 +579,14 @@ function hurt(x, amt)
   amt = flr(amt) if amt < 1 then amt = 1 end
   x.hp = x.hp - amt
   if x.hp <= 0 then x.hp, x.alive = 0, false end
+  -- feedback the battle reads every frame: a white flash and a rising number
+  x.flash, x.dmg, x.dmgt, x.heal = 6, amt, 26, false
   return amt
+end
+
+-- a heal or restore, shown the same way but in green
+function mend_show(x, amt)
+  if amt and amt > 0 then x.dmg, x.dmgt, x.heal = amt, 26, true end
 end
 
 function do_hero(h, action)
@@ -659,7 +666,9 @@ function apply_skill(h, sk)
     local who = most_hurt(true) or h
     local amt = 16 + eatk(h)
     if not who.alive then who.alive = true amt = flr(emaxhp(who) / 2) end
+    local before = who.hp
     who.hp = mid(0, who.hp + amt, emaxhp(who))
+    mend_show(who, who.hp - before)
     saylog(h.name .. " MENDS " .. who.name) sfx(6)
   elseif kind == "regen" then
     local who = most_hurt(false) or h
@@ -756,8 +765,19 @@ end
 local CMDS = { "STRIKE", "SKILL", "GUARD" }
 local picking, skillsel, turnticked
 
+-- fade the per-combatant hit flashes and floating numbers, every frame
+function tick_feedback()
+  local function fade(c)
+    if c.flash and c.flash > 0 then c.flash = c.flash - 1 end
+    if c.dmgt and c.dmgt > 0 then c.dmgt = c.dmgt - 1 end
+  end
+  for i = 1, #party do fade(party[i]) end
+  for i = 1, #foes do fade(foes[i]) end
+end
+
 function update_battle()
   if logt > 0 then logt = logt - 1 end
+  tick_feedback()
 
   if result and logt <= 0 then
     if result == "won" or result == "aspect" then
@@ -888,9 +908,17 @@ function update_menu()
     return
   end
 
+  -- a hero's own page: X returns to the list, up/down flips between heroes
+  if menuchar then
+    if btnp(5) then menuchar = nil sfx(0) return end
+    if btnp(2) then menuchar = (menuchar - 2) % 4 + 1 sfx(0) end
+    if btnp(3) then menuchar = menuchar % 4 + 1 sfx(0) end
+    return
+  end
+
   if btnp(5) then state = "world" save_game() return end
-  if btnp(1) then menutab = menutab % 4 + 1 menusel = 1 sfx(0) return end
-  if btnp(0) then menutab = (menutab - 2) % 4 + 1 menusel = 1 sfx(0) return end
+  if btnp(1) then menutab = menutab % 4 + 1 menusel = 1 menuchar = nil sfx(0) return end
+  if btnp(0) then menutab = (menutab - 2) % 4 + 1 menusel = 1 menuchar = nil sfx(0) return end
 
   if menutab == 2 then
     -- eight rows: each hero's weapon then armour slot
@@ -909,6 +937,8 @@ function update_menu()
   else
     if btnp(2) then menusel = (menusel - 2) % 4 + 1 sfx(0) end
     if btnp(3) then menusel = menusel % 4 + 1 sfx(0) end
+    -- on the PARTY tab, O opens the selected hero's full page
+    if menutab == 1 and btnp(4) then menuchar = menusel sfx(3) end
   end
 end
 
@@ -1004,7 +1034,7 @@ function _update()
     return
   end
   if state == "world" then
-    if btnp(5) then state = "menu" menutab, menusel, menupick = 1, 1, nil return end
+    if btnp(5) then state = "menu" menutab, menusel, menupick, menuchar = 1, 1, nil, nil return end
     if step > 0 then step = step - 1 end
     local dx, dy = 0, 0
     if btn(0) then dx = -1 elseif btn(1) then dx = 1
@@ -1044,8 +1074,20 @@ function draw_tile(t, sx, sy)
     rect(sx, sy, 8, 8, 0) rect(sx + 1, sy + 1, 6, 6, 5) print("^", sx + 2, sy + 1, 4)
   elseif t == ">" or t == "o" then
     rect(sx, sy, 8, 8, 0) rectb(sx + 1, sy + 1, 6, 6, 5)
-  elseif t == "B" then
-    rect(sx, sy, 8, 8, 0) rect(sx + 1, sy + 1, 6, 6, 2) pset(sx + 3, sy + 3, 4)
+  elseif t == "A" or t == "B" or t == "C" then
+    -- a town gate: a building with a lit doorway you can actually find
+    rect(sx, sy, 8, 8, 1)
+    rect(sx, sy + 1, 8, 7, 5) rect(sx, sy + 1, 8, 1, 4)   -- walls + bright lintel
+    rect(sx + 3, sy + 3, 3, 5, 2) pset(sx + 4, sy + 5, 4) -- the doorway, and a lamp
+  elseif t == "1" or t == "2" or t == "3" or t == "4" then
+    -- a tower entrance: a tall dark spire with a doorway
+    rect(sx, sy, 8, 8, 1)
+    rect(sx + 1, sy - 3, 6, 11, 6) rect(sx + 2, sy - 4, 4, 1, 4)
+    rect(sx + 3, sy + 4, 2, 4, 2) pset(sx + 3, sy - 3, 7)
+  elseif t == "x" or t == "y" then
+    -- a cave mouth: a rock face with a black opening
+    rect(sx, sy, 8, 8, 5)
+    rect(sx + 2, sy + 2, 4, 6, 0) pset(sx + 2, sy + 2, 6) pset(sx + 5, sy + 2, 6)
   elseif t == "P" then
     rect(sx, sy, 8, 8, 1) rect(sx + 3, sy - 2, 2, 12, 4) pset(sx + 3, sy, 7)
   elseif t == "Z" then
@@ -1099,19 +1141,26 @@ function draw_talk()
   print("O", 116, 117, 3)
 end
 
--- ── portraits: a face per sign, drawn from colour and a motif ─────────────────
-function portrait(h, x, y, big)
-  local s = big and 2 or 1
+-- ── portraits: an actual face per sign, drawn from colour and a motif ─────────
+-- `s` is the pixel scale: 1 in the lists, larger on a hero's own page.
+function portrait(h, x, y, s)
+  s = s or 1
   local c = h.alive and h.col or 5
-  rect(x, y, 16 * s, 16 * s, 1)
-  rect(x + 2 * s, y + 2 * s, 12 * s, 12 * s, c)      -- face
-  rect(x + 4 * s, y + 5 * s, 2 * s, 2 * s, 0)        -- eyes
-  rect(x + 9 * s, y + 5 * s, 2 * s, 2 * s, 0)
-  -- a sign motif on the brow
-  if h.sign == "WHALE" then rect(x + 4 * s, y + 10 * s, 8 * s, s, 6)
-  elseif h.sign == "SERPENT" then pset(x + 5 * s, y + 10 * s, 5) pset(x + 8 * s, y + 11 * s, 5) pset(x + 11 * s, y + 10 * s, 5)
-  elseif h.sign == "FLAME" then rect(x + 7 * s, y + 9 * s, 2 * s, 3 * s, 2)
-  else rect(x + 6 * s, y + 10 * s, 4 * s, s, 7) rect(x + 7 * s, y + 9 * s, 2 * s, s, 7) end
+  local dark = h.alive and 1 or 0
+  local function q(a, b, w, hh, cc) rect(x + a * s, y + b * s, w * s, hh * s, cc) end
+  q(0, 0, 16, 16, 1)                                 -- backing
+  q(3, 3, 10, 11, c)                                 -- head
+  q(2, 5, 1, 6, c) q(13, 5, 1, 6, c)                 -- cheeks
+  q(3, 2, 10, 2, 0) q(2, 3, 2, 2, 0) q(12, 3, 2, 2, 0)   -- hair
+  q(5, 7, 2, 2, 7) q(9, 7, 2, 2, 7)                  -- eye whites
+  q(5, 8, 1, 1, 0) q(10, 8, 1, 1, 0)                 -- pupils
+  q(8, 9, 1, 2, dark)                                -- nose
+  q(6, 12, 4, 1, 0)                                  -- mouth
+  -- the sign, worn on the brow
+  if h.sign == "WHALE" then q(5, 5, 6, 1, 6)
+  elseif h.sign == "SERPENT" then q(5, 5, 1, 1, 5) q(8, 6, 1, 1, 5) q(11, 5, 1, 1, 5)
+  elseif h.sign == "FLAME" then q(7, 4, 2, 3, 2)
+  else q(7, 5, 2, 1, 7) q(8, 4, 1, 3, 7) end
   rectb(x, y, 16 * s, 16 * s, h.alive and 7 or 5)
 end
 
@@ -1139,14 +1188,21 @@ function draw_battle()
     local fx, fy = flr((i - 0.5) * 128 / n), 28
     if f.alive then
       local big = f.maxhp > 100
-      if big then rect(fx - 12, fy - 12, 24, 24, f.col) rect(fx - 6, fy - 4, 4, 4, 4) rect(fx + 2, fy - 4, 4, 4, 4)
-      else rect(fx - 6, fy - 6, 12, 12, f.col) pset(fx - 3, fy - 2, 0) pset(fx + 3, fy - 2, 0) end
+      -- a white flash on the frames just after a hit lands
+      local bc = (f.flash and f.flash > 0) and 7 or f.col
+      if big then rect(fx - 12, fy - 12, 24, 24, bc) rect(fx - 6, fy - 4, 4, 4, 4) rect(fx + 2, fy - 4, 4, 4, 4)
+      else rect(fx - 6, fy - 6, 12, 12, bc) pset(fx - 3, fy - 2, 0) pset(fx + 3, fy - 2, 0) end
       if order[turn] and order[turn] <= 100 and CMDS[sel] == "STRIKE" and target == i then
         rect(fx - 2, fy - (big and 16 or 10), 4, 3, 4)
       end
       bar(fx - 12, fy + (big and 14 or 8), 24, f.hp, f.maxhp, 2)
       status_pips(f, fx - 10, fy + (big and 18 or 12))
     else print("X", fx - 2, fy - 2, 5) end
+    -- the rising damage number over whoever was just struck
+    if f.dmgt and f.dmgt > 0 then
+      local s = "" .. f.dmg
+      print(s, fx - #s * 2, fy - 14 - flr((26 - f.dmgt) / 3), f.heal and 5 or 4)
+    end
   end
   if logt > 0 or result then draw_box(4, 48, 120, 12, 6) print(log, 8, 51, 7) end
 
@@ -1156,6 +1212,8 @@ function draw_battle()
     local y = base + (i - 1) * 15
     local acting = order[turn] and order[turn] == i and not result and anim == 0
     if acting then rect(0, y - 1, 128, 14, h.alive and 1 or 0) end
+    -- a hit flashes the row red for a couple of frames
+    if h.flash and h.flash > 0 then rect(0, y - 1, 128, 14, 2) end
     print(h.name, 2, y, h.alive and h.col or 5)
     if not h.alive then print("DOWN", 2, y + 7, 5)
     else
@@ -1164,15 +1222,26 @@ function draw_battle()
       print(h.hp .. "", 64, y, 7)
       status_pips(h, 78, y + 6)
     end
+    -- the number, floating up from the hero's row
+    if h.dmgt and h.dmgt > 0 then
+      local s = "" .. h.dmg
+      print((h.heal and "+" or "-") .. s, 64, y - flr((26 - h.dmgt) / 4), h.heal and 5 or 4)
+    end
     if acting then draw_bmenu(h, 86, y) end
   end
 end
 
 function draw_bmenu(h, x, y)
   if picking then draw_skillmenu(h) return end
+  -- a proper boxed menu, not three lines crammed into one row. Fixed on the
+  -- right so it reads the same wherever in the order the acting hero sits.
+  local bx, by, bw = 82, 60, 44
+  draw_box(bx, by, bw, 40, 4)
+  print(h.name, bx + 3, by + 3, h.col)
   for i = 1, 3 do
-    local c = i == sel and 4 or 1
-    print((i == sel and ">" or " ") .. CMDS[i], x, y + (i - 1) * 4 - 4, c)
+    local yy = by + 12 + (i - 1) * 9
+    if i == sel then rect(bx + 2, yy - 1, bw - 4, 8, 1) end
+    print((i == sel and ">" or " ") .. CMDS[i], bx + 3, yy, i == sel and 4 or 7)
   end
 end
 
@@ -1225,10 +1294,12 @@ function draw_menu()
   line(0, 13, 127, 13, 5)
 
   if menutab == 1 then
+    if menuchar then draw_charpage(party[menuchar]) return end
     for i = 1, 4 do
       local h = party[i]
-      local y = 16 + (i - 1) * 27
-      portrait(h, 4, y, false)
+      local y = 16 + (i - 1) * 25
+      if i == menusel then rect(0, y - 1, 128, 24, 1) end
+      portrait(h, 4, y, 1)
       print(h.name, 24, y, h.col)
       print(h.sign, 24, y + 6, 5)
       print("LV" .. h.lvl, 96, y, 7)
@@ -1237,6 +1308,7 @@ function draw_menu()
       print("A" .. eatk(h) .. " D" .. edef(h), 76, y + 13, 4)
       print("HP" .. h.hp .. "/" .. emaxhp(h), 76, y + 19, 1)
     end
+    print("O:VIEW  <>:TAB  X:BACK", 6, 119, 1)
   elseif menutab == 2 then
     for i = 1, 4 do
       local h = party[i]
@@ -1285,6 +1357,37 @@ function draw_menu()
     print(count_aspects() .. " OF 4 ASPECTS", 24, 108, 4)
     if aspbits >= 15 then print("THE LAST GATE IS OPEN", 12, 116, 2) end
   end
+end
+
+-- a hero's full page: the big portrait, every stat, gear and the signs learned
+function draw_charpage(h)
+  portrait(h, 6, 18, 4)                               -- a 64x64 face
+  print(h.name, 6, 86, h.col)
+  print(h.sign, 6, 94, 5)
+  print("LV" .. h.lvl, 6, 102, 7)
+  print("XP " .. (h.xp or 0), 6, 110, 1)
+
+  local x = 78
+  print("HP " .. h.hp .. "/" .. emaxhp(h), x, 18, 2)
+  bar(x, 25, 44, h.hp, emaxhp(h), 2)
+  print("MP " .. h.mp .. "/" .. emaxmp(h), x, 31, 6)
+  bar(x, 38, 44, h.mp, emaxmp(h), 6)
+  print("ATK " .. eatk(h), x, 45, 4)
+  print("DEF " .. edef(h), x, 53, 4)
+  print("SPD " .. espd(h), x, 61, 4)
+  print("JOB " .. job_of(h)[1], x, 69, 3)
+  print("W:" .. (h.wpn > 0 and GEAR[h.wpn][1] or "-"), x, 79, 6)
+  print("A:" .. (h.arm > 0 and GEAR[h.arm][1] or "-"), x, 87, 6)
+
+  print("SIGNS", 6, 118, 5)
+  local sl = skills_for(h)
+  local sx = 34
+  for i = 1, #sl do
+    if sx > 118 then break end
+    print(sl[i][1], sx, 118, 7)
+    sx = sx + #sl[i][1] * 4 + 4
+  end
+  print("UP/DN  X:BACK", 78, 118, 1)
 end
 
 function draw_picker()

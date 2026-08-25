@@ -24,6 +24,7 @@
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
     -webkit-touch-callout: none;
+    user-select: none; -webkit-user-select: none;
   }
   /* while a cart is running the page is the console — lock it to the viewport
      so the address bar and scroll cannot fight the controls */
@@ -52,6 +53,14 @@
   #body { background: #1c1c24; border-radius: 14px; padding: 14px; }
   #bezel { background: #000; border-radius: 8px; padding: 6px; line-height: 0; }
   canvas#screen { image-rendering: pixelated; display: block; }
+  /* the console's own two buttons, one per side above the screen */
+  #chassis { display: flex; justify-content: space-between; align-items: center;
+             margin-bottom: 6px; padding: 0 2px; }
+  .iconbtn { width: 28px; height: 22px; display: flex; align-items: center; justify-content: center;
+             background: #26262f; border: 1px solid #33333f; border-radius: 5px; color: var(--dim);
+             cursor: pointer; padding: 0; user-select: none; touch-action: manipulation; }
+  .iconbtn:hover { color: var(--ink); border-color: #4a4a5c; }
+  .iconbtn svg { width: 15px; height: 15px; display: block; }
 
   #pad { display: flex; align-items: center; justify-content: space-between;
          width: 100%; margin-top: 12px; gap: 12px; }
@@ -66,10 +75,6 @@
   .brand { color: #55556a; letter-spacing: 3px; font-size: 11px; text-align: center; }
   .brand small { display: block; letter-spacing: 1px; font-size: 9px; opacity: 0.75; }
 
-  #meta { display: flex; justify-content: space-between; width: 100%;
-          max-width: 420px; color: var(--dim); font-size: 13px; }
-  #meta b { color: var(--ink); font-weight: 600; }
-  #hint { color: var(--dim); font-size: 12px; text-align: center; }
   #info { position: absolute; inset: 0; background: rgba(0,0,0,.93);
           display: flex; flex-direction: column; justify-content: center;
           gap: 8px; padding: 18px; text-align: center; }
@@ -84,14 +89,12 @@
   button.plain { background: none; border: 1px solid #2a2a34; color: var(--dim);
                  border-radius: 6px; padding: 5px 12px; cursor: pointer; font: inherit; }
   button.plain:hover { color: var(--ink); border-color: #4a4a5c; }
-  #topbar { display: flex; gap: 8px; margin-bottom: 18px; }
   #err { color: #ff6a86; max-width: 520px; text-align: center; }
 
   /* Phones and other coarse-pointer devices: bigger thumbs, bigger targets,
      and a layout that fills the screen instead of a small centred card. */
   @media (pointer: coarse), (max-width: 640px) {
     body { padding: 12px; }
-    #topbar { margin-bottom: 10px; }
     #body { padding: 10px; width: 100%; max-width: 460px; }
     #deck { gap: 8px; width: 100%; }
     #pad { margin-top: 10px; gap: 8px; }
@@ -101,24 +104,24 @@
     .round { width: 17vw; height: 17vw; max-width: 68px; max-height: 68px; font-size: 5vw; }
     .roundwrap small { font-size: 3vw; }
     #shelf { grid-template-columns: repeat(auto-fill, minmax(28vw, 1fr)); gap: 10px; }
-    #meta, #hint { font-size: 12px; }
-    /* the keyboard hint is meaningless on a touch device */
-    #hint.touch-hidden { display: none; }
   }
 </style>
 
 <h1>MICROMACHEE</h1>
 <a class="sub by" href="https://pixygon.io">by Pixygon</a>
 
-<div id="topbar">
-  <button class="plain" id="theme">theme: micromachee</button>
-  <button class="plain hidden" id="back">← shelf</button>
-</div>
-
 <div id="err"></div>
 
 <div id="deck" class="hidden">
   <div id="body">
+    <div id="chassis">
+      <button class="iconbtn" id="theme" title="Theme" aria-label="Theme">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 1.5 A6.5 6.5 0 0 1 8 14.5 Z" fill="currentColor"/></svg>
+      </button>
+      <button class="iconbtn" id="back" title="Shelf" aria-label="Shelf">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 L14.5 7.5 L12.5 7.5 L12.5 14 L9.5 14 L9.5 9.5 L6.5 9.5 L6.5 14 L3.5 14 L3.5 7.5 L1.5 7.5 Z" fill="currentColor"/></svg>
+      </button>
+    </div>
     <div id="screenwrap">
       <div id="bezel"><canvas id="screen" width="128" height="128"></canvas></div>
       <div id="info" class="hidden">
@@ -142,8 +145,6 @@
       </div>
     </div>
   </div>
-  <div id="meta"><span id="title"></span><span>SCORE <b id="score">0</b></span></div>
-  <div id="hint">arrows or WASD · Z and X · Esc for the shelf</div>
 </div>
 
 <script src="./node_modules/wasmoon/dist/index.js"></script>
@@ -271,7 +272,6 @@ async function playById(id) {
   try {
     const cart = await loadCart(factory, entry.code, {
       onSfx: (n) => speaker.play(n),
-      onScore: (n) => ($("score").textContent = String(n)),
       storage: localStore(entry.id),
     });
     cart.init();
@@ -296,7 +296,6 @@ function startMega() {
     try {
       await mega.step(held | latch);
       latch = 0;
-      $("score").textContent = String(mega.score);
       blit(mega.out, ctx(), palette(), 1);
     } catch (e) { $("err").textContent = String(e.message || e); backToShelf(); }
     busy = false;
@@ -309,7 +308,6 @@ function backToShelf() {
   megaRun = null;
   if (running) { running.close && running.close(); running = null; }
   held = 0; latch = 0; paintKeys();
-  $("back").classList.add("hidden");
   $("err").textContent = "";
   // the console stays on screen; the loop resumes drawing the shelf
 }
@@ -326,10 +324,10 @@ function fitScreen() {
   // own d-pad. The reserve is larger on a touch device, where the controls are.
   const coarse = window.matchMedia("(pointer: coarse)").matches
     || window.innerWidth <= 640;
-  const reserve = coarse ? 260 : 150;
-  const wRoom = Math.min(window.innerWidth - (coarse ? 28 : 80), 460);
+  const reserve = coarse ? 250 : 300;
+  const wRoom = Math.min(window.innerWidth - (coarse ? 28 : 64), coarse ? 460 : 896);
   const hRoom = window.innerHeight - reserve;
-  const scale = Math.max(1, Math.floor(Math.min(wRoom, hRoom) / W));
+  const scale = Math.max(1, Math.min(7, Math.floor(Math.min(wRoom, hRoom) / W)));
   const c = $("screen");
   c.style.width = W * scale + "px";
   c.style.height = H * scale + "px";
@@ -382,7 +380,6 @@ for (const el of document.querySelectorAll(".key")) {
 $("back").onclick = toShelf;
 $("theme").onclick = () => {
   theme = themeIds[(themeIds.indexOf(theme) + 1) % themeIds.length];
-  $("theme").textContent = "theme: " + theme;
   // Everything is blitted with palette() every frame, so the swap is live on the
   // shelf and inside a game alike; this just avoids a one-frame wait.
   if (running) blit(running.screen, ctx(), palette(), 1);
@@ -405,13 +402,6 @@ addEventListener("touchend", (e) => {
 document.addEventListener("contextmenu", (e) => {
   if (e.target.closest && e.target.closest(".key")) e.preventDefault();
 });
-
-// On a touch device the "arrows or WASD" hint is noise — the buttons are right
-// there. Swap it for a touch-appropriate line.
-if (window.matchMedia("(pointer: coarse)").matches) {
-  const hint = document.getElementById("hint");
-  if (hint) hint.textContent = "tap the pad and buttons · back for the shelf";
-}
 
 buildShelf();
 </script>

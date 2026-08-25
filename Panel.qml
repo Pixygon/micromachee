@@ -189,15 +189,127 @@ Panel {
         Rectangle {
           id: deck
           width: parent.width
-          height: screenBox.height + pad.height + Style.space(12)
+          height: chassis.height + screenBox.height + pad.height + Style.space(12)
           visible: mm.playing || mm.arming || mm.browsing
           color: mm.shellBody
           radius: Style.space(10)
           Behavior on color { ColorAnimation { duration: 180 } }
 
+          // ── the console's own two buttons ───────────────────────────────
+          // A theme swatch on the left and a home key on the right — the same
+          // two the web console carries, so both are driven the same way. They
+          // are the console's buttons, drawn above the screen like a handheld's
+          // shoulder row, pressed with the mouse.
+          Item {
+            id: chassis
+            anchors.top: parent.top
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.leftMargin: Style.space(6)
+            anchors.rightMargin: Style.space(6)
+            readonly property real k: screenBox.pixelScale / 3
+            height: Math.round(Style.space(20) * k)
+
+            // theme — cycles the colour mode, on the shelf or mid-game
+            Rectangle {
+              id: themeBtn
+              anchors.left: parent.left
+              anchors.verticalCenter: parent.verticalCenter
+              width: Math.round(Style.space(24) * chassis.k)
+              height: Math.round(Style.space(16) * chassis.k)
+              radius: Style.space(3)
+              color: themeArea.containsMouse ? mm.shellDim : mm.shellBezel
+              border.width: 1
+              border.color: Qt.rgba(mm.shellDim.r, mm.shellDim.g, mm.shellDim.b, 0.6)
+              Behavior on color { ColorAnimation { duration: 120 } }
+
+              Canvas {
+                id: themeIcon
+                anchors.centerIn: parent
+                width: Math.round(Style.space(12) * chassis.k)
+                height: width
+                property color ic: mm.shellText
+                onIcChanged: requestPaint()
+                onWidthChanged: requestPaint()
+                onHeightChanged: requestPaint()
+                onPaint: {
+                  var c = getContext("2d"); c.reset()
+                  var r = Math.min(width, height) / 2 - 1, cx = width / 2, cy = height / 2
+                  c.strokeStyle = ic; c.lineWidth = 1.2
+                  c.beginPath(); c.arc(cx, cy, r, 0, 2 * Math.PI); c.stroke()
+                  c.fillStyle = ic
+                  c.beginPath(); c.arc(cx, cy, r, -Math.PI / 2, Math.PI / 2); c.closePath(); c.fill()
+                }
+              }
+              MouseArea {
+                id: themeArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: mm.nextTheme()
+              }
+            }
+
+            // home — steps out of a game or a chosen cover, back to the shelf
+            Rectangle {
+              id: homeBtn
+              anchors.right: parent.right
+              anchors.verticalCenter: parent.verticalCenter
+              width: Math.round(Style.space(24) * chassis.k)
+              height: Math.round(Style.space(16) * chassis.k)
+              radius: Style.space(3)
+              color: homeArea.containsMouse ? mm.shellDim : mm.shellBezel
+              border.width: 1
+              border.color: Qt.rgba(mm.shellDim.r, mm.shellDim.g, mm.shellDim.b, 0.6)
+              opacity: (mm.playing || mm.arming) ? 1.0 : 0.5
+              Behavior on color { ColorAnimation { duration: 120 } }
+
+              Canvas {
+                id: homeIcon
+                anchors.centerIn: parent
+                width: Math.round(Style.space(12) * chassis.k)
+                height: width
+                property color ic: mm.shellText
+                onIcChanged: requestPaint()
+                onWidthChanged: requestPaint()
+                onHeightChanged: requestPaint()
+                onPaint: {
+                  var c = getContext("2d"); c.reset()
+                  var w = width, h = height
+                  c.fillStyle = ic
+                  c.beginPath()
+                  c.moveTo(w * 0.50, h * 0.14)
+                  c.lineTo(w * 0.92, h * 0.50)
+                  c.lineTo(w * 0.78, h * 0.50)
+                  c.lineTo(w * 0.78, h * 0.86)
+                  c.lineTo(w * 0.58, h * 0.86)
+                  c.lineTo(w * 0.58, h * 0.60)
+                  c.lineTo(w * 0.42, h * 0.60)
+                  c.lineTo(w * 0.42, h * 0.86)
+                  c.lineTo(w * 0.22, h * 0.86)
+                  c.lineTo(w * 0.22, h * 0.50)
+                  c.lineTo(w * 0.08, h * 0.50)
+                  c.closePath(); c.fill()
+                }
+              }
+              MouseArea {
+                id: homeArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                enabled: mm.playing || mm.arming
+                onClicked: {
+                  if (mm.creating) mm.closeCreate()
+                  else if (mm.playing) mm.stop()
+                  else if (mm.arming) mm.disarm()
+                }
+              }
+            }
+          }
+
           Item {
             id: screenBox
-            anchors.top: parent.top
+            anchors.top: chassis.bottom
             anchors.left: parent.left
             anchors.right: parent.right
             height: width

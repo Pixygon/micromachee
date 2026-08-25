@@ -4,6 +4,23 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.31.0] — 2026-08-25
+
+### Added
+- The console now has its own theme and home buttons mounted above the screen, on both the desktop app and the web console, matching each other so switching color themes or returning to the shelf works the same way everywhere.
+- Veilwalkers: battles now show a white hit flash and a floating damage/heal number over whoever was struck or healed, making combat feedback much clearer.
+- Veilwalkers: each hero now has a dedicated character page showing a large portrait, full stats, equipped gear, and learned signs — open it from the party tab.
+- Veilwalkers: town gates, towers, and cave entrances on the overworld map now have distinct, recognizable art instead of a single generic building tile, making them easier to spot.
+
+### Changed
+- The web console's top bar and text hints (score, title, keyboard hint) have been removed in favor of the new icon buttons above the screen, giving a cleaner, more console-like layout. **(BREAKING)**
+
+### Improved
+- The web player now scales the game screen larger on desktop (up to 7x) and better fits available screen space, especially on wider windows.
+- Veilwalkers: the in-battle action menu is now a proper boxed panel instead of cramped text, and it stays fixed in place regardless of turn order.
+- Veilwalkers: hero portraits are more detailed, with hair, cheeks, and shaded features, and the party list now highlights the currently selected hero.
+
+
 ## [0.30.0] — 2026-08-25
 
 ### Added
