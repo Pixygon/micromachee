@@ -4,6 +4,19 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.29.0] — 2026-08-25
+
+### Added
+- Each game on the shelf now has an info card (shown with the X button) listing its title, author, description, best score, and whether it plays in Mega.
+- You can now switch the colour theme at any time by pressing 'T', in addition to the theme button, and it applies instantly whether you're browsing the shelf or playing a game.
+
+### Changed
+- The web shelf for choosing a game is now drawn right inside the console screen itself, navigated with the same six buttons you use to play — matching the desktop version pixel-for-pixel instead of using a separate HTML grid of covers.
+
+### Improved
+- The console stays on screen the whole time now: picking a game, viewing its info card, and playing all happen in one continuous view, with no page layout jump when you go back to the shelf.
+
+
 ## [0.28.1] — 2026-08-24
 
 ### Added
