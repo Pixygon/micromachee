@@ -31,6 +31,7 @@ local SUN, MOON = 1, 2
 local THINK = 16          -- frames the moon takes, so a reply reads as a reply
 
 local board, cx, cy, over, winline, winner, wait
+local myside, picking, picksel
 local wins, losses, draws
 
 local function slot(x, y) return y * 3 + x + 1 end
@@ -75,19 +76,21 @@ local function empties(b)
   return t
 end
 
-local function moon_move()
+local function ai_move()
+  local me = myside == SUN and MOON or SUN
+  local foe = myside
   local free = empties(board)
   if #free == 0 then return 0 end
 
   -- The blunder comes first, so it can throw away a win as well as a block.
-  -- A moon that only ever fumbles the boring moves is not fumbling.
+  -- An opponent that only ever fumbles the boring moves is not fumbling.
   if rnd(1) < BLUNDER then
     return free[flr(rnd(#free)) + 1]
   end
 
-  local take = completing(board, MOON)
+  local take = completing(board, me)
   if take ~= 0 then return take end
-  local block = completing(board, SUN)
+  local block = completing(board, foe)
   if block ~= 0 then return block end
 
   if board[5] == 0 then return 5 end
@@ -129,19 +132,34 @@ local function fresh()
   for i = 1, 9 do board[i] = 0 end
   cx, cy = 1, 1
   over, winner, winline, wait = false, 0, 0, 0
+  -- The sun always opens, the way X always opens. Playing the moon means the
+  -- other side has already moved by the time the board is yours.
+  if myside == MOON then wait = THINK end
 end
 
 function _init()
   wins = load("wins") or 0
   losses = load("losses") or 0
   draws = load("draws") or 0
-  fresh()
+  myside = SUN
+  picking, picksel = true, 1
   score(wins)
 end
 
 function _update()
+  if picking then
+    if btnp(0) or btnp(1) then picksel = 3 - picksel sfx(0) end
+    if btnp(4) then
+      myside = picksel == 1 and SUN or MOON
+      picking = false
+      fresh()
+      sfx(3)
+    end
+    return
+  end
   if over then
     if btnp(4) then fresh() end
+    if btnp(5) then picking, picksel = true, 1 sfx(0) end
     return
   end
 
@@ -150,8 +168,8 @@ function _update()
   if wait > 0 then
     wait = wait - 1
     if wait == 0 then
-      local at = moon_move()
-      if at ~= 0 then board[at] = MOON end
+      local at = ai_move()
+      if at ~= 0 then board[at] = (myside == SUN and MOON or SUN) end
       finish()
     end
     return
@@ -167,7 +185,7 @@ function _update()
   if btnp(4) then
     local at = slot(cx, cy)
     if board[at] == 0 then
-      board[at] = SUN
+      board[at] = myside
       sfx(0)
       finish()
       if not over then wait = THINK end
@@ -209,8 +227,21 @@ end
 function _draw()
   cls(0)
 
-  print("SUN " .. wins, 2, 3, 4)
-  print("MOON " .. losses, 48, 3, 6)
+  if picking then
+    print("THE TWINS", (128 - 9 * 4 * 2) / 2, 16, 7, 2)
+    print("WHO ARE YOU?", 40, 40, 1)
+    -- the two of them, side by side, the chosen one framed
+    draw_sun(40, 70, 4)
+    draw_moon(88, 70, 6)
+    rectb(picksel == 1 and 24 or 72, 54, 32, 32, picksel == 1 and 4 or 6)
+    print("SUN", 34, 92, picksel == 1 and 4 or 1)
+    print("MOON", 80, 92, picksel == 2 and 6 or 1)
+    print("O TO CHOOSE", 40, 112, 3)
+    return
+  end
+
+  print("YOU " .. wins, 2, 3, myside == SUN and 4 or 6)
+  print("THEM " .. losses, 48, 3, myside == SUN and 6 or 4)
   print("DRAW " .. draws, 96, 3, 1)
   line(0, 12, 127, 12, 1)
 
@@ -245,7 +276,7 @@ function _draw()
     elseif winner == MOON then text, c = "THE MOON TAKES IT", 6
     else text, c = "SHE SLIPS AWAY", 7 end
     print(text, (128 - #text * 4) / 2, SAY + 4, c)
-    print("PRESS O", 50, SAY + 13, 3)
+    print("O AGAIN   X SWAP SIDE", 22, SAY + 13, 3)
   elseif wait > 0 then
     print("HER TURN", 46, SAY + 8, 1)
   else

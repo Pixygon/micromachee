@@ -66,12 +66,11 @@ function _update()
   local head = snake[1]
   local nx, ny = head.x + dir.x, head.y + dir.y
 
-  if nx < 0 or ny < 0 or nx >= COLS or ny >= ROWS then
-    alive = false
-    sfx(7)
-    lose()
-    return
-  end
+  -- The edges wrap: the serpent coils AT THE DEPTHS, and the depths have no
+  -- walls. Leaving one side is arriving at the other, so the only thing that
+  -- can end it is its own body.
+  nx = nx % COLS
+  ny = ny % ROWS
   -- The last segment is skipped: it moves out of the way this same step, so
   -- following your own tail is legal and feels right.
   for i = 1, #snake - 1 do

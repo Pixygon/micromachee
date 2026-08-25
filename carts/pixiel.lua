@@ -1,47 +1,50 @@
 -- title: Pixiel
 -- author: pixygon
--- about: a discarded body, running the pit its own way
+-- about: a discarded body, running the pit in stages
 
 -- The Pixiels are the body-stock: skeleton and AI brain, printed over. The ones
--- not cleanly reissued end up in the pit. This one is not being carried along by
--- it — it decides where to go.
+-- not cleanly reissued end up in the pit. This one has stopped drifting and
+-- started counting: the pit is climbed in STAGES now, three timed levels each,
+-- thirty seconds to reach the beacon at the end of every one.
 --
--- The world is a tile grid, eight pixels square, sixteen rows tall, generated a
--- screen ahead and forgotten a screen behind. Nothing is stored for the whole
--- run, so the pit can be endless without ever being large.
+-- The four elements are the classical triangles — fire and air point up, water
+-- and earth point down, the barred pair are air and earth — and they drop from
+-- the things that live down here. Carrying one turns X into a weapon, and each
+-- element throws differently: fire flies flat and fast, water lobs, earth is a
+-- short heavy fist, air pierces everything in a line.
 --
--- The numbers below are the game. A jump is 4.4 up against 0.30 down, which is
--- an apex of about 32 pixels — four tiles — after 15 frames, and a hair under 60
--- pixels of ground covered at full run. Every gap and every ledge in the
--- generator is sized against those two figures, so nothing it builds is a jump
--- this body cannot make.
+-- The numbers below are still the game. A jump is 4.4 up against 0.30 down —
+-- an apex of four tiles, a hair under 60 pixels of ground at full run — and
+-- every gap the generator builds is sized against that.
 
 local TILE   = 8
 local ROWS   = 16
-local GROUND = 13          -- the row the floor of the pit sits on
-
-local ACC    = 0.34        -- how hard it can push against the floor
-local FRIC   = 0.80        -- and how quickly it stops pushing
+local GROUND = 13
+local ACC    = 0.34
+local FRIC   = 0.80
 local MAXVX  = 2.0
 local GRAV   = 0.30
 local JUMP   = -4.4
-local CUT    = -1.4        -- let go early and the rise is cut short
-local COYOTE = 4           -- frames of grace after walking off an edge
-local BUFFER = 5           -- frames a jump pressed just before landing is held
+local CUT    = -1.4
+local COYOTE = 4
+local BUFFER = 5
+local PW, PH = 6, 9
 
-local PW, PH = 6, 9        -- the body is six by nine
+local LEVEL_SECONDS = 30
+local PER_STAGE = 3          -- levels in a stage
 
--- world[col] = { rows... }, 0 empty, 1 floor, 2 ledge. Columns behind the
--- camera are dropped, so this table stays about a screen and a half wide.
-local world, coinat, foes
+-- element kinds: 1 fire, 2 water, 3 earth, 4 air
+local ELEMC = { 2, 6, 3, 7 }
+local ELEMN = { "FIRE", "WATER", "EARTH", "AIR" }
+
+local world, coinat, foes, drops, shots, bits
 local px, py, vx, vy, onground, coyote, buffered, face
-local camx, furthest, coins, dead, best, tick
-local bits
+local camx, coins, dead, best, tick, timer
+local stage, lvl, goalcol, done, donewait, elem, shotcool, kills
 
--- ── the pit builds itself ────────────────────────────────────────────────────
+-- ── the level builds itself ─────────────────────────────────────────────────
 
-local made          -- highest column decided so far
-local plan, planleft, planrow, planhigh, lastgap, needsroom, laidfoe
+local made, plan, planleft, planrow, planhigh, lastgap, laidfoe
 
 local function column()
   local t = {}
@@ -49,73 +52,70 @@ local function column()
   return t
 end
 
--- Decide one column. The generator is a small state machine: it commits to a
--- run of some shape, lays that shape down column by column, then picks another.
--- Choosing per-column instead would give noise, and noise is not a level.
 local function decide()
+  -- Past the goal the ground is flat and safe: the beacon is a finish line,
+  -- not one more trap.
+  if made >= goalcol then
+    made = made + 1
+    local t = column()
+    for r = GROUND, ROWS - 1 do t[r] = 1 end
+    world[made] = t
+    return
+  end
+
   if planleft <= 0 then
     local roll = rnd(1)
-    local far  = mid(0, made / 900, 1)     -- it gets meaner the further you go
-    -- Never two pits in a row; landing and immediately leaping again is a
-    -- reflex test, not a platformer.
+    local hard = mid(0, (stage - 1) * 0.05 + (lvl - 1) * 0.02, 0.2)
     if lastgap then roll = mid(0.42, roll, 1) end
-    -- A platform overhead is a low ceiling, and a low ceiling in front of a
-    -- ledge is a pocket with no jump out of it. Open ground always follows one,
-    -- so there is somewhere to gather the jump from.
-    if needsroom then roll = 1 end
-    if roll < 0.18 + far * 0.10 then
-      -- A pit. Two to four tiles: a full run clears seven, so this is a
-      -- decision to make rather than a trap to memorise.
-      plan, planleft = "gap", 2 + flr(rnd(2 + far * 2))
-    elseif roll < 0.42 then
-      -- A ledge to climb, one or two tiles up.
+    if plan == "float" then roll = 1 end          -- open ground after a platform
+    if roll < 0.16 + hard then
+      plan, planleft = "gap", 2 + flr(rnd(2 + stage))
+      if planleft > 6 then planleft = 6 end
+    elseif roll < 0.40 then
       plan, planleft = "step", 3 + flr(rnd(4))
       planrow = GROUND - 1 - flr(rnd(2))
-    elseif roll < 0.66 then
-      -- A platform to climb onto. Three tiles up: the jump tops out at four,
-      -- so this is a landing rather than a ceiling to bump your head on.
+    elseif roll < 0.64 then
       plan, planleft = "float", 4 + flr(rnd(4))
       planhigh = GROUND - 3
     else
       plan, planleft = "flat", 5 + flr(rnd(8))
     end
     lastgap = plan == "gap"
-    needsroom = plan == "float"
     laidfoe = false
   end
   planleft = planleft - 1
 
   made = made + 1
   local t = column()
-
   if plan ~= "gap" then
     for r = GROUND, ROWS - 1 do t[r] = 1 end
   end
-
   if plan == "step" then
     for r = planrow, GROUND - 1 do t[r] = 2 end
   elseif plan == "float" then
     t[planhigh] = 2
-    -- the reason to climb it, sitting just above the deck
     if rnd(1) < 0.45 then coinat[made] = planhigh - 2 end
   elseif plan == "flat" then
-    -- One at most per stretch. They pace, turning at every lip, so several laid
-    -- on the same run end up shoulder to shoulder in a wall you cannot pass.
-    if not laidfoe and made > 22 and planleft > 1 and rnd(1) < 0.09 then
-      foes[#foes + 1] = { x = made * TILE, y = (GROUND - 1) * TILE, d = -1 }
+    -- One foe at most per stretch, more likely the deeper the stage. The
+    -- roster grows with the stages: walkers first, hoppers from stage two,
+    -- flyers from stage three.
+    local chance = 0.07 + stage * 0.02
+    if not laidfoe and made > 20 and planleft > 1 and rnd(1) < chance then
+      local kinds = stage >= 3 and 3 or (stage >= 2 and 2 or 1)
+      foes[#foes + 1] = {
+        x = made * TILE, y = (GROUND - 1) * TILE, d = -1,
+        kind = 1 + flr(rnd(kinds)), t = flr(rnd(60)),
+      }
       laidfoe = true
     end
     if rnd(1) < 0.06 then coinat[made] = GROUND - 3 end
   end
-
   world[made] = t
 end
 
 local function generate_to(col)
   while made < col do decide() end
 end
-
--- ── reading the world ───────────────────────────────────────────────────────
 
 local function tile(c, r)
   if r < 0 or r >= ROWS then return 0 end
@@ -128,61 +128,115 @@ local function solid(wx, wy)
   return tile(flr(wx / TILE), flr(wy / TILE)) > 0
 end
 
--- Any of the box's corners, plus the middles of the long edges, so a six-wide
--- body cannot straddle an eight-wide tile unnoticed.
 local function boxhit(x, y, w, h)
   return solid(x, y) or solid(x + w - 1, y)
       or solid(x, y + h - 1) or solid(x + w - 1, y + h - 1)
       or solid(x, y + h / 2) or solid(x + w - 1, y + h / 2)
 end
 
--- ── the run ─────────────────────────────────────────────────────────────────
+-- ── stages ──────────────────────────────────────────────────────────────────
 
-function _init()
-  world, coinat, foes = {}, {}, {}
-  made, plan, planleft, lastgap, needsroom, laidfoe = 0, "flat", 12, false, false, false
+local function level_len()
+  return 120 + (stage - 1) * 18 + (lvl - 1) * 10
+end
+
+local function start_level()
+  world, coinat, foes, drops, shots, bits = {}, {}, {}, {}, {}, {}
+  made, plan, planleft, lastgap, laidfoe = 0, "flat", 12, false, false
   planrow, planhigh = GROUND - 1, GROUND - 3
+  goalcol = level_len()
   generate_to(40)
-
   px, py = 24, (GROUND - 2) * TILE
   vx, vy = 0, 0
   onground, coyote, buffered, face = true, 0, 0, 1
-  camx, furthest, coins, dead, tick = 0, 0, 0, false, 0
-  bits = {}
+  camx, dead, tick = 0, false, 0
+  timer = LEVEL_SECONDS * 30
+  done, donewait, shotcool = false, 0, 0
+end
+
+function _init()
+  stage, lvl = 1, 1
+  coins, kills, elem = 0, 0, 0
   best = best or 0
+  start_level()
   score(0)
 end
 
--- Dust where a thing happened. Cheap, and it is the difference between the
--- runner being on the ground and the runner being drawn near it.
+local function points()
+  return ((stage - 1) * PER_STAGE + (lvl - 1)) * 100 + coins * 5 + kills * 10
+end
+
 local function puff(x, y, n, c)
   for _ = 1, n do
-    bits[#bits + 1] = {
-      x = x, y = y, dx = rnd(2) - 1, dy = -rnd(1.4),
-      life = 6 + flr(rnd(6)), c = c,
-    }
+    bits[#bits + 1] = { x = x, y = y, dx = rnd(2) - 1, dy = -rnd(1.4),
+      life = 6 + flr(rnd(6)), c = c }
   end
 end
 
 local function die()
   dead = true
+  elem = 0                    -- the pit keeps what you carried
   sfx(2)
   puff(px + 3, py + 4, 10, 2)
   lose()
 end
 
+local function kill_foe(i)
+  local f = foes[i]
+  puff(f.x + 3, f.y + 3, 6, 3)
+  sfx(1)
+  table.remove(foes, i)
+  kills = kills + 1
+  -- Some of them were carrying an element. It falls where they fell.
+  if rnd(1) < 0.35 then
+    drops[#drops + 1] = { x = f.x, y = f.y, kind = 1 + flr(rnd(4)), t = 0 }
+  end
+end
+
+-- ── the elements as weapons ─────────────────────────────────────────────────
+
+local function shoot()
+  if elem == 0 or shotcool > 0 then return end
+  shotcool = 12
+  sfx(0)
+  local sx, sy = px + (face > 0 and PW or 0), py + 3
+  if elem == 1 then          -- fire: flat and fast
+    shots[#shots + 1] = { x = sx, y = sy, dx = face * 4, dy = 0, life = 26, kind = 1, pierce = 0 }
+  elseif elem == 2 then      -- water: a lob
+    shots[#shots + 1] = { x = sx, y = sy, dx = face * 2.4, dy = -2.2, life = 50, kind = 2, pierce = 0, grav = true }
+  elseif elem == 3 then      -- earth: short heavy fist
+    shots[#shots + 1] = { x = sx, y = sy, dx = face * 2, dy = 0, life = 14, kind = 3, pierce = 1, big = true }
+  else                       -- air: pierces the whole line
+    shots[#shots + 1] = { x = sx, y = sy, dx = face * 5, dy = 0, life = 30, kind = 4, pierce = 99 }
+  end
+end
+
+-- ── one frame ───────────────────────────────────────────────────────────────
+
 function _update()
   if dead then
-    if btnp(4) then _init() end
+    if btnp(4) then start_level() score(points()) end
+    return
+  end
+  if done then
+    donewait = donewait - 1
+    if donewait <= 0 then
+      lvl = lvl + 1
+      if lvl > PER_STAGE then lvl, stage = 1, stage + 1 end
+      start_level()
+    end
     return
   end
   tick = tick + 1
+  if shotcool > 0 then shotcool = shotcool - 1 end
 
-  -- ── what the player asks for ──────────────────────────────────────────────
+  -- the clock is the level's real enemy
+  timer = timer - 1
+  if timer <= 0 then die() return end
+
   local want = 0
   if btn(0) then want = want - 1 end
   if btn(1) then want = want + 1 end
-
   if want ~= 0 then
     vx = mid(-MAXVX, vx + ACC * want, MAXVX)
     face = want
@@ -194,25 +248,18 @@ function _update()
   if btnp(4) then buffered = BUFFER end
   if buffered > 0 then buffered = buffered - 1 end
   if coyote > 0 then coyote = coyote - 1 end
-
   if buffered > 0 and coyote > 0 then
     vy, onground, coyote, buffered = JUMP, false, 0, 0
     puff(px + 3, py + 9, 3, 1)
     sfx(4)
   end
-  -- Releasing the button mid-rise cuts the jump, so a tap is a hop and a hold
-  -- is the full four tiles. One button, every height in between.
   if not btn(4) and vy < CUT then vy = CUT end
+  if btnp(5) then shoot() end
 
   vy = mid(-8, vy + GRAV, 6)
 
-  -- ── moving, one axis at a time ────────────────────────────────────────────
-  -- Resolving x and y together makes a body that catches on flat floors; taken
-  -- separately, a wall stops the walk and a floor stops the fall, and nothing
-  -- else happens.
   local nx = px + vx
   if boxhit(nx, py, PW, PH) then
-    -- back up to the tile edge it hit
     local step, guard = vx > 0 and -1 or 1, 0
     while boxhit(nx, py, PW, PH) and guard < TILE + 2 do
       nx, guard = nx + step, guard + 1
@@ -220,8 +267,6 @@ function _update()
     vx = 0
   end
   px = nx
-
-  -- The camera never gives ground, so neither does the pit behind it.
   if px < camx then px, vx = camx, 0 end
 
   local ny = py + vy
@@ -230,9 +275,7 @@ function _update()
     while boxhit(px, ny, PW, PH) and guard < TILE + 2 do
       ny, guard = ny + step, guard + 1
     end
-    if vy > 0 then
-      onground, coyote = true, COYOTE
-    end
+    if vy > 0 then onground, coyote = true, COYOTE end
     vy = 0
   else
     if onground then coyote = COYOTE end
@@ -240,7 +283,7 @@ function _update()
   end
   py = ny
 
-  -- ── the world reacts ──────────────────────────────────────────────────────
+  -- coins and dropped elements
   local col = flr((px + PW / 2) / TILE)
   local row = flr((py + PH / 2) / TILE)
   if coinat[col] and row >= coinat[col] - 1 and row <= coinat[col] + 1 then
@@ -249,25 +292,84 @@ function _update()
     puff(col * TILE + 4, row * TILE + 4, 4, 4)
     sfx(3)
   end
+  for i = #drops, 1, -1 do
+    local d = drops[i]
+    d.t = d.t + 1
+    if not solid(d.x + 3, d.y + 8) and d.y < 120 then d.y = d.y + 1.5 end
+    if px + PW > d.x and px < d.x + 7 and py + PH > d.y and py < d.y + 7 then
+      elem = d.kind
+      table.remove(drops, i)
+      puff(d.x + 3, d.y + 3, 6, ELEMC[elem])
+      sfx(3)
+    elseif d.t > 600 then
+      table.remove(drops, i)
+    end
+  end
 
+  -- shots against the world and its tenants
+  for i = #shots, 1, -1 do
+    local s = shots[i]
+    s.x = s.x + s.dx
+    if s.grav then s.dy = s.dy + 0.18 end
+    s.y = s.y + s.dy
+    s.life = s.life - 1
+    local w = s.big and 5 or 3
+    local gone = s.life <= 0 or solid(s.x + w / 2, s.y + 1)
+    for j = #foes, 1, -1 do
+      local f = foes[j]
+      if s.x + w > f.x and s.x < f.x + 6 and s.y + 3 > f.y and s.y < f.y + 7 then
+        kill_foe(j)
+        if s.pierce > 0 then s.pierce = s.pierce - 1 else gone = true end
+      end
+    end
+    if gone then table.remove(shots, i) end
+  end
+
+  -- the roster
   for i = #foes, 1, -1 do
     local f = foes[i]
     if f.x < camx - 40 then
       table.remove(foes, i)
     else
-      f.x = f.x + f.d * 0.5
-      -- turn at a wall, or at the lip of anything it would walk off
-      if solid(f.x + (f.d > 0 and 6 or -1), f.y + 3)
-        or not solid(f.x + (f.d > 0 and 6 or -1), f.y + 7) then
-        f.d = -f.d
+      f.t = (f.t or 0) + 1
+      if f.kind == 1 then           -- walker
+        f.x = f.x + f.d * 0.5
+        if solid(f.x + (f.d > 0 and 6 or -1), f.y + 3)
+          or not solid(f.x + (f.d > 0 and 6 or -1), f.y + 7) then
+          f.d = -f.d
+        end
+      elseif f.kind == 2 then       -- hopper: waits, then leaps at you
+        f.vy = (f.vy or 0) + GRAV
+        if f.grounded == nil then f.grounded = true end
+        if f.grounded and f.t % 55 == 0 then
+          f.vy = -3.4
+          f.d = px < f.x and -1 or 1
+          f.grounded = false
+        end
+        if not f.grounded then f.x = f.x + f.d * 1.1 end
+        local nyf = f.y + f.vy
+        if f.vy >= 0 and solid(f.x + 3, nyf + 7) then
+          f.y = flr((nyf + 7) / TILE) * TILE - 7
+          f.vy = 0
+          f.grounded = true
+        else
+          f.y = nyf
+          f.grounded = false
+        end
+        if f.y > 130 then table.remove(foes, i) end
+      else                          -- flyer: bobbing patrol at head height
+        f.base = f.base or (GROUND - 4) * TILE
+        f.x = f.x + f.d * 0.8
+        f.y = f.base + math.sin(f.t * 0.08) * 8
+        if f.t % 90 == 0 then f.d = -f.d end
       end
-      if px + PW > f.x and px < f.x + 6 and py + PH > f.y and py < f.y + 6 then
+
+      if foes[i] == f and px + PW > f.x and px < f.x + 6
+        and py + PH > f.y and py < f.y + 6 then
         if vy > 0 and py + PH - vy <= f.y + 3 then
-          table.remove(foes, i)
-          vy = JUMP * 0.7                 -- a stomp gives half a jump back
-          puff(f.x + 3, f.y + 3, 6, 3)
-          sfx(1)
-          coins = coins + 2
+          kill_foe(i)
+          vy = JUMP * 0.7
+          coins = coins + 1
         else
           die()
           return
@@ -285,38 +387,68 @@ function _update()
 
   if py > 128 then die() return end
 
-  -- ── the camera, and the tail of the world ────────────────────────────────
+  -- the beacon
+  if col >= goalcol + 2 then
+    done, donewait = true, 40
+    sfx(6)
+    score(points() + 100)
+    if points() + 100 > best then best = points() + 100 end
+    return
+  end
+
   if px - camx > 46 then camx = px - 46 end
   generate_to(flr(camx / TILE) + 20)
-  local drop = flr(camx / TILE) - 4
-  if world[drop] then world[drop], coinat[drop] = nil, nil end
-
-  if px > furthest then furthest = px end
-  local total = flr(furthest / TILE) + coins * 5
-  score(total)
-  if total > best then best = total end
+  local dropcol = flr(camx / TILE) - 4
+  if world[dropcol] then world[dropcol], coinat[dropcol] = nil, nil end
+  score(points())
 end
 
 -- ── how it looks ────────────────────────────────────────────────────────────
 
--- Six pixels wide and nine tall is not much of a robot, so the reading comes
--- from contrast rather than detail: a dark visor across the head and one lit
--- pixel where the core is.
 local function draw_runner(sx, sy, c)
   rect(sx + 1, sy, 5, 4, c)
   rect(sx + 1, sy + 1, 4, 1, 0)
   pset(sx + (face > 0 and 4 or 1), sy + 1, 6)
   rect(sx + 1, sy + 4, 5, 4, c)
-  pset(sx + 3, sy + 6, 6)
+  pset(sx + 3, sy + 6, elem > 0 and ELEMC[elem] or 6)
   if not onground then
-    rect(sx, sy + 8, 2, 1, c)                   -- legs out, in the air
-    rect(sx + 4, sy + 8, 2, 1, c)
+    rect(sx, sy + 8, 2, 1, c) rect(sx + 4, sy + 8, 2, 1, c)
   elseif vx ~= 0 and flr(tick / 4) % 2 == 0 then
-    rect(sx, sy + 8, 2, 1, c)
-    rect(sx + 4, sy + 8, 1, 1, c)
+    rect(sx, sy + 8, 2, 1, c) rect(sx + 4, sy + 8, 1, 1, c)
   else
-    rect(sx + 1, sy + 8, 1, 1, c)
-    rect(sx + 4, sy + 8, 1, 1, c)
+    rect(sx + 1, sy + 8, 1, 1, c) rect(sx + 4, sy + 8, 1, 1, c)
+  end
+end
+
+-- The classical triangles, seven pixels wide. Fire and air point up, water and
+-- earth point down; air and earth carry the bar.
+local function draw_element(kind, x, y)
+  local c = ELEMC[kind]
+  if kind == 1 or kind == 4 then
+    line(x + 3, y, x, y + 6, c) line(x + 3, y, x + 6, y + 6, c) line(x, y + 6, x + 6, y + 6, c)
+    if kind == 4 then line(x + 1, y + 4, x + 5, y + 4, c) end
+  else
+    line(x, y, x + 6, y, c) line(x, y, x + 3, y + 6, c) line(x + 6, y, x + 3, y + 6, c)
+    if kind == 3 then line(x + 1, y + 2, x + 5, y + 2, c) end
+  end
+end
+
+local function draw_foe(f, ox)
+  local sx, sy = flr(f.x) - ox, flr(f.y)
+  if sx < -8 or sx > 128 then return end
+  if f.kind == 1 then
+    rect(sx, sy + 1, 6, 5, 3)
+    pset(sx + 1, sy + 2, 0) pset(sx + 4, sy + 2, 0)
+    rect(sx, sy + 6, 6, 1, flr(tick / 5) % 2 == 0 and 3 or 1)
+  elseif f.kind == 2 then
+    rect(sx, sy + 2, 6, 5, 5)
+    pset(sx + 1, sy + 3, 0) pset(sx + 4, sy + 3, 0)
+    if f.grounded then rect(sx + 1, sy + 7, 4, 1, 5) end
+  else
+    rect(sx + 1, sy + 2, 4, 3, 6)
+    pset(sx + 2, sy + 3, 0)
+    local w = flr(tick / 4) % 2 == 0 and 0 or 1
+    rect(sx - 1, sy + 1 + w, 2, 1, 6) rect(sx + 5, sy + 1 + w, 2, 1, 6)
   end
 end
 
@@ -324,7 +456,6 @@ function _draw()
   cls(0)
   local ox = flr(camx)
 
-  -- a few far lights, placed by position so they cost nothing to keep
   for i = 0, 9 do
     pset((i * 53 - flr(ox / 3)) % 128, 14 + (i * 37) % 56, 1)
   end
@@ -337,31 +468,34 @@ function _draw()
       if t > 0 then
         local sy = r * TILE
         rect(sx, sy, TILE, TILE, t == 1 and 1 or 2)
-        -- only the exposed top gets a lit edge, so a stack reads as one mass
-        if tile(c, r - 1) == 0 then
-          line(sx, sy, sx + TILE - 1, sy, 6)
-        end
+        if tile(c, r - 1) == 0 then line(sx, sy, sx + TILE - 1, sy, 6) end
       end
     end
     local cr = coinat[c]
     if cr then
       local cy = cr * TILE + 3 + (flr(tick / 6) % 2)
-      rect(sx + 2, cy, 4, 4, 4)
-      pset(sx + 3, cy + 1, 7)
+      rect(sx + 2, cy, 4, 4, 4) pset(sx + 3, cy + 1, 7)
+    end
+    -- the beacon at the end of the level
+    if c == goalcol + 2 then
+      rect(sx + 2, 40, 2, GROUND * TILE - 40, 7)
+      local gl = flr(tick / 4) % 2 == 0 and 4 or 5
+      circ(sx + 3, 38, 3, gl)
     end
   end
 
-  for i = 1, #foes do
-    local f = foes[i]
-    local sx = flr(f.x) - ox
-    if sx > -8 and sx < 128 then
-      rect(sx, flr(f.y) + 1, 6, 5, 3)
-      pset(sx + 1, flr(f.y) + 2, 0)
-      pset(sx + 4, flr(f.y) + 2, 0)
-      rect(sx, flr(f.y) + 6, 6, 1, flr(tick / 5) % 2 == 0 and 3 or 1)
+  for i = 1, #drops do
+    local d = drops[i]
+    if flr(d.t / 4) % 4 ~= 3 or d.t < 480 then
+      draw_element(d.kind, flr(d.x) - ox, flr(d.y))
     end
   end
-
+  for i = 1, #foes do draw_foe(foes[i], ox) end
+  for i = 1, #shots do
+    local s = shots[i]
+    local w = s.big and 5 or 3
+    rect(flr(s.x) - ox, flr(s.y), w, s.big and 4 or 2, ELEMC[s.kind])
+  end
   for i = 1, #bits do
     local b = bits[i]
     pset(flr(b.x) - ox, flr(b.y), b.life > 4 and 7 or b.c)
@@ -371,15 +505,26 @@ function _draw()
 
   rect(0, 0, 128, 14, 0)
   line(0, 14, 127, 14, 1)
-  print(flr(furthest / TILE) .. "M", 2, 3, 7)
-  print("O " .. coins, 44, 3, 4)
-  print("BEST " .. best, 82, 3, 6)
+  print(stage .. "-" .. lvl, 2, 3, 7)
+  local secs = flr(timer / 30)
+  print(secs .. "S", 24, 3, secs <= 5 and 2 or 6)
+  print("O " .. coins, 46, 3, 4)
+  if elem > 0 then
+    draw_element(elem, 72, 3)
+    print(ELEMN[elem], 82, 4, ELEMC[elem])
+  end
+  print(points() .. "", 108, 3, 5)
 
   if dead then
     rect(20, 50, 88, 26, 0)
     rectb(20, 50, 88, 26, 2)
-    print("THE PIT KEEPS IT", 28, 56, 2)
-    print("PRESS O", 50, 66, 3)
+    print(timer <= 0 and "OUT OF TIME" or "THE PIT KEEPS IT",
+      timer <= 0 and 42 or 28, 56, 2)
+    print("O RETRY " .. stage .. "-" .. lvl, 38, 66, 3)
+  elseif done then
+    rect(24, 52, 80, 22, 0)
+    rectb(24, 52, 80, 22, 5)
+    print("LEVEL CLEAR", 42, 58, 5)
   end
 end
 
@@ -395,9 +540,11 @@ function _cover()
   end
   rect(80, 72, 24, 8, 2)
   line(80, 72, 103, 72, 6)
-  rect(90, 60, 4, 4, 4)
-  face, onground, vx, tick = 1, false, 1, 0
-  draw_runner(52, 78, 7)
+  draw_element(1, 30, 58) draw_element(2, 44, 58)
+  draw_element(3, 30, 72) draw_element(4, 44, 72)
+  rect(110, 30, 2, 74, 7) circ(111, 28, 3, 4)
+  face, onground, vx, tick, elem = 1, false, 1, 0, 0
+  draw_runner(58, 78, 7)
   rect(0, 96, 128, 32, 0)
   print("PIXIEL", 28, 104, 6, 3)
 end
