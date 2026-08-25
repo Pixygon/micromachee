@@ -4,6 +4,20 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.30.0] — 2026-08-25
+
+### Added
+- Dreadwager adds ammo and reloading: hold the fire button to empty your magazine (each shot gives a little recoil-shove), then it auto-reloads. New skills let you grow the magazine (DRUM), reload faster (CRANK), burn enemies on touch (THORN), heal on kills (LEECH), and absorb a hit with a recharging ward (GUARD).
+- The web shelf now also shows large campaign carts that exceed the sync size limit and previously only appeared bundled with the desktop app, so the web catalog matches what you'd see on the plugin.
+
+### Changed
+- Dreadwager has been reworked into a bigger, roomier descent: Limbo now spans a scrolling world made of distinct biomes (grass, swamp, ash and bog) that affect your movement speed, bounded by a containment wall to the north and cliffs on the other sides. THE cliff still opens on its own schedule and drops you a layer deeper, but now you simply walk into it to descend instead of pressing a button.
+
+### Improved
+- The level-up screen now supports up/down/left/right for choosing a skill, and the HUD has been reorganized into two rows showing sparks, hearts, ammo, layer and level.
+- Shelf cover thumbnails on both the desktop app and web now show a faithful, exact miniature of the whole cover image instead of a cropped, blurred approximation, so what you see on the shelf matches the actual cover art.
+
+
 ## [0.29.0] — 2026-08-25
 
 ### Added

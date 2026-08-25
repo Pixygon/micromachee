@@ -782,6 +782,13 @@ fn cmd_catalog(args: &[String]) -> i32 {
     files.sort();
 
     let mut carts = Vec::new();
+    // Campaign carts over the 24K shelf cap cannot be synced — `sync` refuses
+    // anything past it by design, and that cap is the shareable-cart identity.
+    // On the plugin they ship bundled beside it; the web has no plugin to bundle
+    // into, so they travel in a SEPARATE `bundle` array here. `sync` only ever
+    // reads `carts`, so it never sees these and never rejects them; the web
+    // reads both, so the shelf is the same one the plugin shows.
+    let mut bundle = Vec::new();
     for path in &files {
         let Some(id) = path.file_stem().and_then(|s| s.to_str()) else { continue };
         // Never publish a name a correct client would refuse to install. The
@@ -795,14 +802,6 @@ fn cmd_catalog(args: &[String]) -> i32 {
             eprintln!("✗ could not read {}", path.display());
             return 1;
         };
-        // A campaign cart over the shelf cap cannot be synced — sync refuses
-        // anything past 24K by design — so it does not belong in the catalog at
-        // all. It ships bundled with the plugin instead. Skip it rather than
-        // publish an entry every client would reject.
-        if text.len() > MAX_CART_BYTES {
-            println!("  · skipping {id} ({} bytes) — bundle-only, over the 24K sync cap", text.len());
-            continue;
-        }
         let cart = match Cart::parse(id, &text) {
             Ok(c) => c,
             Err(e) => {
@@ -810,7 +809,7 @@ fn cmd_catalog(args: &[String]) -> i32 {
                 return 1;
             }
         };
-        carts.push(serde_json::json!({
+        let mut entry = serde_json::json!({
             "id": cart.id,
             "title": cart.title,
             "author": cart.author,
@@ -821,22 +820,31 @@ fn cmd_catalog(args: &[String]) -> i32 {
             "mega": cart.in_mega,
             "price": cart.price,
             "sha256": sha256::hex(text.as_bytes()),
-            "url": format!("{base}/{id}.lua"),
             // The source travels inside the catalog as well as beside it. The
             // CDN only sends CORS headers for .json, so a browser can read this
             // file and nothing else — and one request for the whole shelf beats
             // one per cart anyway.
-            "code": text,
-        }));
+            "code": text.clone(),
+        });
+        if cart.bytes > MAX_CART_BYTES {
+            // Bundle-only: no `url`, because sync never fetches it and CORS
+            // would not let a browser read a .lua anyway — the web plays it
+            // from the inline `code`.
+            println!("  · bundling {id} ({} bytes) — over the 24K sync cap, web-only", cart.bytes);
+            bundle.push(entry);
+        } else {
+            entry["url"] = serde_json::json!(format!("{base}/{id}.lua"));
+            carts.push(entry);
+        }
     }
 
-    let doc = serde_json::json!({ "micromachee": 1, "carts": carts });
+    let doc = serde_json::json!({ "micromachee": 1, "carts": carts, "bundle": bundle });
     let body = serde_json::to_string_pretty(&doc).unwrap_or_default() + "\n";
     if let Err(e) = std::fs::write(&out, &body) {
         eprintln!("✗ could not write {out}: {e}");
         return 1;
     }
-    println!("wrote {out} — {} cart(s), urls under {base}", carts.len());
+    println!("wrote {out} — {} cart(s) + {} bundled, urls under {base}", carts.len(), bundle.len());
     println!("upload the carts and this file, then `micromachee sync` finds them.");
     0
 }

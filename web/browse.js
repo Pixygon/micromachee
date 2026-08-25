@@ -4,13 +4,12 @@
 // buttons, so nothing on the web reaches for a mouse the desktop does not.
 //
 // This is a port kept deliberately close to the Rust: the same tile size, the
-// same block sampling that turns a cover into a legible thumbnail, the same
+// same faithful downscale that turns a cover into a legible thumbnail, the same
 // info card. `web/browse-check` is not a thing — parity here is by eye — but
 // the layout constants and the sampling rule are copied verbatim so the two
 // shelves look like one shelf.
 
-import { Screen, W, CHAR_WIDTH } from "./micromachee.js";
-import { RANK } from "./console-data.js";
+import { Screen, W, H, CHAR_WIDTH } from "./micromachee.js";
 
 const COLS = 3;
 const TILE = 38;
@@ -18,40 +17,10 @@ const GAP = 3;
 const X0 = 4;
 const GY = 16;
 const VIS_ROWS = 2;
-const COVER_ART = 96;
-const MEGA_ART = 82;
 
 export const MAKE_ID = "make";
 
 const centre = (text, scale = 1) => Math.floor((W - text.length * CHAR_WIDTH * scale) / 2);
-
-// rank_of[slot] = its place in the luminance order, for the sampling tie-break.
-const RANK_OF = (() => {
-  const r = new Array(8).fill(0);
-  RANK.forEach((slot, place) => { r[slot & 7] = place; });
-  return r;
-})();
-
-// The commonest colour in a block of the cover, with the two adjustments the
-// Rust makes: background (slot 0) must win outright rather than merely lead, so
-// a small bright thing on black survives being shrunk; ties go to the lighter
-// colour, because on a dark cover the lighter pixel carries the shape.
-function block(art, x0, x1, y0, y1) {
-  const count = new Array(8).fill(0);
-  for (let y = y0; y < Math.max(y1, y0 + 1); y++) {
-    for (let x = x0; x < Math.max(x1, x0 + 1); x++) {
-      count[art.pget(x, y) & 7]++;
-    }
-  }
-  let best = 0, bestScore = 0;
-  for (let c = 0; c < 8; c++) {
-    const score = count[c] * (c === 0 ? 7 : 10);
-    if (score > bestScore || (score === bestScore && RANK_OF[c] > RANK_OF[best])) {
-      best = c; bestScore = score;
-    }
-  }
-  return best;
-}
 
 function wrap(text, cols) {
   const out = [];
@@ -74,7 +43,7 @@ export class Browse {
       this.entries.push({
         id: MAKE_ID, title: "Make a game", author: "you",
         about: "say what it is. the console writes it",
-        best: 0, inMega: false, isMega: false, art, artRows: COVER_ART, make: true,
+        best: 0, inMega: false, isMega: false, art, make: true,
       });
     }
     this.sel = 0;
@@ -134,13 +103,14 @@ export class Browse {
   }
 
   drawTile(at, x, y) {
+    // An exact miniature of the whole 128x128 cover: nearest-neighbour on the
+    // centre pixel of each block, so the tile is what the cover is.
     const e = this.entries[at];
-    const rows = e.artRows || (e.isMega ? MEGA_ART : COVER_ART);
     for (let ty = 0; ty < TILE; ty++) {
-      const y0 = Math.floor((ty * rows) / TILE), y1 = Math.floor(((ty + 1) * rows) / TILE);
+      const sy = Math.floor(((ty * 2 + 1) * H) / (2 * TILE));
       for (let tx = 0; tx < TILE; tx++) {
-        const x0 = Math.floor((tx * W) / TILE), x1 = Math.floor(((tx + 1) * W) / TILE);
-        this.out.pset(x + tx, y + ty, block(e.art, x0, x1, y0, y1));
+        const sx = Math.floor(((tx * 2 + 1) * W) / (2 * TILE));
+        this.out.pset(x + tx, y + ty, e.art.pget(sx, sy));
       }
     }
     if (e.draft) this.out.rect(x + TILE - 4, y + 1, 3, 3, 2);

@@ -13,7 +13,7 @@
 //! the font was drawn for.
 
 use crate::cart::Cart;
-use crate::console::{Screen, CHAR_WIDTH, W};
+use crate::console::{Screen, CHAR_WIDTH, H, W};
 use crate::mega;
 use crate::shelf;
 use crate::vm::Machine;
@@ -25,12 +25,6 @@ const X0: i32 = 4; // 3 × 38 + 2 × 3 = 120, so four pixels of margin each side
 const GY: i32 = 16;
 const VIS_ROWS: usize = 2;
 
-/// The part of a cover that is picture rather than title card. Carts paint
-/// their name across the bottom third; Mega's own cover starts its band a
-/// little higher, and sampling into a title makes a smear rather than a
-/// thumbnail.
-const COVER_ART: i32 = 96;
-const MEGA_ART: i32 = 82;
 
 /// Frames the fallback cover is allowed to run for a cart with no `_cover()`.
 const FALLBACK_FRAMES: u32 = 40;
@@ -44,8 +38,6 @@ pub struct Entry {
     pub draft: bool,
     pub in_mega: bool,
     art: Screen,
-    /// How many rows of `art` are picture.
-    art_rows: i32,
 }
 
 /// The reserved last tile. It is not a cart and has no file; picking it asks
@@ -150,36 +142,6 @@ fn make_tile() -> Screen {
     s
 }
 
-/// One tile pixel from the block of cover pixels behind it.
-///
-/// Point sampling — taking the single pixel at the corner of each block — threw
-/// away nine tenths of a cover and kept whatever happened to land on the grid,
-/// which is why the tiles came out as noise. This takes the commonest colour in
-/// the block instead, with two adjustments that matter at this size: the
-/// background has to win outright rather than merely lead, so a small bright
-/// thing on black survives being shrunk; and ties go to the lighter colour,
-/// because on a dark cover the lighter pixel is the one carrying the shape.
-fn block(art: &Screen, x0: i32, x1: i32, y0: i32, y1: i32, rank_of: &[usize; 8]) -> i32 {
-    let mut count = [0u32; 8];
-    for y in y0..y1.max(y0 + 1) {
-        for x in x0..x1.max(x0 + 1) {
-            count[(art.pget(x, y) & 7) as usize] += 1;
-        }
-    }
-    let mut best = 0usize;
-    let mut best_score = 0u32;
-    for c in 0..8usize {
-        // Weight everything above the darkest slot, so background only wins
-        // when it genuinely dominates the block.
-        let score = count[c] * if c == 0 { 7 } else { 10 };
-        if score > best_score || (score == best_score && rank_of[c] > rank_of[best]) {
-            best = c;
-            best_score = score;
-        }
-    }
-    best as i32
-}
-
 /// A cart that will not run still needs a tile, so it gets its initial.
 fn placeholder(title: &str) -> Screen {
     let mut s = Screen::new();
@@ -203,8 +165,7 @@ impl Browse {
             best: shelf::best(mega::MEGA_ID),
             draft: false,
             in_mega: false,
-            art: mega::Mega::cover(),
-            art_rows: MEGA_ART,
+            art: mega::Mega::cover()
         });
 
         for c in shelf::list() {
@@ -220,8 +181,7 @@ impl Browse {
                 title: c.title,
                 author: c.author,
                 about: c.about,
-                art,
-                art_rows: COVER_ART,
+                art
             });
         }
 
@@ -235,8 +195,7 @@ impl Browse {
             best: 0,
             draft: false,
             in_mega: false,
-            art: make_tile(),
-            art_rows: COVER_ART,
+            art: make_tile()
         });
 
         Self {
@@ -410,22 +369,18 @@ impl Browse {
         self.out.print(&b, centre(&b, 1), 68, 1, 1);
     }
 
-    /// One cover, sampled down into a tile. Nearest neighbour: a cover is pixel
-    /// art, and averaging pixel art produces mud.
+    /// One cover, shrunk into a tile: an exact miniature of the WHOLE 128x128
+    /// cover, so what the shelf shows is what the cover is. Nearest-neighbour
+    /// on the centre pixel of each block — a cover is pixel art drawn to read
+    /// small, so a faithful sample beats the old mode-of-the-block averaging
+    /// (muddy) and the old top-rows-only crop (which squished it out of shape).
     fn draw_tile(&mut self, at: usize, x: i32, y: i32) {
-        let rows = self.entries[at].art_rows;
-        let mut rank_of = [0usize; 8];
-        for (place, slot) in crate::theme::rank().iter().enumerate() {
-            rank_of[*slot & 7] = place;
-        }
+        let art = &self.entries[at].art;
         for ty in 0..TILE {
-            let y0 = ty * rows / TILE;
-            let y1 = (ty + 1) * rows / TILE;
+            let sy = (ty * 2 + 1) * H / (2 * TILE);
             for tx in 0..TILE {
-                let x0 = tx * W / TILE;
-                let x1 = (tx + 1) * W / TILE;
-                let c = block(&self.entries[at].art, x0, x1, y0, y1, &rank_of);
-                self.out.pset(x + tx, y + ty, c);
+                let sx = (tx * 2 + 1) * W / (2 * TILE);
+                self.out.pset(x + tx, y + ty, art.pget(sx, sy) as i32);
             }
         }
         if self.entries[at].draft {
@@ -567,8 +522,7 @@ mod tests {
                 best: i as i64,
                 draft: false,
                 in_mega: i % 2 == 0,
-                art: placeholder("C"),
-                art_rows: COVER_ART,
+                art: placeholder("C")
             });
         }
         b
@@ -644,8 +598,7 @@ mod tests {
             best: 0,
             draft: false,
             in_mega: false,
-            art: make_tile(),
-            art_rows: COVER_ART,
+            art: make_tile()
         });
         b.move_to(3);
         press(&mut b, 4);

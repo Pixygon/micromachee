@@ -197,6 +197,10 @@ async function buildShelf() {
   carts = [
     { id: MEGA_ID, title: MEGA_TITLE, about: MEGA_ABOUT, author: "pixygon", code: "", isMega: true },
     ...(list.carts || []),
+    // Bundle-only carts (over the 24K sync cap) travel in their own array so
+    // the desktop `sync` never sees them. The web has no plugin to bundle into,
+    // so this IS its bundle — the shelf is the same one the plugin shows.
+    ...(list.bundle || []),
   ];
 
   // The console shows immediately; covers fill in as each renders.
