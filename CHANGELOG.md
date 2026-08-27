@@ -4,6 +4,16 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.32.0] — 2026-08-27
+
+### Added
+- New `micromachee submit <file|id>` command sends a cart straight to the public community shelf. It's automatically verified with a sandboxed play-test plus two review passes, and if accepted it goes live at pixygon.io/micromachee within a minute — with a clear reason given if it's rejected instead.
+- The web console now also loads community-submitted carts alongside the official catalog, so anyone playing in the browser sees the full shelf, not just the built-in games.
+
+### Security
+- The web player now locks down the Lua sandbox to match the desktop console, disabling file, OS, and process-level Lua libraries so community carts run in the browser can't escape the console.
+
+
 ## [0.31.0] — 2026-08-25
 
 ### Added

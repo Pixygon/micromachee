@@ -197,6 +197,22 @@ stray `-1` is `7`.
 - **Restart on a button, not a timer.** `if btnp(4) then _init() end` in
   `_update` when dead is the convention all the shipped carts use.
 
+## Sharing a game
+
+```bash
+micromachee submit mygame.lua     # or a shelf id
+```
+
+One command sends a cart to the **public community shelf**. Verification is
+automatic and takes ten-odd seconds: the API runs it sandboxed for 900 frames
+of button-mashing (the same spirit as `check`), then two Claude reviewers read
+it — one for safety and content, one for whether it is actually a game. Both
+must accept; an accepted cart is live on the web shelf at pixygon.io/micromachee
+within the minute, and a rejection always says why. The same upload exists on
+the website ("SUBMIT A GAME" under the console). The pipeline lives in
+PixygonAPI (`services/micromacheeVerifier.js`) and reads the same 24K limit —
+if you change the console's limits, that mirror has to move too.
+
 ## The rules are also the generator's contract
 
 `micromachee make "<name>" "<what it is>"` has Claude write a cart from

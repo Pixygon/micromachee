@@ -418,6 +418,122 @@ fn flush_save(id: &str, machine: &Machine) {
 
 // ── authoring ───────────────────────────────────────────────────────────────
 
+/// Where community submissions go. One env override, for developing against a
+/// local API; everyone else talks to the real one.
+fn api_base() -> String {
+    std::env::var("MICROMACHEE_API")
+        .unwrap_or_else(|_| "https://api.pixygon.com/v1".into())
+        .trim_end_matches('/')
+        .to_string()
+}
+
+/// One curl call carrying JSON, both directions. The same reasoning as
+/// `shelf::fetch_at_most`: curl is already on the machine and already trusted,
+/// and a TLS stack in this binary is weight it does not need.
+fn api_json(method: &str, url: &str, body: Option<&serde_json::Value>) -> Result<serde_json::Value, String> {
+    let mut cmd = std::process::Command::new("curl");
+    // https only — except when a developer has pointed MICROMACHEE_API at a
+    // local server on purpose, which is the one case plain http is theirs to
+    // choose.
+    let proto = if std::env::var("MICROMACHEE_API").is_ok() { "=https,http" } else { "=https" };
+    cmd.arg("-sS").arg("-f").arg("--max-time").arg("60")
+        .arg("--proto").arg(proto)
+        .arg("-X").arg(method)
+        .arg("-H").arg("Content-Type: application/json");
+    if let Some(b) = body {
+        cmd.arg("--data-binary").arg(b.to_string());
+    }
+    let out = cmd.arg(url).output().map_err(|e| format!("could not run curl: {e}"))?;
+    if !out.status.success() {
+        // -f hides error bodies; say the thing a person can act on
+        return Err(format!("the shelf did not answer at {url} — are you online?"));
+    }
+    serde_json::from_slice(&out.stdout).map_err(|_| "the shelf answered with something that is not JSON".into())
+}
+
+/// Send a cart to the public shelf and wait for the automatic verification —
+/// a sandboxed run plus reviewers — to say live or rejected. One command, one
+/// verdict, usually well under a minute.
+fn cmd_submit(what: &str) -> i32 {
+    // a path first, a shelf id second — the same way `cover` finds things
+    let path = {
+        let p = std::path::PathBuf::from(what);
+        if p.is_file() { p } else {
+            match shelf::find(what) {
+                Some(p) => p,
+                None => {
+                    eprintln!("✗ {what} is neither a file nor a cart on the shelf");
+                    return 2;
+                }
+            }
+        }
+    };
+    let cart = match Cart::load(&path) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("✗ {e}");
+            return 1;
+        }
+    };
+    if cart.bytes > MAX_CART_BYTES {
+        eprintln!("✗ {} is {} bytes — the public shelf's limit is {MAX_CART_BYTES}", cart.title, cart.bytes);
+        return 1;
+    }
+    let code = match std::fs::read_to_string(&path) {
+        Ok(t) => t,
+        Err(e) => {
+            eprintln!("✗ could not read {}: {e}", path.display());
+            return 1;
+        }
+    };
+
+    println!("submitting {} by {} ({} bytes)…", cart.title, cart.author, cart.bytes);
+    let sent = match api_json("POST", &format!("{}/micromachee/submissions", api_base()),
+        Some(&serde_json::json!({ "code": code }))) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("✗ {e}");
+            return 1;
+        }
+    };
+    let id = match sent.get("id").and_then(|v| v.as_str()) {
+        Some(s) => s.to_string(),
+        None => {
+            let msg = sent.get("message").and_then(|v| v.as_str()).unwrap_or("the shelf refused it");
+            eprintln!("✗ {msg}");
+            return 1;
+        }
+    };
+
+    // Poll until the pipeline lands. The sandboxed run and both reviewers
+    // usually finish in ten-odd seconds; give it two minutes before shrugging.
+    println!("verifying — a sandboxed run, then the reviewers…");
+    let url = format!("{}/micromachee/submissions/{id}", api_base());
+    for _ in 0..60 {
+        std::thread::sleep(std::time::Duration::from_secs(2));
+        let v = match api_json("GET", &url, None) {
+            Ok(v) => v,
+            Err(_) => continue,          // one dropped poll is not a verdict
+        };
+        match v.get("status").and_then(|s| s.as_str()) {
+            Some("live") => {
+                let slug = v.get("slug").and_then(|s| s.as_str()).unwrap_or("?");
+                println!("✓ {} is LIVE on the community shelf as `{slug}`", cart.title);
+                println!("  it is already playable at https://pixygon.io/micromachee");
+                return 0;
+            }
+            Some("rejected") => {
+                let why = v.get("rejectionReason").and_then(|s| s.as_str()).unwrap_or("no reason given");
+                eprintln!("✗ turned away: {why}");
+                return 1;
+            }
+            _ => {}
+        }
+    }
+    eprintln!("✗ verification is taking longer than two minutes — check again later with the same command");
+    1
+}
+
 /// Load a cart and play it blind for a while, pressing buttons at random.
 ///
 /// The point is that a cart which crashes on frame 300, or only when you press
@@ -1127,6 +1243,13 @@ fn main() {
             0
         }
         "sync" => shelf::sync(rest.iter().any(|a| a == "--update")),
+        "submit" => match rest.first() {
+            Some(f) => cmd_submit(f),
+            None => {
+                eprintln!("✗ submit what? try: micromachee submit mygame.lua");
+                2
+            }
+        },
         "doctor" => cmd_doctor(),
         "-h" | "--help" | "help" => {
             print!("{}", include_str!("usage.txt"));

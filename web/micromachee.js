@@ -208,6 +208,14 @@ function mid(a, b, c)
   if b > hi then return hi end
   return b
 end
+
+-- The helper loads exactly MATH | STRING | TABLE and nothing else, so a cart
+-- cannot open a file, run a program, or reach outside the console. wasmoon
+-- opens the full standard set, so this twin closes the gap by hand — the same
+-- names the desktop console never had. Community carts run here; this line is
+-- load-bearing, not tidiness.
+io = nil os = nil package = nil require = nil dofile = nil loadfile = nil
+debug = nil coroutine = nil utf8 = nil
 `;
 
 /// Load a cart and give back something you can drive a frame at a time.

@@ -187,10 +187,18 @@ let shelfBrowse = null;
 let loading = false;
 const ctx = () => $("screen").getContext("2d");
 
+// The community shelf: carts people submitted and the automatic verification
+// (a sandboxed run + reviewers) accepted. Same shape as the catalog, served
+// live by the API — unreachable simply means an official-only shelf today.
+const COMMUNITY = "https://api.pixygon.com/v1/micromachee/community";
+
 async function buildShelf() {
-  let list;
+  let list, community;
   try {
-    list = await (await fetch(CATALOG)).json();
+    [list, community] = await Promise.all([
+      fetch(CATALOG).then((r) => r.json()),
+      fetch(COMMUNITY).then((r) => r.json()).catch(() => ({ carts: [] })),
+    ]);
   } catch (e) {
     $("err").textContent = "could not reach the shelf: " + e.message;
     return;
@@ -202,6 +210,7 @@ async function buildShelf() {
     // the desktop `sync` never sees them. The web has no plugin to bundle into,
     // so this IS its bundle — the shelf is the same one the plugin shows.
     ...(list.bundle || []),
+    ...(community.carts || []),
   ];
 
   // The console shows immediately; covers fill in as each renders.

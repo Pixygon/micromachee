@@ -16,6 +16,9 @@ MAKING A GAME
   micromachee make "<name>" "<what it is>"   have Claude write one
   micromachee revise <id> "<change>"         change one it wrote
   micromachee publish <id>    move a draft onto the shelf
+  micromachee submit <file|id>  send it to the PUBLIC shelf — verified
+                              automatically (a sandboxed run + reviewers),
+                              live for everyone within the minute if accepted
   micromachee discard <id>    throw a draft away
   micromachee check <file>    does it load, and survive a minute of play?
   micromachee cover <id|file> [-o out.png]   look at its cover
