@@ -87,6 +87,44 @@ matching console body for free.
 | `dim` | labels, the controls hint | ground↔light, 45% |
 | `accent` | records, the active cart | slot 2 |
 
+## The screen
+
+A palette says what colour slot 3 *is*. It cannot say what a Game Boy looked
+like, because most of what a Game Boy looked like was not its colours — it was
+a reflective LCD with a visible cell grid and a famous smear. So a theme also
+names **the screen it is shown on**, and the web player paints the framebuffer
+through it.
+
+| key | what it is |
+|---|---|
+| `scanline` | dark gaps between raster lines |
+| `bloom` | light bleeding out of bright pixels |
+| `aberration` | red/blue fringing, in console pixels of separation |
+| `noise` | moving grain |
+| `vignette` | the tube going dark toward the corners |
+| `grid` | LCD cell structure: gaps on **both** axes rather than lines |
+| `persist` | how much of the last frame lingers |
+
+Every field is `0..1`, and **0 means "not this screen"**. That is the whole
+discipline: a theme turns on what its hardware actually did and nothing else.
+An amber monitor has no `aberration`, because one phosphor has no colours to
+fringe. A DMG has no `scanline` and no `bloom`, because an LCD has neither. The
+default theme is an arcade tube and has most of them.
+
+`persist` means two different things on purpose, and the renderer knows which:
+a phosphor **adds** its dying light, an LCD instead **lags** and shows some of
+what was there a moment ago. A theme with `grid` gets the second.
+
+**None of this touches a pixel a cart drew.** Effects happen after the
+framebuffer is final, on the way to the display — which is why the pixel-parity
+check between the helper and the web player still compares identical frames,
+and why no cart can tell which screen it is on. The renderer is
+[`web/present.js`](../web/present.js).
+
+It is web-only today. The bar plugin shows the helper's PNG frames directly and
+would need a shader to do the same; the data is already in `palettes.json`
+waiting for it.
+
 ## Where this lives
 
 The generator is [`helper/src/palettes.rs`](../helper/src/palettes.rs). The
@@ -100,7 +138,9 @@ regenerates it and fails if it has drifted.
 ## Adding one
 
 Add an `(id, ground, light, [eight hues])` row to `THEMES` in `palettes.rs`,
-then:
+and a matching row to `FX` beside it — a test fails if the two lists drift
+apart, because a theme with no screen described for it would quietly render as
+flat pixels while every other theme looked like hardware. Then:
 
 ```bash
 cargo test  --manifest-path helper/Cargo.toml

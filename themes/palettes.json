@@ -5,27 +5,33 @@
   "themes": {
     "micromachee": {
       "palette": ["#000000", "#1d2b53", "#ff004d", "#ffa300", "#ffec27", "#00e436", "#29adff", "#fff1e8"],
-      "shell": {"body": "#000000", "bezel": "#000000", "text": "#fff1e8", "dim": "#b3a9a2", "accent": "#ff004d"}
+      "shell": {"body": "#000000", "bezel": "#000000", "text": "#fff1e8", "dim": "#b3a9a2", "accent": "#ff004d"},
+      "fx": {"scanline": 0.300, "bloom": 0.340, "aberration": 0.550, "noise": 0.030, "vignette": 0.220, "grid": 0.000, "persist": 0.060}
     },
     "gameboy": {
       "palette": ["#08170a", "#234f25", "#668008", "#5fb75f", "#bcd746", "#87c43d", "#5fa25f", "#c7e34a"],
-      "shell": {"body": "#040d05", "bezel": "#08170a", "text": "#c7e34a", "dim": "#8ba032", "accent": "#668008"}
+      "shell": {"body": "#040d05", "bezel": "#08170a", "text": "#c7e34a", "dim": "#8ba032", "accent": "#668008"},
+      "fx": {"scanline": 0.000, "bloom": 0.000, "aberration": 0.000, "noise": 0.000, "vignette": 0.140, "grid": 0.550, "persist": 0.340}
     },
     "amber": {
       "palette": ["#1a0d00", "#693800", "#bd5910", "#f98500", "#ffbf6e", "#fd9c14", "#d57d13", "#ffcf7a"],
-      "shell": {"body": "#0f0600", "bezel": "#1a0d00", "text": "#ffcf7a", "dim": "#b49154", "accent": "#bd5910"}
+      "shell": {"body": "#0f0600", "bezel": "#1a0d00", "text": "#ffcf7a", "dim": "#b49154", "accent": "#bd5910"},
+      "fx": {"scanline": 0.320, "bloom": 0.550, "aberration": 0.000, "noise": 0.045, "vignette": 0.300, "grid": 0.000, "persist": 0.300}
     },
     "noir": {
       "palette": ["#050505", "#515151", "#8c8c8c", "#c3c3c3", "#f1f1f1", "#d5d5d5", "#aeaeae", "#ffffff"],
-      "shell": {"body": "#020202", "bezel": "#050505", "text": "#ffffff", "dim": "#b3b3b3", "accent": "#8c8c8c"}
+      "shell": {"body": "#020202", "bezel": "#050505", "text": "#ffffff", "dim": "#b3b3b3", "accent": "#8c8c8c"},
+      "fx": {"scanline": 0.400, "bloom": 0.220, "aberration": 0.120, "noise": 0.110, "vignette": 0.340, "grid": 0.000, "persist": 0.100}
     },
     "sweet": {
       "palette": ["#1a1226", "#60447f", "#f04c71", "#ffa980", "#ffe8b1", "#85e392", "#73adf1", "#fdf6ee"],
-      "shell": {"body": "#0f0917", "bezel": "#1a1226", "text": "#fdf6ee", "dim": "#b2ada9", "accent": "#f04c71"}
+      "shell": {"body": "#0f0917", "bezel": "#1a1226", "text": "#fdf6ee", "dim": "#b2ada9", "accent": "#f04c71"},
+      "fx": {"scanline": 0.000, "bloom": 0.440, "aberration": 0.220, "noise": 0.015, "vignette": 0.140, "grid": 0.000, "persist": 0.080}
     },
     "abyss": {
       "palette": ["#04070d", "#354b78", "#f03d61", "#fba352", "#efe2ab", "#84d8ac", "#65a4ff", "#e6f0f8"],
-      "shell": {"body": "#020306", "bezel": "#04070d", "text": "#e6f0f8", "dim": "#a1a8ae", "accent": "#f03d61"}
+      "shell": {"body": "#020306", "bezel": "#04070d", "text": "#e6f0f8", "dim": "#a1a8ae", "accent": "#f03d61"},
+      "fx": {"scanline": 0.160, "bloom": 0.320, "aberration": 0.200, "noise": 0.040, "vignette": 0.440, "grid": 0.000, "persist": 0.140}
     }
   }
 }

@@ -4,6 +4,16 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.33.0] — 2026-08-29
+
+### Added
+- Each theme now renders through a simulated screen: the arcade cabinet gets a CRT-style raster and colour fringing, the Game Boy theme shows a real LCD cell grid with motion smear, the amber theme glows with phosphor persistence, and so on. It only changes how pixels are displayed, not the game itself.
+
+### Improved
+- On wide desktop windows, the controls now sit beside the screen instead of below it, letting the screen render noticeably larger since it no longer has to share vertical space with the button row.
+- The on-screen display now renders at a higher maximum scale on larger screens, and its resolution matches your actual device pixels so effects like scanlines look crisp rather than blurry.
+
+
 ## [0.32.0] — 2026-08-27
 
 ### Added

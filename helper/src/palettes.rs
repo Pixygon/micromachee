@@ -55,6 +55,69 @@ pub const THEMES: [(&str, &str, &str, [&str; 8]); 6] = [
      ["#04070d","#141f36","#c02f4c","#b8763a","#e8dca6","#5f9e7d","#3f6aa8","#e6f0f8"]),
 ];
 
+/// How a theme's screen is PRESENTED.
+///
+/// A palette says what colour slot 3 is. This says what the *glass* does to it:
+/// the scanline gaps of a CRT, the glow of a phosphor, the RGB fringing of a
+/// shadow mask, the flat cell grid of an LCD. It changes no pixel a cart drew —
+/// the framebuffer is identical either way, which is why the pixel-parity check
+/// still passes — it only changes how those pixels are painted onto the display.
+///
+/// Every field is 0..1 and 0 means "not this screen". A theme imitating real
+/// hardware turns on the things that hardware actually did and nothing else:
+/// a Game Boy has no scanlines and no bloom, an amber phosphor tube has no
+/// colour fringing because it has only one phosphor.
+#[derive(Clone, Copy)]
+pub struct Fx {
+    /// dark gaps between raster lines
+    pub scanline: f64,
+    /// light bleeding out of bright pixels
+    pub bloom: f64,
+    /// red/blue fringing, in console pixels of separation
+    pub aberration: f64,
+    /// moving grain
+    pub noise: f64,
+    /// the tube going dark toward the corners
+    pub vignette: f64,
+    /// LCD cell structure: gaps on BOTH axes rather than lines
+    pub grid: f64,
+    /// how much of the last frame lingers — phosphor glow, or LCD smear
+    pub persist: f64,
+}
+
+const fn fx(scanline: f64, bloom: f64, aberration: f64, noise: f64, vignette: f64, grid: f64, persist: f64) -> Fx {
+    Fx { scanline, bloom, aberration, noise, vignette, grid, persist }
+}
+
+/// One row per theme, in the same order as `THEMES`. A test fails if the two
+/// lists stop agreeing, because a theme with no screen described for it would
+/// silently fall back to plain flat pixels.
+pub const FX: [(&str, Fx); 6] = [
+    //                     scan  bloom  abrr  noise  vign  grid  persist
+    // The arcade cabinet it is named for: a bright RGB tube, mask fringing at
+    // the edges of saturated colour, and just enough grain to not look printed.
+    ("micromachee", fx(0.30, 0.34, 0.55, 0.030, 0.22, 0.00, 0.06)),
+    // A DMG is a reflective LCD: no raster, no glow, a visible cell grid, and
+    // the famous smear when anything moves fast.
+    ("gameboy",     fx(0.00, 0.00, 0.00, 0.000, 0.14, 0.55, 0.34)),
+    // One amber phosphor. It has no colours to fringe, and it GLOWS — long
+    // persistence was the whole complaint about these monitors.
+    ("amber",       fx(0.32, 0.55, 0.00, 0.045, 0.30, 0.00, 0.30)),
+    // A small black-and-white set with the contrast up: hard raster, real
+    // static, and the corners falling away.
+    ("noir",        fx(0.40, 0.22, 0.12, 0.110, 0.34, 0.00, 0.10)),
+    // Not hardware — a soft modern panel. Bloom and a little fringing, no
+    // raster at all, because nothing it imitates ever had one.
+    ("sweet",       fx(0.00, 0.44, 0.22, 0.015, 0.14, 0.00, 0.08)),
+    // Deep and underlit: the glow of a screen in a dark room, corners gone.
+    ("abyss",       fx(0.16, 0.32, 0.20, 0.040, 0.44, 0.00, 0.14)),
+];
+
+/// The screen a theme is shown on, or a flat one if it never named its own.
+pub fn fx_for(id: &str) -> Fx {
+    FX.iter().find(|(n, _)| *n == id).map(|(_, f)| *f).unwrap_or(fx(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0))
+}
+
 fn linear(c: u8) -> f64 {
     let c = c as f64 / 255.0;
     if c <= 0.04045 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
@@ -227,6 +290,12 @@ pub fn generate() -> String {
                 .collect::<Vec<_>>()
                 .join(", "),
         );
+        s.push_str("},\n      \"fx\": {");
+        let f = fx_for(id);
+        s.push_str(&format!(
+            "\"scanline\": {:.3}, \"bloom\": {:.3}, \"aberration\": {:.3}, \"noise\": {:.3}, \"vignette\": {:.3}, \"grid\": {:.3}, \"persist\": {:.3}",
+            f.scanline, f.bloom, f.aberration, f.noise, f.vignette, f.grid, f.persist
+        ));
         s.push_str("}\n    }");
         s.push_str(if n + 1 == THEMES.len() { "\n" } else { ",\n" });
     }
@@ -289,6 +358,23 @@ mod tests {
     }
 
     #[test]
+    fn every_theme_describes_the_screen_it_is_shown_on() {
+        // A theme with no FX row would quietly render as flat pixels while
+        // every other theme looked like hardware — the kind of gap nobody sees
+        // until they swap to that one theme.
+        assert_eq!(FX.len(), THEMES.len(), "FX and THEMES have drifted apart");
+        for ((fid, _), (tid, _, _, _)) in FX.iter().zip(THEMES.iter()) {
+            assert_eq!(fid, tid, "FX is not in the same order as THEMES");
+        }
+        for (id, f) in FX.iter() {
+            for (what, v) in [("scanline", f.scanline), ("bloom", f.bloom), ("aberration", f.aberration),
+                              ("noise", f.noise), ("vignette", f.vignette), ("grid", f.grid), ("persist", f.persist)] {
+                assert!((0.0..=1.0).contains(&v), "{id}: {what} is {v}, outside 0..1");
+            }
+        }
+    }
+
+    #[test]
     fn every_generated_theme_keeps_the_rank() {
         let want = rank();
         for (id, _, _, _) in THEMES.iter() {
@@ -348,6 +434,19 @@ pub fn generate_js() -> String {
         s.push_str(&format!(
             "  \"{id}\": [{}],\n",
             p.iter().map(|c| format!("\"{}\"", to_hex(*c))).collect::<Vec<_>>().join(", ")
+        ));
+    }
+    s.push_str("};\n\n");
+
+    // How each theme is PRESENTED. Generated here beside the palettes for the
+    // same reason they are: the web player draws the screen a second time, and
+    // a hand-copied table is a table that drifts.
+    s.push_str("// the screen each theme imitates — display effects, never pixels\nexport const THEME_FX = {\n");
+    for (id, _, _, _) in THEMES.iter() {
+        let f = fx_for(id);
+        s.push_str(&format!(
+            "  \"{id}\": {{ scanline: {:.3}, bloom: {:.3}, aberration: {:.3}, noise: {:.3}, vignette: {:.3}, grid: {:.3}, persist: {:.3} }},\n",
+            f.scanline, f.bloom, f.aberration, f.noise, f.vignette, f.grid, f.persist
         ));
     }
     s.push_str("};\n");
