@@ -28,10 +28,12 @@ use crate::console::Screen;
 /// Instructions a single `_update` or `_draw` may spend. Generous — a busy
 /// frame is thousands, not millions — while still catching a loop that never
 /// ends within a fraction of a second.
-const FRAME_INSTRUCTION_BUDGET: u32 = 2_000_000;
+// Scaled with the 240×160 screen (2.3× the pixels of the old 128×128):
+// a full-screen per-pixel effect costs proportionally more Lua steps.
+const FRAME_INSTRUCTION_BUDGET: u32 = 5_000_000;
 const HOOK_EVERY: u32 = 50_000;
 
-/// Memory a cart may hold. A 128×128 game needs a rounding error of this.
+/// Memory a cart may hold. A 240×160 game needs a rounding error of this.
 const MEMORY_LIMIT: usize = 16 * 1024 * 1024;
 
 // What one cart may persist. save()/load() share a single state file across
@@ -468,7 +470,7 @@ impl Machine {
 }
 
 /// Lua errors arrive with a traceback attached. The first line is the one an
-/// author can act on; the rest is noise in a 128-pixel-wide panel.
+/// author can act on; the rest is noise in a bar panel.
 fn tidy(msg: &str) -> String {
     let first = msg.lines().next().unwrap_or(msg).trim();
     first.strip_prefix("runtime error: ").unwrap_or(first).to_string()
@@ -582,7 +584,7 @@ mod tests {
     fn the_budget_refills_every_frame() {
         // A game that legitimately does a lot of work each frame must not run
         // out after a few seconds of play.
-        let m = machine("function _draw() for i=1,20000 do pset(i%128, 4, 2) end end");
+        let m = machine("function _draw() for i=1,20000 do pset(i%240, 4, 2) end end");
         for _ in 0..40 {
             m.draw().unwrap();
         }

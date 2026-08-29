@@ -18,11 +18,11 @@
 -- through, and it is the first thing that goes wrong when you add motion to a
 -- game that never had any.
 
-local COLS, ROWS   = 8, 5
+local COLS, ROWS   = 16, 6
 local BW, BH       = 14, 6
 local LEFT, TOP    = 8, 16
-local PADY         = 118
-local WALL_COLOUR  = { 2, 3, 4, 5, 6 }
+local PADY         = 150
+local WALL_COLOUR  = { 2, 3, 4, 5, 6, 7 }
 
 local NARROW, NORMAL, WIDE = 14, 22, 34
 local DROP_CHANCE  = 0.14
@@ -98,7 +98,7 @@ end
 function _init()
   level  = 1
   padw   = NORMAL
-  padx   = 64 - padw / 2
+  padx   = 120 - padw / 2
   points = 0
   lives  = 3
   drops, wide, pierce = {}, 0, 0
@@ -144,7 +144,7 @@ end
 local function set_paddle(w)
   local mid_x = padx + padw / 2
   padw = w
-  padx = mid(0, mid_x - w / 2, 128 - w)
+  padx = mid(0, mid_x - w / 2, 240 - w)
 end
 
 local function take(kind)
@@ -172,7 +172,7 @@ end
 local function step_ball(b)
   b.x = b.x + b.vx
   if b.x < 1 then b.x, b.vx = 1, -b.vx end
-  if b.x > 126 then b.x, b.vx = 126, -b.vx end
+  if b.x > 238 then b.x, b.vx = 238, -b.vx end
   if hit(b.x, b.y) and pierce <= 0 then b.vx = -b.vx end
 
   b.y = b.y + b.vy
@@ -207,9 +207,10 @@ function _update()
   -- difference between the ball vanishing and the ball being lost.
   if stop > 0 then stop = stop - 1 return end
 
-  if btn(0) then padx = padx - 3 end
-  if btn(1) then padx = padx + 3 end
-  padx = mid(0, padx, 128 - padw)
+  -- 240 wide now: the paddle crosses the field at the old feel, not the old pixels
+  if btn(0) then padx = padx - 5 end
+  if btn(1) then padx = padx + 5 end
+  padx = mid(0, padx, 240 - padw)
 
   if wide > 0 then
     wide = wide - 1
@@ -220,7 +221,7 @@ function _update()
   -- The whole layer, drifting and settling. `oy` stops before the wall could
   -- reach the paddle, so descent is pressure rather than a second way to lose.
   ox = math.sin(t * 0.013) * drift * 5
-  oy = mid(0, oy + descent, 26)
+  oy = mid(0, oy + descent, 48)
 
   if stuck then
     balls[1].x = padx + padw / 2
@@ -232,14 +233,14 @@ function _update()
   for i = #balls, 1, -1 do
     local b = balls[i]
     step_ball(b)
-    if b.y > 127 then table.remove(balls, i) end
+    if b.y > 159 then table.remove(balls, i) end
   end
 
   -- Falling capsules
   for i = #drops, 1, -1 do
     local d = drops[i]
     d.y = d.y + 1.1
-    if d.y > 127 then
+    if d.y > 159 then
       table.remove(drops, i)
     elseif d.y >= PADY - 2 and d.y <= PADY + 4 and d.x >= padx - 2 and d.x <= padx + padw + 2 then
       take(d.kind)
@@ -287,8 +288,8 @@ function _draw()
 
   -- The walls the ball bounces off. They were always there in the physics and
   -- never drawn, so the ball turned around in mid-air at the edge of nothing.
-  rect(0, 9, 1, 119, 1)
-  rect(127, 9, 1, 119, 1)
+  rect(0, 9, 1, 151, 1)
+  rect(239, 9, 1, 151, 1)
 
   for r = 1, ROWS do
     for c = 1, COLS do
@@ -316,21 +317,21 @@ function _draw()
     circ(b.x, b.y, 1, pierce > 0 and 4 or 7)
   end
 
-  rect(0, 0, 128, 8, 0)
+  rect(0, 0, 240, 8, 0)
   print(points .. "", 2, 1, 7)
-  print("L" .. level, 52, 1, 6)
+  print("L" .. level, 116, 1, 6)
   for i = 1, lives do
-    rect(120 - (i - 1) * 5, 2, 3, 3, 2)
+    rect(232 - (i - 1) * 5, 2, 3, 3, 2)
   end
-  line(0, 8, 127, 8, 1)
+  line(0, 8, 239, 8, 1)
 
   if lives <= 0 then
-    rect(20, 52, 88, 24, 0)
-    rectb(20, 52, 88, 24, 2)
-    print("THE VEIL HOLDS", 34, 58, 2)
-    print("PRESS O", 50, 67, 3)
+    rect(76, 68, 88, 24, 0)
+    rectb(76, 68, 88, 24, 2)
+    print("THE VEIL HOLDS", 92, 74, 2)
+    print("PRESS O", 106, 83, 3)
   elseif stuck then
-    print("O TO LAUNCH", 42, 100, 3)
+    print("O TO LAUNCH", 98, 132, 3)
   end
 end
 
@@ -338,19 +339,19 @@ function _cover()
   cls(0)
   local rows = { 2, 3, 4, 5, 6 }
   for r = 1, 5 do
-    for c = 0, 7 do
+    for c = 0, 15 do
       if (r + c) % 2 == 0 or r > 3 then
-        rect(4 + c * 15, 8 + (r - 1) * 9, 14, 8, rows[r])
+        rect(c * 15, 10 + (r - 1) * 11, 14, 10, rows[r])
       end
     end
   end
 
-  rect(46, 108, 36, 5, 7)
-  rect(60, 96, 5, 5, 4)
-  rect(30, 92, 7, 5, 5)
-  print("W", 32, 92, 0)
+  rect(102, 138, 36, 5, 7)
+  rect(117, 124, 5, 5, 4)
+  rect(60, 130, 7, 5, 5)
+  print("W", 62, 130, 0)
 
-  rect(0, 58, 128, 30, 0)
-  print("THE", 46, 60, 7, 3)
-  print("VEIL", 40, 76, 2, 3)
+  rect(0, 70, 240, 46, 0)
+  print("THE", 102, 74, 7, 3)
+  print("VEIL", 88, 92, 2, 4)
 end

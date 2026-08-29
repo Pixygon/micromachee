@@ -2,7 +2,7 @@
 -- author: pixygon
 -- about: walk Limbo, empty the mag, take the cliff
 
--- The second pearl, at 128 by 128. You are a broken Pixiel in Limbo — the
+-- The second pearl, at 240 by 160. You are a broken Pixiel in Limbo — the
 -- planet's corrupted recycling bin — and "respawn" is the recycler's curse: a
 -- deletion that never completes.
 --
@@ -22,7 +22,7 @@ local PW = 6
 local HITCOOL = 30
 local DASH = 9
 
-local WORLD = 384                 -- 3x3 screens of Limbo
+local WORLD = 480                 -- 2x3 screens of Limbo
 local BW = 8                      -- how thick the edge wall / cliffs read
 local HUDH = 16
 local CELL = 32
@@ -66,7 +66,7 @@ local sk, map
 local function stacks(name) return sk[name] or 0 end
 local function guns() return 1 + stacks("SHARD") end
 local function firecool() return mid(3, 10 - stacks("RAPID") * 2, 10) end
-local function speed() return 1.6 + stacks("SWIFT") * 0.28 end
+local function speed() return 2.0 + stacks("SWIFT") * 0.35 end
 local function magnet() return 32 + stacks("REACH") * 16 end
 local function pierce() return stacks("PIERCE") end
 local function dashcool_max() return 42 - stacks("SPUR") * 9 end
@@ -89,7 +89,7 @@ local function grow_map()
   -- a handful of seeds, each cell painted the nearest seed's biome: blotches,
   -- not static. Fresh every run, so no two descents look the same.
   local seeds = {}
-  for _ = 1, 9 do
+  for _ = 1, 12 do
     seeds[#seeds + 1] = { flr(rnd(GRID)), flr(rnd(GRID)), 1 + flr(rnd(#BIOMES)) }
   end
   map = {}
@@ -116,7 +116,7 @@ local KINDS = {
 
 local function send()
   -- off-screen but inside the world: on a ring around you, then clamped in.
-  local ang, dist = rnd(6.29), 90 + rnd(50)
+  local ang, dist = rnd(6.29), 150 + rnd(60)
   local x = mid(BW, px + math.cos(ang) * dist, WORLD - BW)
   local y = mid(BW, py + math.sin(ang) * dist, WORLD - BW)
 
@@ -469,8 +469,8 @@ end
 -- so the blotches read as GRASS / SWAMP / ASH / BOG without ever flickering.
 local function draw_ground()
   cls(0)
-  local gx0, gx1 = flr(ox / CELL), flr((ox + 128) / CELL)
-  local gy0, gy1 = flr(oy / CELL), flr((oy + 128) / CELL)
+  local gx0, gx1 = flr(ox / CELL), flr((ox + 240) / CELL)
+  local gy0, gy1 = flr(oy / CELL), flr((oy + 160) / CELL)
   for gy = gy0, gy1 do
     for gx = gx0, gx1 do
       local b = BIOMES[mapget(gx, gy)]
@@ -489,51 +489,51 @@ end
 local function draw_edges()
   local n, s = 0 - oy, WORLD - oy        -- screen y of world top / bottom
   local w, e = 0 - ox, WORLD - ox        -- screen x of world left / right
-  if w + BW > 0 and w < 128 then
-    rect(w, 0, BW, 128, 0) line(w + BW, 0, w + BW, 127, 1)
-    for yy = 0, 127, 6 do pset(w + BW - 2, yy, 1) end
+  if w + BW > 0 and w < 240 then
+    rect(w, 0, BW, 160, 0) line(w + BW, 0, w + BW, 159, 1)
+    for yy = 0, 159, 6 do pset(w + BW - 2, yy, 1) end
   end
-  if e - BW < 128 and e > 0 then
-    rect(e - BW, 0, BW, 128, 0) line(e - BW, 0, e - BW, 127, 1)
-    for yy = 0, 127, 6 do pset(e - BW + 1, yy, 1) end
+  if e - BW < 240 and e > 0 then
+    rect(e - BW, 0, BW, 160, 0) line(e - BW, 0, e - BW, 159, 1)
+    for yy = 0, 159, 6 do pset(e - BW + 1, yy, 1) end
   end
-  if s - BW < 128 and s > 0 then
-    rect(0, s - BW, 128, BW, 0) line(0, s - BW, 127, s - BW, 1)
-    for xx = 0, 127, 6 do pset(xx, s - BW + 1, 1) end
+  if s - BW < 160 and s > 0 then
+    rect(0, s - BW, 240, BW, 0) line(0, s - BW, 239, s - BW, 1)
+    for xx = 0, 239, 6 do pset(xx, s - BW + 1, 1) end
   end
   -- north wall: solid, filled to the top so the HUD sits on its crown, with a
   -- bright cap line and mortar ticks set in world space.
-  if n + BW > 0 and n < 128 then
-    rect(0, 0, 128, n + BW, 1) line(0, n + BW, 127, n + BW, 6)
+  if n + BW > 0 and n < 160 then
+    rect(0, 0, 240, n + BW, 1) line(0, n + BW, 239, n + BW, 6)
     for wx = 0, WORLD, 8 do
       local sxp = wx - ox
-      if sxp >= 0 and sxp < 128 then line(sxp, math.max(0, n), sxp, n + BW - 1, 6) end
+      if sxp >= 0 and sxp < 240 then line(sxp, math.max(0, n), sxp, n + BW - 1, 6) end
     end
   end
 end
 
 local function draw_choose()
-  rect(6, 26, 116, 74, 0)
-  rectb(6, 26, 116, 74, 6)
-  print("A LEVEL. CHOOSE.", 26, 30, 5)
-  print("UP DOWN  O TAKES", 26, 90, 1)
+  rect(50, 36, 140, 88, 0)
+  rectb(50, 36, 140, 88, 6)
+  print("A LEVEL. CHOOSE.", 88, 40, 5)
+  print("UP DOWN  O TAKES", 88, 114, 1)
   for i = 1, #choices do
     local p = POOL[choices[i]]
-    local y = 44 + (i - 1) * 15
-    if i == choosesel then rect(10, y - 2, 108, 14, 1) end
+    local y = 52 + (i - 1) * 18
+    if i == choosesel then rect(54, y - 2, 132, 15, 1) end
     local have = stacks(p[1])
-    print(p[1], 14, y, i == choosesel and 4 or 7)
-    if have > 0 then print("x" .. have, 14, y + 6, 6) end
-    print(p[2], 46, y + 2, i == choosesel and 7 or 1)
+    print(p[1], 58, y, i == choosesel and 4 or 7)
+    if have > 0 then print("x" .. have, 58, y + 6, 6) end
+    print(p[2], 100, y + 3, i == choosesel and 7 or 1)
   end
 end
 
 function _draw()
   -- the camera trails you, stopping at the world's edges so the bands show.
-  ox = mid(0, flr(px + 3 - 64), WORLD - 128)
+  ox = mid(0, flr(px + 3 - 120), WORLD - 240)
   -- the vertical clamp can lift a little ABOVE the world so the north wall
   -- clears the 16px HUD instead of hiding behind it.
-  oy = mid(-24, flr(py + 3 - 72), WORLD - 128)
+  oy = mid(-24, flr(py + 3 - 88), WORLD - 160)
   if shake > 0 then ox = ox + flr(rnd(3)) - 1 oy = oy + flr(rnd(3)) - 1 end
 
   draw_ground()
@@ -550,7 +550,7 @@ function _draw()
     if near then
       circb(scx, scy, r, 7)
       local t = "THE CLIFF"
-      print(t, mid(2, scx - #t * 2, 126 - #t * 4), mid(HUDH + 2, scy - r - 9, 118), 7)
+      print(t, mid(2, scx - #t * 2, 238 - #t * 4), mid(HUDH + 2, scy - r - 9, 150), 7)
     end
   end
 
@@ -576,51 +576,54 @@ function _draw()
   end
 
   -- ── the panel (two rows) ──────────────────────────────────────────────────
-  rect(0, 0, 128, HUDH, 0)
-  line(0, HUDH, 127, HUDH, 1)
+  rect(0, 0, 240, HUDH, 0)
+  line(0, HUDH, 239, HUDH, 1)
   print("SPARKS " .. taken, 2, 2, 5)
   for i = 1, maxhp do
-    rect(126 - maxhp * 5 + (i - 1) * 5, 2, 3, 4, i <= hp and 2 or 1)
+    rect(238 - maxhp * 5 + (i - 1) * 5, 2, 3, 4, i <= hp and 2 or 1)
   end
   -- row two: the magazine on the left, layer and level on the right
   if reload > 0 then
-    rect(2, 10, flr(60 * (1 - reload / reloadmax)), 4, 3)
-    rectb(2, 10, 60, 4, 1)
+    rect(2, 10, flr(80 * (1 - reload / reloadmax)), 4, 3)
+    rectb(2, 10, 80, 4, 1)
   else
     for i = 1, magsize() do
       rect(2 + (i - 1) * 3, 10, 2, 4, i <= ammo and 4 or 1)
     end
   end
-  print("L" .. layer, 96, 10, 6)
-  print("LV" .. level, 108, 10, 4)
+  print("L" .. layer, 204, 10, 6)
+  print("LV" .. level, 218, 10, 4)
 
   if choosing then draw_choose() end
 
   if dead then
-    rect(8, 44, 112, 42, 0)
-    rectb(8, 44, 112, 42, 2)
-    print("YOU DRIFTED", 40, 50, 2)
-    print("LAYER " .. layer .. "  SPARKS " .. taken, 20, 60, 7)
-    print("DELETION NEVER COMPLETES", 16, 70, 1)
-    print("O AGAIN", 72, 78, 3)
+    rect(58, 57, 124, 46, 0)
+    rectb(58, 57, 124, 46, 2)
+    print("YOU DRIFTED", 98, 63, 2)
+    local s2 = "LAYER " .. layer .. "  SPARKS " .. taken
+    print(s2, (240 - #s2 * 4) / 2, 73, 7)
+    print("DELETION NEVER COMPLETES", 72, 83, 1)
+    print("O AGAIN", 106, 93, 3)
   end
 end
 
 function _cover()
   cls(0)
-  for i = 0, 19 do pset((i * 43 + 11) % 128, 8 + (i * 71) % 84, 1) end
-  circ(98, 26, 11, 0) circb(98, 26, 11, 1) circb(98, 26, 8, 1)
-  local ring = { { 20, 20 }, { 52, 12 }, { 84, 62 }, { 18, 58 }, { 44, 78 }, { 76, 84 }, { 104, 70 }, { 12, 38 } }
+  for i = 0, 35 do pset((i * 43 + 11) % 240, 6 + (i * 71) % 108, 1) end
+  circ(196, 32, 15, 0) circb(196, 32, 15, 1) circb(196, 32, 11, 1)
+  local ring = { { 26, 26 }, { 74, 14 }, { 148, 78 }, { 22, 84 }, { 62, 102 },
+    { 128, 108 }, { 174, 92 }, { 14, 52 }, { 210, 70 }, { 226, 104 },
+    { 100, 18 }, { 158, 22 } }
   for i = 1, #ring do
     local x, y = ring[i][1], ring[i][2]
     rect(x - 3, y - 3, 7, 7, 2) pset(x - 1, y - 1, 0) pset(x + 1, y - 1, 0)
   end
-  rect(60, 34, 5, 5, 3)
-  rect(30, 46, 9, 9, 6) rect(32, 48, 5, 5, 0) pset(33, 50, 6) pset(35, 50, 6)
-  for i = 0, 3 do rect(56, 26 - i * 6, 3, 3, 4) end
-  rect(52, 44, 4, 4, 5) rect(70, 52, 4, 4, 5)
-  rect(52, 40, 16, 8, 7) rect(54, 32, 12, 8, 7) rect(54, 34, 9, 3, 0)
-  rect(62, 34, 3, 3, 6) rect(58, 42, 4, 4, 6)
-  rect(0, 96, 128, 32, 0)
-  print("DREADWAGER", 4, 104, 2, 3)
+  rect(140, 44, 5, 5, 3)
+  rect(52, 62, 9, 9, 6) rect(54, 64, 5, 5, 0) pset(55, 66, 6) pset(57, 66, 6)
+  for i = 0, 3 do rect(116, 40 - i * 6, 3, 3, 4) end
+  rect(104, 60, 4, 4, 5) rect(134, 70, 4, 4, 5)
+  rect(104, 54, 16, 8, 7) rect(106, 46, 12, 8, 7) rect(106, 48, 9, 3, 0)
+  rect(114, 48, 3, 3, 6) rect(110, 56, 4, 4, 6)
+  rect(0, 120, 240, 40, 0)
+  print("DREADWAGER", 40, 130, 2, 4)
 end

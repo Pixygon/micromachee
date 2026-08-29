@@ -16,18 +16,18 @@
 -- frames to 2 as they die, so a nearly-cleared rank is frantic without a single
 -- number anywhere having been called "speed".
 
-local ROWS, COLS = 5, 7
+local ROWS, COLS = 5, 12
 local AW, AH = 8, 6         -- one of them
 local SX, SY = 15, 12       -- and the space one takes up
 local DROP = 6
 
 local SLOW, FAST = 24, 2    -- frames between steps, full rank to last one
 
-local BUNKERS = 4
+local BUNKERS = 6
 local BW, BH = 7, 3         -- blocks across and down, each two pixels square
-local BUNKY = 98
+local BUNKY = 128
 
-local GUNY = 116
+local GUNY = 146
 
 local alive, count, bx, by, dir, tick, step, wave
 local bits, shake
@@ -52,7 +52,7 @@ end
 local function build_wave()
   alive, count = {}, ROWS * COLS
   for i = 1, count do alive[i] = true end
-  bx = 8
+  bx = 12
   -- Each wave starts lower than the last, which is the only thing that makes a
   -- cleared screen worse news than it looks.
   by = 16 + mid(0, (wave - 1) * 4, 20)
@@ -72,7 +72,7 @@ function _init()
   wave = 1
   build_wave()
   build_bunkers()
-  px = 60
+  px = 115
   shot = nil
   bombs = {}
   lives, points, dead, hitpause, flash = 3, 0, false, 0, 0
@@ -81,7 +81,7 @@ function _init()
   score(0)
 end
 
-local function bunker_x(i) return 8 + (i - 1) * 30 end
+local function bunker_x(i) return 14 + (i - 1) * 38 end
 
 -- ── where the rank is ───────────────────────────────────────────────────────
 
@@ -142,11 +142,11 @@ local function advance()
   local left = bx + lo * SX
   local right = bx + hi * SX + AW
 
-  if (dir > 0 and right + 2 > 126) or (dir < 0 and left - 2 < 2) then
+  if (dir > 0 and right + 2 > 238) or (dir < 0 and left - 2 < 2) then
     dir = -dir
     by = by + DROP
   else
-    bx = bx + dir * 2
+    bx = bx + dir * 3.5   -- 240 wide: the keeper keeps the old feel
   end
 
   if bottom_of_rank() >= BUNKY then
@@ -216,7 +216,7 @@ function _update()
 
   if btn(0) then px = px - 2 end
   if btn(1) then px = px + 2 end
-  px = mid(2, px, 116)
+  px = mid(2, px, 228)
   if btnp(4) then fire() end
 
   -- The rank
@@ -267,7 +267,7 @@ function _update()
   for i = #bombs, 1, -1 do
     local b = bombs[i]
     b.y = b.y + 2
-    if b.y > 127 then
+    if b.y > 159 then
       table.remove(bombs, i)
     elseif hit_bunker(b.x, b.y) then
       table.remove(bombs, i)
@@ -355,50 +355,50 @@ function _draw()
   -- The light itself. It is what all of this is for, so it is on screen the
   -- whole time and it dims as you lose.
   local glow = lives >= 2 and 3 or 1
-  for x = 0, 127, 2 do
+  for x = 0, 239, 2 do
     local h = 1 + flr(rnd(lives))
-    rect(x, 128 - h, 2, h, glow)
+    rect(x, 160 - h, 2, h, glow)
   end
 
-  rect(0, 0, 128, 12, 0)
-  line(0, 12, 127, 12, 1)
+  rect(0, 0, 240, 12, 0)
+  line(0, 12, 239, 12, 1)
   print(points .. "", 2, 3, flash > 0 and 7 or 4)
-  print("WAVE " .. wave, 44, 3, 1)
+  print("WAVE " .. wave, 104, 3, 1)
   for i = 1, lives do
-    rect(120 - (i - 1) * 8, 4, 6, 2, 7)
-    rect(122 - (i - 1) * 8, 2, 2, 2, 7)
+    rect(232 - (i - 1) * 8, 4, 6, 2, 7)
+    rect(234 - (i - 1) * 8, 2, 2, 2, 7)
   end
 
   if dead then
-    rect(14, 50, 100, 28, 0)
-    rectb(14, 50, 100, 28, 2)
-    print("THE LIGHT GOES OUT", 22, 56, 2)
-    print("BEST " .. best, 30, 67, 1)
-    print("PRESS O", 74, 67, 3)
+    rect(70, 66, 100, 28, 0)
+    rectb(70, 66, 100, 28, 2)
+    print("THE LIGHT GOES OUT", 84, 72, 2)
+    print("BEST " .. best, 86, 83, 1)
+    print("PRESS O", 130, 83, 3)
   end
 end
 
 function _cover()
   cls(0)
   for r = 0, 3 do
-    for c = 0, 6 do
-      draw_alien(9 + c * 15, 14 + r * 13, r == 0 and 2 or (r <= 1 and 6 or 3), r % 2 == 0)
+    for c = 0, 13 do
+      draw_alien(14 + c * 16, 14 + r * 14, r == 0 and 2 or (r <= 1 and 6 or 3), r % 2 == 0)
     end
   end
-  rect(60, 66, 1, 12, 4)
-  for i = 1, 4 do
-    local ox = 8 + (i - 1) * 30
+  rect(118, 72, 2, 24, 4)
+  for i = 1, 6 do
+    local ox = 14 + (i - 1) * 38
     for br = 0, 2 do
       for bc = 0, 6 do
-        if not (i == 2 and br == 0 and bc > 3) then
-          rect(ox + bc * 2, 80 + br * 2, 2, 2, 5)
+        if not (i == 3 and br == 0 and bc > 3) then
+          rect(ox + bc * 2, 100 + br * 2, 2, 2, 5)
         end
       end
     end
   end
-  rect(56, 92, 10, 4, 7)
-  rect(60, 90, 2, 3, 7)
-  rect(0, 100, 128, 28, 0)
-  for x = 0, 127, 2 do rect(x, 126, 2, 2, 3) end
-  print("FIREKEEPER", 4, 106, 3, 3)
+  rect(112, 112, 10, 4, 7)
+  rect(116, 110, 2, 3, 7)
+  rect(0, 122, 240, 38, 0)
+  for x = 0, 239, 2 do rect(x, 156, 2, 3, 3) end
+  print("FIREKEEPER", 60, 130, 3, 3)
 end

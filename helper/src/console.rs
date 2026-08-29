@@ -1,4 +1,5 @@
-//! The machine: a 128×128 screen with eight colours, and the handful of
+//! The machine: a 240×160 screen — the shape of a GBA's — with eight
+//! colours, and the handful of
 //! drawing operations a game gets.
 //!
 //! Everything clips. A game that draws off the edge — and every game does,
@@ -8,14 +9,14 @@
 
 /// Coordinates and sizes are clamped to this before any primitive iterates.
 ///
-/// Everything clips to the 128×128 screen, so a coordinate past this window is
+/// Everything clips to the 240×160 screen, so a coordinate past this window is
 /// already entirely off-screen and drawing it changes nothing visible. What it
 /// DID change was the cost: `circ` with a two-billion radius looped two billion
 /// rows, and `line` between far-apart points stepped Bresenham a pixel at a time
 /// across the whole gap — each a single Lua call, so the per-frame instruction
 /// budget never saw them and the frame simply hung. Clamping the geometry bounds
 /// every loop to a few thousand iterations while leaving all real drawing exact:
-/// nothing on a 128-pixel screen needs a coordinate beyond ±4096.
+/// nothing on a 240-pixel-wide screen needs a coordinate beyond ±4096.
 const DRAW_LIMIT: i32 = 4096;
 
 #[inline]
@@ -23,8 +24,8 @@ fn clamp_coord(v: i32) -> i32 {
     v.clamp(-DRAW_LIMIT, DRAW_LIMIT)
 }
 
-pub const W: i32 = 128;
-pub const H: i32 = 128;
+pub const W: i32 = 240;
+pub const H: i32 = 160;
 
 /// A character cell: 3 pixels of glyph and one of air, five rows and one of
 /// air. A game laying out a screen needs these, so they are named rather than

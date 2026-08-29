@@ -225,7 +225,8 @@ impl Cart {
                 ));
             }
         }
-        // 128 pixels at four per character is 32, and the menu indents a little.
+        // 240 pixels at four per character is 60, but menus and bars show far
+        // less; the old 28 stays the honest guide.
         if self.title.chars().count() > 28 {
             out.push(format!(
                 "the title is {} characters; the menu shows about 28",
@@ -254,7 +255,7 @@ pub fn scaffold(title: &str) -> String {
 -- A whole game, so there is something on screen before you change anything.
 -- Delete it a piece at a time.
 --
--- 128x128, eight colours, 30 frames a second. Colours are INDEXES 0-7, dark to
+-- 240x160, eight colours, 30 frames a second. Colours are INDEXES 0-7, dark to
 -- light: 0 ground, 1 dim, 2 alert, 6 cool, 3 warm, 5 go, 4 bright, 7 light.
 -- Never assume 2 is "red" — themes repaint every game, and only the order of
 -- those eight is promised.
@@ -262,7 +263,7 @@ pub fn scaffold(title: &str) -> String {
 local x, drops, points, lives, tick
 
 function _init()
-  x      = 64
+  x      = 120
   drops  = {}
   points = 0
   lives  = 3
@@ -278,22 +279,22 @@ function _update()
 
   if btn(0) then x = x - 3 end    -- 0 left, 1 right, 2 up, 3 down, 4 O, 5 X
   if btn(1) then x = x + 3 end
-  x = mid(8, x, 120)              -- mid(lo, value, hi) clamps
+  x = mid(8, x, 232)              -- mid(lo, value, hi) clamps
 
   tick = tick + 1
   if tick % 20 == 0 then
-    drops[#drops + 1] = { x = 6 + rnd(116), y = 16, v = 1 + rnd(1.5) }
+    drops[#drops + 1] = { x = 6 + rnd(228), y = 16, v = 1 + rnd(1.5) }
   end
 
   -- Backwards, so removing the one under the cursor cannot skip the next.
   for i = #drops, 1, -1 do
     local d = drops[i]
     d.y = d.y + d.v
-    if d.y > 112 and d.y < 120 and d.x > x - 10 and d.x < x + 10 then
+    if d.y > 144 and d.y < 152 and d.x > x - 10 and d.x < x + 10 then
       points = points + 1
       score(points)
       table.remove(drops, i)
-    elseif d.y > 128 then
+    elseif d.y > 160 then
       lives = lives - 1
       table.remove(drops, i)
     end
@@ -306,22 +307,22 @@ function _draw()
   for i = 1, #drops do
     circ(drops[i].x, drops[i].y, 2, 4)
   end
-  rect(x - 10, 116, 20, 3, 7)
+  rect(x - 10, 148, 20, 3, 7)
 
   -- The HUD is drawn last, on its own ground, so nothing falls through it.
-  rect(0, 0, 128, 14, 0)
-  line(0, 14, 127, 14, 1)
+  rect(0, 0, 240, 14, 0)
+  line(0, 14, 239, 14, 1)
   print("SCORE " .. points, 2, 2, 7)
   for i = 1, lives do
-    rect(120 - (i - 1) * 5, 3, 3, 3, 2)
+    rect(232 - (i - 1) * 5, 3, 3, 3, 2)
   end
 
   if lives <= 0 then
     -- Boxed, or it lands on top of whatever is still moving.
-    rect(28, 52, 72, 24, 0)
-    rectb(28, 52, 72, 24, 2)
-    print("GAME OVER", 46, 58, 7)
-    print("PRESS O", 50, 66, 3)
+    rect(84, 68, 72, 24, 0)
+    rectb(84, 68, 72, 24, 2)
+    print("GAME OVER", 102, 74, 7)
+    print("PRESS O", 106, 82, 3)
   end
 end
 "#;

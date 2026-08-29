@@ -8,18 +8,19 @@
 -- occupy with pget() and asks what colour it is. Collision therefore agrees
 -- with what is on screen by construction, and cannot drift from it.
 
-local FLOOR = 122
+local FLOOR = 152
+local SHIPX = 44
 
 function _init()
-  ship = 64
+  ship = 76
   vel = 0
   dist = 0
   dead = 0
   best = 0
   -- The cave walls, as a column of gap-centres scrolling right to left.
   top, bot = {}, {}
-  centre, width, drift = 64, 46, 0
-  for i = 1, 129 do
+  centre, width, drift = 76, 56, 0
+  for i = 1, 241 do
     top[i], bot[i] = centre - width / 2, centre + width / 2
   end
 end
@@ -29,13 +30,13 @@ function carve()
   if dist < 45 then return end
   drift = drift + (rnd(2) - 1) * 0.35
   drift = mid(-1.4, drift, 1.4)
-  centre = mid(22, centre + drift, 106)
-  width = mid(20, width - 0.012, 46)
-  for i = 1, 128 do
+  centre = mid(28, centre + drift, 124)
+  width = mid(24, width - 0.012, 56)
+  for i = 1, 240 do
     top[i], bot[i] = top[i + 1], bot[i + 1]
   end
-  top[129] = centre - width / 2
-  bot[129] = centre + width / 2
+  top[241] = centre - width / 2
+  bot[241] = centre + width / 2
 end
 
 function _update()
@@ -58,7 +59,7 @@ function _update()
     dead = 30
     sfx(2)
     lose()
-  elseif pget(30, flr(ship)) ~= 0 and pget(30, flr(ship)) ~= 4 then
+  elseif pget(SHIPX + 4, flr(ship)) ~= 0 and pget(SHIPX + 4, flr(ship)) ~= 4 then
     dead = 30
     sfx(2)
     lose()
@@ -69,7 +70,7 @@ function _draw()
   cls(0)
 
   -- The cave, one vertical pair per column.
-  for i = 1, 128 do
+  for i = 1, 240 do
     local x = i - 1
     rect(x, 0, 1, top[i], 1)
     rect(x, bot[i], 1, FLOOR - bot[i], 1)
@@ -81,43 +82,43 @@ function _draw()
   local y = flr(ship)
   local c = 4
   if dead > 0 then c = 2 end
-  line(26, y, 33, y, c)
-  line(26, y - 1 - flr(vel / 2), 30, y, c)
-  line(26, y + 1 - flr(vel / 2), 30, y, c)
+  line(SHIPX, y, SHIPX + 7, y, c)
+  line(SHIPX, y - 1 - flr(vel / 2), SHIPX + 4, y, c)
+  line(SHIPX, y + 1 - flr(vel / 2), SHIPX + 4, y, c)
 
-  rect(0, FLOOR, 128, 6, 1)
-  print(dist, 2, FLOOR + 1, 7)
+  rect(0, FLOOR, 240, 8, 1)
+  print(dist, 2, FLOOR + 2, 7)
   if dist > best then best = dist end
-  print("BEST " .. best, 74, FLOOR + 1, 6)
+  print("BEST " .. best, 190, FLOOR + 2, 6)
 
   if dead > 0 then
-    rect(30, 54, 68, 18, 0)
-    rectb(30, 54, 68, 18, 2)
-    print("YOU HIT THE WALL", 34, 58, 7)
-    print("DISTANCE " .. dist, 34, 65, 4)
+    rect(86, 71, 68, 18, 0)
+    rectb(86, 71, 68, 18, 2)
+    print("YOU HIT THE WALL", 90, 75, 7)
+    print("DISTANCE " .. dist, 90, 82, 4)
   elseif dist < 60 then
-    print("HOLD UP OR Z TO FLY", 22, 30, 6)
+    print("HOLD UP OR Z TO FLY", 82, 40, 6)
   end
 end
 
 function _cover()
   cls(0)
   -- The cave, as a mouth narrowing to the right.
-  for x = 0, 127 do
-    local mid = 64 + 18 * math.sin(x / 26)
-    local gap = 46 - x * 0.22
+  for x = 0, 239 do
+    local mid = 80 + 24 * math.sin(x / 48)
+    local gap = 58 - x * 0.15
     rect(x, 0, 1, mid - gap / 2, 1)
-    rect(x, mid + gap / 2, 1, 128, 1)
+    rect(x, mid + gap / 2, 1, 160, 1)
     pset(x, mid - gap / 2, 6)
     pset(x, mid + gap / 2, 6)
   end
 
-  local sy = 64 + 18 * math.sin(96 / 26)
-  rect(90, sy - 4, 14, 8, 7)
-  rect(96, sy - 2, 6, 4, 6)
-  rect(80, sy - 2, 10, 4, 3)
-  rect(74, sy - 1, 6, 2, 4)
+  local sy = 80 + 24 * math.sin(180 / 48)
+  rect(172, sy - 4, 14, 8, 7)
+  rect(178, sy - 2, 6, 4, 6)
+  rect(162, sy - 2, 10, 4, 3)
+  rect(156, sy - 1, 6, 2, 4)
 
-  rect(0, 100, 128, 28, 0)
-  print("DOWN-SHAFT", 4, 106, 6, 3)
+  rect(0, 126, 240, 34, 0)
+  print("DOWN-SHAFT", 40, 134, 6, 4)
 end

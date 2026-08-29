@@ -24,7 +24,7 @@
 --   * save/load packs the whole run into one string
 
 local TILE = 8
-local VW, VH = 15, 12               -- tiles shown; a HUD strip fills the rest
+local VW, VH = 30, 18               -- tiles shown; a 16px HUD strip on top
 local FPS = 30
 
 -- ── tiles ────────────────────────────────────────────────────────────────────
@@ -1107,38 +1107,41 @@ end
 
 function draw_world()
   cls((mapname == "cave" or mapname == "tower") and 0 or 1)
-  camx = flr(mid(0, px - VW / 2, gw() - VW))
-  camy = flr(mid(0, py - VH / 2, gh() - VH))
+  -- a map smaller than the viewport is centred instead of clamped
+  if gw() <= VW then camx = flr((gw() - VW) / 2)
+  else camx = flr(mid(0, px - VW / 2, gw() - VW)) end
+  if gh() <= VH then camy = flr((gh() - VH) / 2)
+  else camy = flr(mid(0, py - VH / 2, gh() - VH)) end
   for ry = 0, VH - 1 do for rx = 0, VW - 1 do
     local mx, my = camx + rx, camy + ry
-    local sx, sy = rx * TILE, ry * TILE + 12
+    local sx, sy = rx * TILE, ry * TILE + 16
     local t = at(mx, my)
     draw_tile(t, sx, sy)
     if FOLK[t] then draw_person(sx, sy, 3) end
   end end
-  local hsx, hsy = (px - camx) * TILE, (py - camy) * TILE + 12
+  local hsx, hsy = (px - camx) * TILE, (py - camy) * TILE + 16
   draw_person(hsx, hsy, 4)
 
-  rect(0, 0, 128, 12, 0)
-  line(0, 11, 127, 11, 5)
+  rect(0, 0, 240, 16, 0)
+  line(0, 15, 239, 15, 5)
   local place = ({ over = "CAUL", caul = "SETTLEMENT", port = "TIDEPORT",
     hold = "STONEHOLD", cave = "THE DEEP", tower = "TOWER" })[mapname] or "CAUL"
   if mapname == "tower" then place = "TOWER " .. dtower .. "-" .. dfloor end
-  print(place, 2, 3, 7)
-  print(count_aspects() .. "/4", 92, 3, 4)
-  print("G" .. gold, 108, 3, 3)
+  print(place, 3, 5, 7)
+  print(count_aspects() .. "/4 ASPECTS", 148, 5, 4)
+  print("G" .. gold, 208, 5, 3)
 end
 
 function draw_box(x, y, w, h, e) rect(x, y, w, h, 0) rectb(x, y, w, h, e or 5) end
 
 function draw_talk()
   draw_world()
-  draw_box(4, 82, 120, 42, 6)
-  local yy = 86
-  if msgwho then print(msg[1], 8, yy, 4) yy = yy + 10 end
+  draw_box(4, 116, 232, 40, 6)
+  local yy = 120
+  if msgwho then print(msg[1], 10, yy, 4) yy = yy + 10 end
   local first = msgwho and 2 or 1
-  for i = first, mid(first, first + msgi - 1, #msg) do print(msg[i], 8, yy, 7) yy = yy + 8 end
-  print("O", 116, 117, 3)
+  for i = first, mid(first, first + msgi - 1, #msg) do print(msg[i], 10, yy, 7) yy = yy + 8 end
+  print("O", 226, 148, 3)
 end
 
 -- ── portraits: an actual face per sign, drawn from colour and a motif ─────────
@@ -1185,47 +1188,55 @@ function draw_battle()
   local n = #foes
   for i = 1, n do
     local f = foes[i]
-    local fx, fy = flr((i - 0.5) * 128 / n), 28
+    local fx, fy = flr((i - 0.5) * 240 / n), 42
     if f.alive then
       local big = f.maxhp > 100
       -- a white flash on the frames just after a hit lands
       local bc = (f.flash and f.flash > 0) and 7 or f.col
-      if big then rect(fx - 12, fy - 12, 24, 24, bc) rect(fx - 6, fy - 4, 4, 4, 4) rect(fx + 2, fy - 4, 4, 4, 4)
-      else rect(fx - 6, fy - 6, 12, 12, bc) pset(fx - 3, fy - 2, 0) pset(fx + 3, fy - 2, 0) end
-      if order[turn] and order[turn] <= 100 and CMDS[sel] == "STRIKE" and target == i then
-        rect(fx - 2, fy - (big and 16 or 10), 4, 3, 4)
+      -- drawn to the stage: on 240x160 a foe is a presence, not a chip
+      if big then
+        rect(fx - 20, fy - 20, 40, 40, bc)
+        rect(fx - 11, fy - 8, 7, 7, 4) rect(fx + 4, fy - 8, 7, 7, 4)
+        rect(fx - 8, fy + 8, 16, 3, 0)
+      else
+        rect(fx - 10, fy - 10, 20, 20, bc)
+        rect(fx - 6, fy - 4, 3, 3, 0) rect(fx + 3, fy - 4, 3, 3, 0)
+        rect(fx - 3, fy + 4, 6, 2, 0)
       end
-      bar(fx - 12, fy + (big and 14 or 8), 24, f.hp, f.maxhp, 2)
-      status_pips(f, fx - 10, fy + (big and 18 or 12))
-    else print("X", fx - 2, fy - 2, 5) end
+      if order[turn] and order[turn] <= 100 and CMDS[sel] == "STRIKE" and target == i then
+        rect(fx - 3, fy - (big and 28 or 18), 6, 4, 4)
+      end
+      bar(fx - 16, fy + (big and 23 or 13), 32, f.hp, f.maxhp, 2)
+      status_pips(f, fx - 14, fy + (big and 27 or 17))
+    else print("X", fx - 4, fy - 5, 5, 2) end
     -- the rising damage number over whoever was just struck
     if f.dmgt and f.dmgt > 0 then
       local s = "" .. f.dmg
-      print(s, fx - #s * 2, fy - 14 - flr((26 - f.dmgt) / 3), f.heal and 5 or 4)
+      print(s, fx - #s * 4, fy - 24 - flr((26 - f.dmgt) / 3), f.heal and 5 or 4, 2)
     end
   end
-  if logt > 0 or result then draw_box(4, 48, 120, 12, 6) print(log, 8, 51, 7) end
+  if logt > 0 or result then draw_box(4, 64, 232, 12, 6) print(log, 8, 67, 7) end
 
-  local base = 66
+  local base = 84
   for i = 1, #party do
     local h = party[i]
-    local y = base + (i - 1) * 15
+    local y = base + (i - 1) * 18
     local acting = order[turn] and order[turn] == i and not result and anim == 0
-    if acting then rect(0, y - 1, 128, 14, h.alive and 1 or 0) end
+    if acting then rect(0, y - 1, 160, 16, h.alive and 1 or 0) end
     -- a hit flashes the row red for a couple of frames
-    if h.flash and h.flash > 0 then rect(0, y - 1, 128, 14, 2) end
+    if h.flash and h.flash > 0 then rect(0, y - 1, 160, 16, 2) end
     print(h.name, 2, y, h.alive and h.col or 5)
     if not h.alive then print("DOWN", 2, y + 7, 5)
     else
-      bar(30, y + 1, 32, h.hp, emaxhp(h), 2)
-      bar(30, y + 6, 32, h.mp, emaxmp(h), 6)
-      print(h.hp .. "", 64, y, 7)
-      status_pips(h, 78, y + 6)
+      bar(34, y + 1, 56, h.hp, emaxhp(h), 2)
+      bar(34, y + 6, 56, h.mp, emaxmp(h), 6)
+      print(h.hp .. "", 96, y, 7)
+      status_pips(h, 118, y + 6)
     end
     -- the number, floating up from the hero's row
     if h.dmgt and h.dmgt > 0 then
       local s = "" .. h.dmg
-      print((h.heal and "+" or "-") .. s, 64, y - flr((26 - h.dmgt) / 4), h.heal and 5 or 4)
+      print((h.heal and "+" or "-") .. s, 96, y - flr((26 - h.dmgt) / 4), h.heal and 5 or 4)
     end
     if acting then draw_bmenu(h, 86, y) end
   end
@@ -1235,7 +1246,7 @@ function draw_bmenu(h, x, y)
   if picking then draw_skillmenu(h) return end
   -- a proper boxed menu, not three lines crammed into one row. Fixed on the
   -- right so it reads the same wherever in the order the acting hero sits.
-  local bx, by, bw = 82, 60, 44
+  local bx, by, bw = 174, 92, 60
   draw_box(bx, by, bw, 40, 4)
   print(h.name, bx + 3, by + 3, h.col)
   for i = 1, 3 do
@@ -1248,92 +1259,93 @@ end
 -- the skill list, over the party area, when a hero is choosing one
 function draw_skillmenu(h)
   local list = picking
-  local w = 78
-  draw_box(24, 64, w, 60, 4)
-  print(h.name .. " SIGNS", 28, 68, h.col)
+  local w = 100
+  draw_box(70, 58, w, 60, 4)
+  print(h.name .. " SIGNS", 74, 62, h.col)
   for i = 1, #list do
     local sk = list[i]
-    local y = 78 + (i - 1) * 9
-    if i == skillsel then rect(26, y - 1, w - 4, 8, 1) end
+    local y = 72 + (i - 1) * 9
+    if i == skillsel then rect(72, y - 1, w - 4, 8, 1) end
     local afford = h.mp >= sk[2]
-    print(sk[1], 30, y, afford and (i == skillsel and 4 or 7) or 5)
-    print(sk[2] .. "MP", 84, y, afford and 6 or 5)
+    print(sk[1], 76, y, afford and (i == skillsel and 4 or 7) or 5)
+    print(sk[2] .. "MP", 144, y, afford and 6 or 5)
   end
 end
 
 function draw_shop()
   cls(0)
   print(shopmode == "buy" and "BUY" or "SELL", 4, 4, 4)
-  print("G" .. gold, 96, 4, 3)
-  line(0, 12, 127, 12, 5)
+  print("G" .. gold, 204, 4, 3)
+  line(0, 12, 239, 12, 5)
   local list = shopmode == "buy" and nil or inv_list()
   local nrows = shopmode == "buy" and #GEAR or #list
   for i = 1, nrows do
     local id = shopmode == "buy" and i or list[i]
     local g = GEAR[id]
-    local y = 16 + (i - 1) * 11
-    if i == shopsel then rect(0, y - 1, 128, 10, 1) end
-    print(g[1], 4, y, i == shopsel and 4 or 7)
-    print((g[2] == 1 and "ATK+" or "DEF+") .. g[3], 66, y, 6)
-    if shopmode == "buy" then print("G" .. g[4], 104, y, 3)
-    else print("x" .. (inv[id] or 0) .. " G" .. flr(g[4] / 2), 96, y, 3) end
+    local y = 16 + (i - 1) * 14
+    if i == shopsel then rect(0, y - 1, 240, 12, 1) end
+    print(g[1], 6, y + 2, i == shopsel and 4 or 7)
+    print((g[2] == 1 and "ATK+" or "DEF+") .. g[3], 120, y + 2, 6)
+    if shopmode == "buy" then print("G" .. g[4], 200, y + 2, 3)
+    else print("x" .. (inv[id] or 0) .. " G" .. flr(g[4] / 2), 190, y + 2, 3) end
   end
-  if nrows == 0 then print("NOTHING TO SELL", 20, 40, 5) end
-  line(0, 116, 127, 116, 5)
-  print("O TAKE  X BUY/SELL  > LEAVE", 6, 119, 1)
+  if nrows == 0 then print("NOTHING TO SELL", 90, 70, 5) end
+  line(0, 146, 239, 146, 5)
+  print("O TAKE  X BUY/SELL  > LEAVE", 66, 150, 1)
 end
 
 function draw_menu()
   cls(0)
   local tabs = { "PARTY", "GEAR", "JOBS", "ASPECT" }
   for i = 1, 4 do
-    local x = 2 + (i - 1) * 32
-    if i == menutab then rect(x - 1, 2, 31, 10, 1) end
-    print(tabs[i], x, 4, i == menutab and 4 or 5)
+    local x = 4 + (i - 1) * 59
+    if i == menutab then rect(x - 2, 2, 57, 10, 1) end
+    print(tabs[i], x + 4, 4, i == menutab and 4 or 5)
   end
-  line(0, 13, 127, 13, 5)
+  line(0, 13, 239, 13, 5)
 
   if menutab == 1 then
     if menuchar then draw_charpage(party[menuchar]) return end
     for i = 1, 4 do
       local h = party[i]
-      local y = 16 + (i - 1) * 25
-      if i == menusel then rect(0, y - 1, 128, 24, 1) end
-      portrait(h, 4, y, 1)
-      print(h.name, 24, y, h.col)
-      print(h.sign, 24, y + 6, 5)
-      print("LV" .. h.lvl, 96, y, 7)
-      bar(24, y + 13, 46, h.hp, emaxhp(h), 2)
-      bar(24, y + 18, 46, h.mp, emaxmp(h), 6)
-      print("A" .. eatk(h) .. " D" .. edef(h), 76, y + 13, 4)
-      print("HP" .. h.hp .. "/" .. emaxhp(h), 76, y + 19, 1)
+      local y = 18 + (i - 1) * 30
+      if i == menusel then rect(0, y - 1, 240, 26, 1) end
+      portrait(h, 6, y, 1)
+      print(h.name, 30, y, h.col)
+      print(h.sign, 30, y + 7, 5)
+      print("LV" .. h.lvl, 30, y + 14, 7)
+      bar(90, y + 2, 70, h.hp, emaxhp(h), 2)
+      bar(90, y + 9, 70, h.mp, emaxmp(h), 6)
+      print("HP" .. h.hp .. "/" .. emaxhp(h), 90, y + 15, 1)
+      print("A" .. eatk(h) .. " D" .. edef(h) .. " S" .. espd(h), 172, y + 2, 4)
+      print("JOB " .. job_of(h)[1], 172, y + 10, 3)
     end
-    print("O:VIEW  <>:TAB  X:BACK", 6, 119, 1)
+    print("O:VIEW  <>:TAB  X:BACK", 76, 151, 1)
   elseif menutab == 2 then
     for i = 1, 4 do
       local h = party[i]
-      local y = 16 + (i - 1) * 25
-      portrait(h, 2, y, false)
-      print(h.name, 22, y, h.col)
+      local y = 18 + (i - 1) * 30
+      portrait(h, 6, y, 1)
+      print(h.name, 30, y, h.col)
       local wn = h.wpn > 0 and GEAR[h.wpn][1] or "-"
       local an = h.arm > 0 and GEAR[h.arm][1] or "-"
       local wrow, arow = (i - 1) * 2 + 1, (i - 1) * 2 + 2
-      if menusel == wrow then rect(20, y + 7, 108, 8, 1) end
-      if menusel == arow then rect(20, y + 14, 108, 8, 1) end
-      print("W:" .. wn, 22, y + 8, menusel == wrow and 4 or 6)
-      print("A:" .. an, 22, y + 15, menusel == arow and 4 or 6)
+      if menusel == wrow then rect(28, y + 7, 180, 8, 1) end
+      if menusel == arow then rect(28, y + 14, 180, 8, 1) end
+      print("W:" .. wn, 30, y + 8, menusel == wrow and 4 or 6)
+      print("A:" .. an, 30, y + 15, menusel == arow and 4 or 6)
     end
-    print("O:EQUIP  <>:TAB  X:BACK", 6, 119, 1)
+    print("O:EQUIP  <>:TAB  X:BACK", 74, 151, 1)
     if menupick then draw_picker() end
   elseif menutab == 3 then
     for i = 1, 4 do
       local h = party[i]
-      local y = 16 + (i - 1) * 25
-      if i == menusel then rect(0, y - 1, 128, 24, 1) end
-      portrait(h, 2, y, false)
-      print(h.name, 22, y, h.col)
+      local y = 18 + (i - 1) * 30
+      if i == menusel then rect(0, y - 1, 240, 26, 1) end
+      portrait(h, 6, y, 1)
+      print(h.name, 30, y, h.col)
       local j = job_of(h)
-      print("JOB: " .. j[1], 22, y + 8, 4)
+      print("JOB: " .. j[1], 30, y + 8, 4)
       -- what the job changes
       local mods = ""
       if j[2] ~= 0 then mods = mods .. "ATK+" .. j[2] .. " " end
@@ -1341,93 +1353,92 @@ function draw_menu()
       if j[4] ~= 0 then mods = mods .. "SPD+" .. j[4] .. " " end
       if j[5] ~= 0 then mods = mods .. "MP+" .. j[5] .. " " end
       if j[6] then mods = mods .. j[6][1] end
-      print(mods == "" and "no change" or mods, 22, y + 15, 6)
+      print(mods == "" and "no change" or mods, 30, y + 15, 6)
     end
-    print("O:CHANGE JOB  <>:TAB  X:BACK", 4, 119, 1)
+    print("O:CHANGE JOB  <>:TAB  X:BACK", 64, 151, 1)
   else
     for i = 1, 4 do
       local a = ASPECTS[i]
-      local y = 18 + (i - 1) * 22
+      local y = 20 + (i - 1) * 28
       local got = has_aspect(i)
-      rectb(6, y, 18, 18, got and 4 or 1)
-      if got then rect(9, y + 3, 12, 12, ({ 6, 2, 4, 7 })[i]) end
-      print(a[1], 30, y, got and 4 or 5)
-      print(a[3], 30, y + 8, got and 7 or 1)
+      rectb(84, y, 18, 18, got and 4 or 1)
+      if got then rect(87, y + 3, 12, 12, ({ 6, 2, 4, 7 })[i]) end
+      print(a[1], 110, y + 2, got and 4 or 5)
+      print(a[3], 110, y + 10, got and 7 or 1)
     end
-    print(count_aspects() .. " OF 4 ASPECTS", 24, 108, 4)
-    if aspbits >= 15 then print("THE LAST GATE IS OPEN", 12, 116, 2) end
+    print(count_aspects() .. " OF 4 ASPECTS", 92, 134, 4)
+    if aspbits >= 15 then print("THE LAST GATE IS OPEN", 78, 144, 2) end
   end
 end
 
 -- a hero's full page: the big portrait, every stat, gear and the signs learned
 function draw_charpage(h)
-  portrait(h, 6, 18, 4)                               -- a 64x64 face
-  print(h.name, 6, 86, h.col)
-  print(h.sign, 6, 94, 5)
-  print("LV" .. h.lvl, 6, 102, 7)
-  print("XP " .. (h.xp or 0), 6, 110, 1)
+  portrait(h, 12, 22, 5)                              -- an 80x80 face
+  print(h.name, 12, 108, h.col, 2)
+  print(h.sign, 12, 122, 5)
+  print("LV" .. h.lvl, 12, 130, 7)
+  print("XP " .. (h.xp or 0), 12, 138, 1)
 
-  local x = 78
-  print("HP " .. h.hp .. "/" .. emaxhp(h), x, 18, 2)
-  bar(x, 25, 44, h.hp, emaxhp(h), 2)
-  print("MP " .. h.mp .. "/" .. emaxmp(h), x, 31, 6)
-  bar(x, 38, 44, h.mp, emaxmp(h), 6)
-  print("ATK " .. eatk(h), x, 45, 4)
-  print("DEF " .. edef(h), x, 53, 4)
-  print("SPD " .. espd(h), x, 61, 4)
-  print("JOB " .. job_of(h)[1], x, 69, 3)
-  print("W:" .. (h.wpn > 0 and GEAR[h.wpn][1] or "-"), x, 79, 6)
-  print("A:" .. (h.arm > 0 and GEAR[h.arm][1] or "-"), x, 87, 6)
+  local x = 118
+  print("HP " .. h.hp .. "/" .. emaxhp(h), x, 22, 2)
+  bar(x, 29, 100, h.hp, emaxhp(h), 2)
+  print("MP " .. h.mp .. "/" .. emaxmp(h), x, 36, 6)
+  bar(x, 43, 100, h.mp, emaxmp(h), 6)
+  print("ATK " .. eatk(h), x, 52, 4)
+  print("DEF " .. edef(h), x, 60, 4)
+  print("SPD " .. espd(h), x, 68, 4)
+  print("JOB " .. job_of(h)[1], x, 76, 3)
+  print("W:" .. (h.wpn > 0 and GEAR[h.wpn][1] or "-"), x, 86, 6)
+  print("A:" .. (h.arm > 0 and GEAR[h.arm][1] or "-"), x, 94, 6)
 
-  print("SIGNS", 6, 118, 5)
+  print("SIGNS", x, 106, 5)
   local sl = skills_for(h)
-  local sx = 34
+  local sy = 114
   for i = 1, #sl do
-    if sx > 118 then break end
-    print(sl[i][1], sx, 118, 7)
-    sx = sx + #sl[i][1] * 4 + 4
+    print(sl[i][1] .. " " .. sl[i][2] .. "MP", x, sy, 7)
+    sy = sy + 7
   end
-  print("UP/DN  X:BACK", 78, 118, 1)
+  print("UP/DN  X:BACK", 176, 151, 1)
 end
 
 function draw_picker()
   local h = party[ceil2(menusel)]
   local slot = (menusel - 1) % 2 + 1
   local list = gear_for_slot(slot)
-  draw_box(28, 24, 72, 84, 4)
-  print(h.name .. " " .. (slot == 1 and "WEAPON" or "ARMOUR"), 32, 28, 4)
+  draw_box(65, 30, 110, 94, 4)
+  print(h.name .. " " .. (slot == 1 and "WEAPON" or "ARMOUR"), 70, 34, 4)
   local rows = { "REMOVE" }
   for _, id in ipairs(list) do rows[#rows + 1] = id end
   for i = 1, #rows do
-    local y = 40 + (i - 1) * 9
-    if i == menuitem then rect(30, y - 1, 68, 8, 1) end
-    if rows[i] == "REMOVE" then print("- NONE", 34, y, 5)
-    else local g = GEAR[rows[i]] print(g[1], 34, y, 7) print("+" .. g[3], 84, y, 6) end
+    local y = 46 + (i - 1) * 9
+    if i == menuitem then rect(67, y - 1, 106, 8, 1) end
+    if rows[i] == "REMOVE" then print("- NONE", 71, y, 5)
+    else local g = GEAR[rows[i]] print(g[1], 71, y, 7) print("+" .. g[3], 150, y, 6) end
   end
 end
 
 function draw_title()
   cls(1)
-  rect(0, 92, 128, 36, 6)
-  rect(60, 8, 8, 96, 4) rect(63, 0, 2, 108, 7)
-  for i = 0, 3 do draw_person(28 + i * 18, 82, ({ 6, 5, 2, 4 })[i + 1]) end
-  rect(0, 40, 128, 34, 0)
-  print("VEILWALKERS", (128 - 11 * 4 * 2) / 2, 44, 6, 2)
-  print("O  NEW", 30, 60, 5)
-  print("X  CONTINUE", 30, 68, 7)
+  rect(0, 116, 240, 44, 6)
+  rect(116, 10, 8, 106, 4) rect(119, 0, 2, 116, 7)
+  for i = 0, 3 do draw_person(84 + i * 22, 110, ({ 6, 5, 2, 4 })[i + 1]) end
+  rect(0, 44, 240, 42, 0)
+  print("VEILWALKERS", (240 - 11 * 4 * 3) / 2, 49, 6, 3)
+  print("O  NEW", 96, 68, 5)
+  print("X  CONTINUE", 96, 76, 7)
 end
 
 function draw_win()
   cls(0)
-  for i = 0, 40 do
-    if (i * 7 + flr(tick / 3)) % 40 > (tick / 3) % 40 then pset((i * 97) % 128, (i * 53) % 90 + 12, 1) end
+  for i = 0, 70 do
+    if (i * 7 + flr(tick / 3)) % 40 > (tick / 3) % 40 then pset((i * 97) % 240, (i * 53) % 130 + 10, 1) end
   end
-  rect(61, 10, 6, 110, 4) rect(63, 4, 2, 116, 7)
-  draw_box(8, 44, 112, 42, 4)
-  print("THE VEIL GOES DARK", 22, 50, 4)
-  print("CAUL ENDS.", 44, 60, 7)
-  print("AMEBRAK IS BORN.", 30, 68, 6)
-  print("PRESS O", 50, 78, 3)
+  rect(117, 12, 6, 140, 4) rect(119, 4, 2, 152, 7)
+  draw_box(50, 56, 140, 48, 4)
+  print("THE VEIL GOES DARK", 84, 62, 4)
+  print("CAUL ENDS.", 100, 72, 7)
+  print("AMEBRAK IS BORN.", 88, 80, 6)
+  print("PRESS O", 106, 92, 3)
 end
 
 function _draw()
@@ -1439,16 +1450,16 @@ function _draw()
   elseif state == "menu" then draw_menu()
   elseif state == "win" then draw_win()
   elseif state == "over" then
-    cls(0) draw_box(14, 50, 100, 28, 2)
-    print("THE LINEAGE FALLS", 24, 58, 2) print("PRESS O", 50, 68, 3)
+    cls(0) draw_box(65, 64, 110, 32, 2)
+    print("THE LINEAGE FALLS", 86, 72, 2) print("PRESS O", 106, 84, 3)
   end
 end
 
 function _cover()
   cls(1)
-  rect(0, 96, 128, 32, 6)
-  rect(60, 8, 8, 100, 4) rect(63, 0, 2, 112, 7)
-  for i = 0, 3 do draw_person(30 + i * 18, 84, ({ 6, 5, 2, 4 })[i + 1]) end
-  rect(0, 102, 128, 26, 0)
-  print("VEILWALKERS", (128 - 11 * 4 * 2) / 2, 110, 6, 2)
+  rect(0, 100, 240, 60, 6)
+  rect(116, 6, 8, 100, 4) rect(119, 0, 2, 110, 7)
+  for i = 0, 3 do draw_person(86 + i * 20, 94, ({ 6, 5, 2, 4 })[i + 1]) end
+  rect(0, 116, 240, 44, 0)
+  print("VEILWALKERS", (240 - 11 * 4 * 4) / 2, 129, 6, 4)
 end

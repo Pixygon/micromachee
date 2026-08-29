@@ -327,7 +327,7 @@ impl Mega {
 
         if self.speed() > 1.0 {
             let sp = self.say(&format!("SPEED {:.1}X", self.speed()));
-            self.out.print(&sp, centre(&sp, 1), 88, 3, 1);
+            self.out.print(&sp, centre(&sp, 1), H / 2 + 24, 3, 1);
         }
         for i in 0..LIVES {
             self.out.rect(W - 4 - i * 5, 1, 3, 3, if i < self.lives { 2 } else { 1 });
@@ -347,9 +347,9 @@ impl Mega {
         let over = self.say("GAME OVER");
         self.out.print(&over, centre(&over, 2), 40, 2, 2);
         let n = self.say(&format!("{} ROUNDS", self.survived));
-        self.out.print(&n, centre(&n, 1), 64, 7, 1);
+        self.out.print(&n, centre(&n, 1), H / 2, 7, 1);
         let press = self.say("PRESS O");
-        self.out.print(&press, centre(&press, 1), 84, 3, 1);
+        self.out.print(&press, centre(&press, 1), H / 2 + 20, 3, 1);
     }
 
     /// The shelf picture, drawn rather than stored — there is no mega.lua for a
@@ -374,9 +374,9 @@ impl Mega {
             s.rect(x + 3, y + 3, 28, 20, 0);
             s.print("?", x + 14, y + 9, 2 + i % 5, 1);
         }
-        s.rect(0, 82, W, 46, 0);
-        s.print("MEGA", centre("MEGA", 3), 88, 3, 3);
-        s.print("MICROMACHEE", centre("MICROMACHEE", 1), 112, 7, 1);
+        s.rect(0, H - 62, W, 62, 0);
+        s.print("MEGA", centre("MEGA", 3), H - 56, 3, 3);
+        s.print("MICROMACHEE", centre("MICROMACHEE", 1), H - 30, 7, 1);
         s
     }
 }

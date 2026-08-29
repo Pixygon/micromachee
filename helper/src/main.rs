@@ -1,4 +1,4 @@
-//! micromachee — a 128×128, eight-colour console that lives in a bar.
+//! micromachee — a 240×160, eight-colour console that lives in a bar.
 //!
 //! The bar runs `play`, which is a long-lived process printing one base64 PNG
 //! per line and reading button state on stdin. Everything else is for making
@@ -787,6 +787,7 @@ fn cmd_status() {
     let carts = shelf::list();
     let state = shelf::load_state();
     let th = theme::active(shelf::saved_theme().as_deref());
+    let fx = palettes::fx_for(&th.id);
     let last = state
         .get("last")
         .and_then(|v| v.as_str())
@@ -816,6 +817,13 @@ fn cmd_status() {
             "shell": {
                 "body": th.shell.body, "bezel": th.shell.bezel,
                 "text": th.shell.text, "dim": th.shell.dim, "accent": th.shell.accent,
+            },
+            // The screen this theme is shown on — scanlines, glow, fringing —
+            // for the panel's shader. Same numbers the web player reads.
+            "fx": {
+                "scanline": fx.scanline, "bloom": fx.bloom, "aberration": fx.aberration,
+                "noise": fx.noise, "vignette": fx.vignette, "grid": fx.grid,
+                "persist": fx.persist,
             },
             // One shelf for everybody. Building it here by hand is how the
             // panel ended up without the `draft` flag it reads.
@@ -972,7 +980,7 @@ const COVER_FALLBACK_FRAMES: u32 = 45;
 
 /// The picture the shelf shows for a cart.
 ///
-/// Drawn by the cart, through `_cover()`, on the same 128x128 screen with the
+/// Drawn by the cart, through `_cover()`, on the same 240x160 screen with the
 /// same eight colours — so a cover is one more thing a Lua file does, not an
 /// asset beside it, and it follows the colour mode like everything else does.
 /// A cart with no `_cover()` gets a frame of itself being played, which is at
@@ -1319,9 +1327,10 @@ mod tests {
 
     #[test]
     fn a_whole_frame_encodes_to_one_line() {
-        let png = crate::png::encode(128, 128, &crate::console::DEFAULT_PALETTE, &[0u8; 128 * 128]);
+        use crate::console::{H, W};
+        let png = crate::png::encode(W as u32, H as u32, &crate::console::DEFAULT_PALETTE, &vec![0u8; (W * H) as usize]);
         let line = base64(&png);
         assert!(!line.contains('\n'), "the protocol is one frame per line");
-        assert!(line.len() < 16_000, "line was {} chars", line.len());
+        assert!(line.len() < 40_000, "line was {} chars", line.len());
     }
 }

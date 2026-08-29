@@ -14,7 +14,7 @@
 -- picking them off as they arrive.
 
 local PW, PH = 8, 5
-local SPEED = 2
+local SPEED = 3          -- the sky grew; the sparrow keeps its old feel
 local MAXSHOT = 12
 local GUNMAX = 4
 local INVULN = 48          -- frames of grace after losing a feather
@@ -26,7 +26,7 @@ local gun, kills, dist, best, dead, tick, shake
 local bits
 
 function _init()
-  px, py = 14, 62
+  px, py = 16, 78
   cool = 0
   shots, foes, fire, gifts = {}, {}, {}, {}
   bots = { { x = px - 8, y = py - 9 }, { x = px - 8, y = py + 9 } }
@@ -78,13 +78,13 @@ end
 local function send_wing()
   wing = wing + 1
   local n = 4 + flr(rnd(3))
-  local base = 20 + rnd(76)
+  local base = 24 + rnd(112)
   local gunner = dist > 400 and rnd(1) < 0.45
   wingleft[wing] = n
   wingclean[wing] = true
   for i = 0, n - 1 do
     foes[#foes + 1] = {
-      x = 132 + i * 11,
+      x = 244 + i * 11,
       y = base,
       home = base,
       t = i * 0.5,
@@ -152,8 +152,8 @@ function _update()
   if btn(1) then px = px + SPEED end
   if btn(2) then py = py - SPEED end
   if btn(3) then py = py + SPEED end
-  px = mid(2, px, 120 - PW)
-  py = mid(14, py, 122 - PH)
+  px = mid(2, px, 232 - PW)
+  py = mid(14, py, 154 - PH)
 
   if cool > 0 then cool = cool - 1 end
   if invuln > 0 then invuln = invuln - 1 end
@@ -181,7 +181,7 @@ function _update()
     local s = shots[i]
     s.x = s.x + 5
     s.y = s.y + s.vy
-    if s.x > 128 or s.y < 12 or s.y > 127 then table.remove(shots, i) end
+    if s.x > 240 or s.y < 12 or s.y > 159 then table.remove(shots, i) end
   end
 
   -- Theirs
@@ -197,7 +197,7 @@ function _update()
       f.x = f.x - 1.1
       f.y = f.y + (py - f.y) * 0.012      -- a gunner leans toward you
       f.cool = f.cool - 1
-      if f.cool <= 0 and f.x < 126 then
+      if f.cool <= 0 and f.x < 238 then
         f.cool = 55 + flr(rnd(30))
         fire[#fire + 1] = { x = f.x, y = f.y + 2 }
       end
@@ -321,14 +321,14 @@ function _draw()
 
   -- Three depths of star, each scrolling at its own rate, because one rate is
   -- a wallpaper and three is a distance.
-  for i = 0, 11 do
-    pset((i * 47 - flr(dist * 2)) % 128, 16 + (i * 31) % 100, 1)
+  for i = 0, 21 do
+    pset((i * 47 - flr(dist * 2)) % 240, 16 + (i * 31) % 132, 1)
   end
-  for i = 0, 8 do
-    pset((i * 61 - flr(dist * 3)) % 128, 18 + (i * 43) % 96, 1)
+  for i = 0, 16 do
+    pset((i * 61 - flr(dist * 3)) % 240, 18 + (i * 43) % 128, 1)
   end
-  for i = 0, 5 do
-    pset((i * 71 - flr(dist * 5)) % 128, 20 + (i * 53) % 92, 6)
+  for i = 0, 10 do
+    pset((i * 71 - flr(dist * 5)) % 240, 20 + (i * 53) % 124, 6)
   end
 
   for i = 1, #gifts do
@@ -366,19 +366,19 @@ function _draw()
     circb(flr(px) + 4, flr(py) + 2, 14 - shake, 3)
   end
 
-  rect(0, 0, 128, 12, 0)
-  line(0, 12, 127, 12, 1)
+  rect(0, 0, 240, 12, 0)
+  line(0, 12, 239, 12, 1)
   print(kills * 10 + flr(dist / 10) .. "", 2, 3, 7)
-  print("BEST " .. best, 78, 3, 6)
+  print("BEST " .. best, 190, 3, 6)
   for i = 1, GUNMAX do
-    rect(46 + (i - 1) * 5, 4, 3, 4, i <= gun and 5 or 1)
+    rect(110 + (i - 1) * 5, 4, 3, 4, i <= gun and 5 or 1)
   end
 
   if dead then
-    rect(16, 52, 96, 26, 0)
-    rectb(16, 52, 96, 26, 2)
-    print("IT DOES NOT ARRIVE", 24, 58, 2)
-    print("PRESS O", 50, 68, 3)
+    rect(72, 67, 96, 26, 0)
+    rectb(72, 67, 96, 26, 2)
+    print("IT DOES NOT ARRIVE", 84, 73, 2)
+    print("PRESS O", 106, 83, 3)
   end
 end
 
@@ -388,27 +388,27 @@ function _cover()
   -- so the cover carries one big bird, three thick tracers and a column of
   -- things in the way — shapes that survive being made small.
   cls(0)
-  for i = 0, 15 do pset((i * 37) % 128, 8 + (i * 29) % 84, 1) end
-  for i = 0, 6 do pset((i * 71) % 128, 14 + (i * 53) % 74, 6) end
+  for i = 0, 23 do pset((i * 37) % 240, 8 + (i * 29) % 104, 1) end
+  for i = 0, 10 do pset((i * 71) % 240, 14 + (i * 53) % 94, 6) end
 
-  local x, y = 12, 40
-  rect(x, y + 4, 24, 12, 7)          -- body
-  rect(x + 22, y + 8, 12, 4, 7)      -- beak
-  rect(x + 4, y - 4, 14, 8, 7)       -- wing up
-  rect(x + 4, y + 16, 14, 8, 7)      -- wing down
-  rect(x + 16, y + 6, 5, 4, 6)       -- the eye
+  local x, y = 24, 48
+  rect(x, y + 4, 32, 16, 7)          -- body
+  rect(x + 30, y + 9, 16, 6, 7)      -- beak
+  rect(x + 6, y - 6, 18, 10, 7)      -- wing up
+  rect(x + 6, y + 20, 18, 10, 7)     -- wing down
+  rect(x + 21, y + 8, 6, 5, 6)       -- the eye
 
-  rect(48, y + 2, 64, 4, 4)
-  rect(48, y + 9, 46, 3, 4)
-  rect(48, y + 16, 56, 4, 4)
+  rect(72, y + 2, 120, 5, 4)
+  rect(72, y + 11, 92, 4, 4)
+  rect(72, y + 20, 106, 5, 4)
 
-  for i = 0, 3 do
-    local ex, ey = 100 + (i % 2) * 10, 8 + i * 22
-    rect(ex + 4, ey, 10, 8, 2)
-    rect(ex, ey + 2, 5, 4, 2)
-    rect(ex + 6, ey + 2, 3, 3, 0)
+  for i = 0, 4 do
+    local ex, ey = 196 + (i % 2) * 14, 8 + i * 24
+    rect(ex + 4, ey, 12, 10, 2)
+    rect(ex, ey + 3, 6, 5, 2)
+    rect(ex + 7, ey + 2, 4, 4, 0)
   end
 
-  rect(0, 92, 128, 36, 0)
-  print("SPARROW", 20, 100, 6, 3)
+  rect(0, 118, 240, 42, 0)
+  print("SPARROW", 64, 128, 6, 4)
 end

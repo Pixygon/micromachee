@@ -4,6 +4,17 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.34.0] — 2026-08-29
+
+### Added
+- The console panel now renders games through a per-theme screen shader adding effects like scanlines, bloom, colour fringing, grain, and vignette, so each theme's display feels distinct. If the shader can't load, games still display normally without the effect.
+
+### Changed
+- The console's screen has grown from a square 128×128 display to a wider 240×160 (GBA-shaped) screen, giving every built-in game noticeably more room to breathe — bigger boards, wider fields, and more visible action. **(BREAKING)**
+- Every bundled cart (Snake, Breakout, Pong, Meteor, Firekeeper, Rogue, Picross, Farm, Pixiel, Tower, Tunnel, Twins, Sparrow, Dreadwager, Veilwalkers) has been redrawn and rebalanced for the new wider screen — bigger playfields, adjusted speeds and layouts, and updated cover art.
+- The panel's console frame and bezel have been reworked to fit the new 3:2 screen aspect ratio, keeping the bezel even at any panel size.
+
+
 ## [0.33.0] — 2026-08-29
 
 ### Added

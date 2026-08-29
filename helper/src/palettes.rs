@@ -409,7 +409,7 @@ pub fn generate_js() -> String {
         env!("CARGO_PKG_VERSION"),
         crate::shelf::catalog_url()
     ));
-    s.push_str("export const W = 128;\nexport const H = 128;\n");
+    s.push_str("export const W = 240;\nexport const H = 160;\n");
     s.push_str("export const CHAR_WIDTH = 4;\nexport const LINE_HEIGHT = 6;\n\n");
 
     s.push_str("// slot -> five rows of three bits, most significant bit leftmost\nexport const FONT = {\n");

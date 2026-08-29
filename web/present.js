@@ -13,7 +13,7 @@
 // from helper/src/palettes.rs), so the description of a screen lives beside the
 // palette it belongs to rather than in this file.
 //
-// The cost is bounded on purpose: the per-pixel work is four writes of 16k
+// The cost is bounded on purpose: the per-pixel work is four writes of 38k
 // pixels (the console's own resolution), and everything expensive after that is
 // drawImage and one blur, which the browser does on the GPU.
 
@@ -59,11 +59,11 @@ export class Presenter {
   resize(u) {
     if (u === this.u) return;
     this.u = u;
-    const n = W * u;
-    this.out.width = n;
-    this.out.height = n;
-    this.prev = canvas2d(n, n);
-    this.glow = canvas2d(n >> 1, n >> 1);
+    const nw = W * u, nh = H * u;
+    this.out.width = nw;
+    this.out.height = nh;
+    this.prev = canvas2d(nw, nh);
+    this.glow = canvas2d(nw >> 1, nh >> 1);
     this.mask = null; this.maskKey = "";
     this.vig = null; this.vigKey = "";
     this.noise = []; this.noiseKey = "";
@@ -77,22 +77,22 @@ export class Presenter {
     const key = `${this.u}:${fx.scanline}:${fx.grid}`;
     if (key === this.maskKey) return;
     this.maskKey = key;
-    const u = this.u, n = W * u;
+    const u = this.u, nw = W * u, nh = H * u;
     if (fx.scanline <= 0 && fx.grid <= 0) { this.mask = null; return; }
-    const c = canvas2d(n, n), g = c.getContext("2d");
+    const c = canvas2d(nw, nh), g = c.getContext("2d");
     if (fx.scanline > 0) {
       // The gap between raster lines. One console pixel is one line here, so
       // the dark band is a fraction of each row.
       const band = Math.max(1, Math.round(u / 3));
       g.fillStyle = `rgba(0,0,0,${fx.scanline})`;
-      for (let y = 0; y < H; y++) g.fillRect(0, y * u + (u - band), n, band);
+      for (let y = 0; y < H; y++) g.fillRect(0, y * u + (u - band), nw, band);
     }
     if (fx.grid > 0) {
       // An LCD has cells, so the gap runs both ways and is thin and hard.
       const band = Math.max(1, Math.round(u / 5));
       g.fillStyle = `rgba(0,0,0,${fx.grid * 0.55})`;
-      for (let y = 0; y < H; y++) g.fillRect(0, y * u + (u - band), n, band);
-      for (let x = 0; x < W; x++) g.fillRect(x * u + (u - band), 0, band, n);
+      for (let y = 0; y < H; y++) g.fillRect(0, y * u + (u - band), nw, band);
+      for (let x = 0; x < W; x++) g.fillRect(x * u + (u - band), 0, band, nh);
     }
     this.mask = c;
   }
@@ -102,13 +102,13 @@ export class Presenter {
     if (key === this.vigKey) return;
     this.vigKey = key;
     if (fx.vignette <= 0) { this.vig = null; return; }
-    const n = W * this.u;
-    const c = canvas2d(n, n), g = c.getContext("2d");
-    const grad = g.createRadialGradient(n / 2, n / 2, n * 0.30, n / 2, n / 2, n * 0.75);
+    const nw = W * this.u, nh = H * this.u;
+    const c = canvas2d(nw, nh), g = c.getContext("2d");
+    const grad = g.createRadialGradient(nw / 2, nh / 2, nh * 0.35, nw / 2, nh / 2, nw * 0.62);
     grad.addColorStop(0, "rgba(0,0,0,0)");
     grad.addColorStop(1, `rgba(0,0,0,${fx.vignette})`);
     g.fillStyle = grad;
-    g.fillRect(0, 0, n, n);
+    g.fillRect(0, 0, nw, nh);
     this.vig = c;
   }
 
@@ -139,7 +139,7 @@ export class Presenter {
   draw(screen, palette, fx, u) {
     fx = fx || FLAT;
     this.resize(Math.max(1, Math.floor(u)));
-    const ctx = this.ctx, n = W * this.u, px = screen.px;
+    const ctx = this.ctx, nw = W * this.u, nh = H * this.u, px = screen.px;
     this.frame++;
 
     const rgb = palette.map((hex) => [
@@ -171,7 +171,7 @@ export class Presenter {
     ctx.globalAlpha = 1;
     ctx.imageSmoothingEnabled = false;
     ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, n, n);
+    ctx.fillRect(0, 0, nw, nh);
 
     if (split) {
       const a = fx.aberration * this.u * 0.5;   // in device pixels
@@ -179,12 +179,12 @@ export class Presenter {
       cg.ctx.putImageData(cg.img, 0, 0);
       cb.ctx.putImageData(cb.img, 0, 0);
       ctx.globalCompositeOperation = "lighter";
-      ctx.drawImage(cr.c, -a, 0, n, n);
-      ctx.drawImage(cg.c, 0, 0, n, n);
-      ctx.drawImage(cb.c, a, 0, n, n);
+      ctx.drawImage(cr.c, -a, 0, nw, nh);
+      ctx.drawImage(cg.c, 0, 0, nw, nh);
+      ctx.drawImage(cb.c, a, 0, nw, nh);
       ctx.globalCompositeOperation = "source-over";
     } else {
-      ctx.drawImage(this.base, 0, 0, n, n);
+      ctx.drawImage(this.base, 0, 0, nw, nh);
     }
 
     // What the last frame left behind. A phosphor ADDS its dying light; an LCD
@@ -201,14 +201,14 @@ export class Presenter {
     // Light spilling out of the bright parts. Taken from a half-size copy, so
     // the blur is wider and cheaper than doing it at full resolution.
     if (fx.bloom > 0) {
-      const h = n >> 1, gctx = this.glow.getContext("2d");
-      gctx.clearRect(0, 0, h, h);
-      gctx.drawImage(this.out, 0, 0, h, h);
+      const hw = nw >> 1, hh = nh >> 1, gctx = this.glow.getContext("2d");
+      gctx.clearRect(0, 0, hw, hh);
+      gctx.drawImage(this.out, 0, 0, hw, hh);
       ctx.save();
       ctx.filter = `blur(${Math.max(1, this.u * 0.7)}px)`;
       ctx.globalCompositeOperation = "lighter";
       ctx.globalAlpha = fx.bloom;
-      ctx.drawImage(this.glow, 0, 0, h, h, 0, 0, n, n);
+      ctx.drawImage(this.glow, 0, 0, hw, hh, 0, 0, nw, nh);
       ctx.restore();
     }
 
@@ -223,7 +223,7 @@ export class Presenter {
       ctx.globalCompositeOperation = "lighter";
       ctx.globalAlpha = fx.noise;
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(this.noise[this.frame & 3], 0, 0, n, n);
+      ctx.drawImage(this.noise[this.frame & 3], 0, 0, nw, nh);
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = "source-over";
     }
@@ -240,7 +240,7 @@ export class Presenter {
     if (fx.persist > 0 && this.prev) {
       const p = this.prev.getContext("2d");
       p.globalCompositeOperation = "source-over";
-      p.clearRect(0, 0, n, n);
+      p.clearRect(0, 0, nw, nh);
       p.drawImage(this.out, 0, 0);
     }
   }

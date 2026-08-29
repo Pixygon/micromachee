@@ -643,7 +643,7 @@ mod tests {
         // build, so they get an assertion.
         for needed in [
             "24576", "_draw", "_init", "_update", "_cover", "btnp", "score(n)",
-            "128x128", "eight colours", "indexes",
+            "240x160", "eight colours", "indexes",
         ] {
             assert!(RULES.contains(needed), "the rules no longer mention {needed:?}");
         }
@@ -669,7 +669,7 @@ mod tests {
         assert_eq!(body["fallbacks"], "default");
         // The rules are the cached prefix; they are what makes revisions cheap.
         assert_eq!(body["system"][0]["cache_control"]["type"], "ephemeral");
-        assert!(body["system"][0]["text"].as_str().unwrap().contains("128x128"));
+        assert!(body["system"][0]["text"].as_str().unwrap().contains("240x160"));
         assert_eq!(body["messages"][0]["role"], "user");
         // It has to survive serialisation — the rules contain quotes and
         // backslashes, and a hand-built body would not.
@@ -706,7 +706,7 @@ mod tests {
     #[test]
     fn prove_accepts_a_working_cart() {
         let code = "-- title: Fine\nx = 0\nfunction _update() x = x + 1 end\n\
-                    function _draw() cls(0) rect(x % 128, 4, 3, 3, 7) end\n";
+                    function _draw() cls(0) rect(x % 240, 4, 3, 3, 7) end\n";
         assert!(prove("fine", code).is_ok());
     }
 

@@ -2,15 +2,15 @@
 -- author: pixygon
 -- about: down as far as you can get. nothing escapes
 
--- A dungeon crawl in 120x90 pixels. Rooms joined by corridors, monsters that
+-- A dungeon crawl in 234x120 pixels. Rooms joined by corridors, monsters that
 -- get meaner the deeper you go, and nothing happens until you move — every
 -- turn is yours first, then theirs.
 --
 -- Six pixels a tile, three-by-five glyphs inside them. @ is you, letters are
 -- things that want you dead, > goes down, + is a potion.
 
-local COLS, ROWS, TILE = 20, 15, 6
-local MX, MY = 4, 2
+local COLS, ROWS, TILE = 39, 20, 6
+local MX, MY = 3, 2
 
 local map, seen, vis, roomid, rooms
 local px, py, hp, maxhp, atk, def, lvl, xp, depth
@@ -72,10 +72,10 @@ local function generate()
 
   -- A bounded number of attempts, not "keep trying until it fits": a frame has
   -- an instruction budget and an unlucky seed must not spend all of it.
-  for _ = 1, 60 do
-    if #rooms >= 6 then break end
-    local w = 4 + flr(rnd(4))
-    local h = 3 + flr(rnd(3))
+  for _ = 1, 90 do
+    if #rooms >= 10 then break end
+    local w = 4 + flr(rnd(6))
+    local h = 3 + flr(rnd(4))
     local r = { x = 2 + flr(rnd(COLS - w - 2)), y = 2 + flr(rnd(ROWS - h - 2)), w = w, h = h }
     local ok = true
     for i = 1, #rooms do
@@ -99,7 +99,7 @@ local function generate()
   items[#items + 1] = { x = flr(last.x + last.w / 2), y = flr(last.y + last.h / 2), kind = "stairs" }
 
   -- Monsters and potions go anywhere but the room you arrive in.
-  local count = mid(3, 2 + depth, 8)
+  local count = mid(5, 3 + depth, 12)
   for _ = 1, count do
     local r = rooms[2 + flr(rnd(#rooms - 1))]
     if r then
@@ -114,7 +114,7 @@ local function generate()
       }
     end
   end
-  for _ = 1, 1 + flr(rnd(2)) do
+  for _ = 1, 2 + flr(rnd(2)) do
     local r = rooms[1 + flr(rnd(#rooms))]
     if r then
       items[#items + 1] = { x = r.x + flr(rnd(r.w)), y = r.y + flr(rnd(r.h)), kind = "potion" }
@@ -335,53 +335,54 @@ function _draw()
   glyph("@", px, py, 7)
 
   -- ── the panel ───────────────────────────────────────────────────────────
-  rect(0, 92, 128, 36, 0)
-  line(0, 92, 127, 92, 1)
+  rect(0, 124, 240, 36, 0)
+  line(0, 124, 239, 124, 1)
 
-  print("HP", 4, 96, 7)
-  rectb(13, 95, 42, 7, 1)
-  local w = flr(40 * hp / maxhp)
-  rect(14, 96, w, 5, hp * 3 <= maxhp and 2 or (hp * 2 <= maxhp and 3 or 5))
-  print(hp .. "/" .. maxhp, 59, 96, 7)
+  print("HP", 4, 129, 7)
+  rectb(15, 128, 62, 7, 1)
+  local w = flr(60 * hp / maxhp)
+  rect(16, 129, w, 5, hp * 3 <= maxhp and 2 or (hp * 2 <= maxhp and 3 or 5))
+  print(hp .. "/" .. maxhp, 82, 129, 7)
 
-  print("ATK " .. atk .. "  DEF " .. def .. "  LV " .. lvl, 4, 105, 6)
-  print("DEPTH " .. depth .. "  XP " .. xp .. "/" .. (lvl * 10), 4, 113, 3)
+  print("ATK " .. atk .. "  DEF " .. def .. "  LV " .. lvl, 130, 129, 6)
+  print("DEPTH " .. depth .. "  XP " .. xp .. "/" .. (lvl * 10), 4, 140, 3)
 
   if over then
-    rect(14, 46, 100, 26, 0)
-    rectb(14, 46, 100, 26, 2)
-    print("YOU DISSOLVE ON " .. depth, 64 - (16 + #tostring(depth)) * 2, 52, 7)
-    print("PRESS O", 50, 62, 3)
+    rect(50, 65, 140, 30, 0)
+    rectb(50, 65, 140, 30, 2)
+    print("YOU DISSOLVE ON " .. depth, 120 - (16 + #tostring(depth)) * 2, 71, 7)
+    print("PRESS O", 106, 82, 3)
   elseif on_stairs() then
-    print("O TO GO DOWN", 4, 121, 4)
+    print("O TO GO DOWN", 4, 150, 4)
   elseif msgleft > 0 then
-    print(msg, 4, 121, 1)
+    print(msg, 4, 150, 1)
   end
 end
 
 function _cover()
   cls(0)
   -- A room, remembered in dim and lit where you are standing.
-  for x = 2, 13 do
-    rect(x * 9, 18, 9, 9, 1)
-    rect(x * 9, 81, 9, 9, 1)
+  for x = 2, 24 do
+    rect(x * 9, 9, 9, 9, 1)
+    rect(x * 9, 99, 9, 9, 1)
   end
-  for y = 2, 9 do
+  for y = 2, 10 do
     rect(18, y * 9, 9, 9, 1)
-    rect(117, y * 9, 9, 9, 1)
+    rect(216, y * 9, 9, 9, 1)
   end
-  for x = 3, 12 do
-    for y = 3, 8 do
+  for x = 3, 23 do
+    for y = 2, 10 do
       pset(x * 9 + 4, y * 9 + 4, 1)
     end
   end
 
-  print("@", 60, 46, 7, 2)
-  print("P", 33, 37, 2, 2)   -- a broken Pixiel
-  print("Y", 93, 64, 2, 2)   -- an Ydrast warden
-  print(">", 99, 28, 4, 2)
-  print("+", 33, 70, 5, 2)
+  print("@", 114, 52, 7, 2)
+  print("P", 58, 36, 2, 2)   -- a broken Pixiel
+  print("Y", 176, 70, 2, 2)  -- an Ydrast warden
+  print("S", 84, 82, 2, 2)   -- a shade
+  print(">", 196, 30, 4, 2)
+  print("+", 52, 76, 5, 2)
 
-  rect(0, 94, 128, 34, 0)
-  print("ABADDON", 22, 102, 2, 3)
+  rect(0, 118, 240, 42, 0)
+  print("ABADDON", 64, 128, 2, 4)
 end

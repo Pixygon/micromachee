@@ -12,9 +12,9 @@
 -- planted, and ripeness is `now() - planted >= grow`. A countdown would have to
 -- be ticked, and nothing ticks while the bar is shut.
 
-local COLS, ROWS = 4, 3
-local CELL = 26
-local OX, OY = 12, 22
+local COLS, ROWS = 6, 3
+local CELL = 34
+local OX, OY = 18, 28
 
 -- name, seconds to grow, seed cost, sale price, ripe colour
 local CROPS = {
@@ -115,18 +115,18 @@ local function draw_plot(i, x, y)
 
   if st == 1 then
     -- a shoot
-    rect(x + 11, y + 15, 2, 6, 5)
-    pset(x + 10, y + 14, 5)
-    pset(x + 13, y + 14, 5)
+    rect(x + 15, y + 20, 2, 8, 5)
+    pset(x + 14, y + 19, 5)
+    pset(x + 17, y + 19, 5)
   elseif st == 2 then
-    rect(x + 11, y + 10, 2, 11, 5)
-    rect(x + 7, y + 12, 4, 2, 5)
-    rect(x + 13, y + 15, 4, 2, 5)
+    rect(x + 15, y + 13, 2, 15, 5)
+    rect(x + 10, y + 16, 5, 2, 5)
+    rect(x + 17, y + 20, 5, 2, 5)
   elseif st == 3 then
     local c = CROPS[kind[i]][5]
-    rect(x + 11, y + 13, 2, 8, 5)
-    circ(x + 12, y + 9, 5, c)
-    pset(x + 10, y + 7, 7)
+    rect(x + 15, y + 17, 2, 11, 5)
+    circ(x + 16, y + 11, 6, c)
+    pset(x + 13, y + 8, 7)
   end
 end
 
@@ -143,42 +143,43 @@ function _draw()
   rectb(OX + cx * CELL - 1, OY + cy * CELL - 1, CELL + 1, CELL + 1, 7)
 
   -- ── the panel ───────────────────────────────────────────────────────────
-  rect(0, 0, 128, 20, 0)
-  line(0, 20, 127, 20, 1)
-  print("COINS " .. coins, 2, 3, 4)
+  rect(0, 0, 240, 22, 0)
+  line(0, 22, 239, 22, 1)
+  print("COINS " .. coins, 4, 4, 4)
 
   local c = CROPS[pick]
-  print("X:" .. c[1], 2, 11, 6)
-  print(c[3] .. "C", 74, 11, 1)
-  print("->" .. c[4] .. "C", 92, 11, 5)
+  print("X:" .. c[1], 4, 13, 6)
+  print(c[3] .. "C", 172, 13, 1)
+  print("->" .. c[4] .. "C", 200, 13, 5)
 
-  rect(0, 100, 128, 28, 0)
-  line(0, 100, 127, 100, 1)
+  rect(0, 134, 240, 26, 0)
+  line(0, 134, 239, 134, 1)
 
   local i = slot(cx, cy)
   local st = stage(i)
   if noteleft > 0 then
-    print(note, 2, 104, 7)
+    print(note, 4, 138, 7)
   elseif st == 0 then
-    print("O TO PLANT", 2, 104, 3)
+    print("O TO PLANT", 4, 138, 3)
   elseif st == 3 then
-    print("O TO SELL " .. CROPS[kind[i]][1], 2, 104, 5)
+    print("O TO SELL " .. CROPS[kind[i]][1], 4, 138, 5)
   else
-    print(CROPS[kind[i]][1] .. " READY IN " .. left(i) .. "S", 2, 104, 1)
+    print(CROPS[kind[i]][1] .. " READY IN " .. left(i) .. "S", 4, 138, 1)
   end
-  print("IT GROWS WHILE YOU ARE AWAY", 2, 114, 1)
+  print("IT GROWS WHILE YOU ARE AWAY", 66, 148, 1)
 end
 
 function _cover()
   cls(0)
   for y = 0, 2 do
-    for x = 0, 3 do
-      local px, py = 12 + x * 26, 14 + y * 26
-      rect(px, py, 24, 24, 1)
-      rect(px + 11, py + 13, 2, 8, 5)
-      circ(px + 12, py + 9, 5, (x + y) % 2 == 0 and 4 or 2)
+    for x = 0, 5 do
+      local px, py = 18 + x * 35, 8 + y * 35
+      rect(px, py, 32, 32, 1)
+      rect(px + 14, py + 16, 2, 11, 5)
+      circ(px + 15, py + 11, 6, (x + y) % 2 == 0 and 4 or 2)
+      pset(px + 12, py + 8, 7)
     end
   end
-  rect(0, 96, 128, 32, 0)
-  print("FARM OF ARRA", 16, 106, 5, 2)
+  rect(0, 116, 240, 44, 0)
+  print("FARM OF ARRA", 48, 128, 5, 3)
 end

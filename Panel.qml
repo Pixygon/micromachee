@@ -34,7 +34,7 @@ Panel {
   readonly property int pixelSize: Math.max(2, Math.min(6, mm.scale || 3))
 
   readonly property int screenInset: Style.space(7)
-  readonly property int consoleWidth: 128 * pixelSize + screenInset * 2
+  readonly property int consoleWidth: 240 * pixelSize + screenInset * 2
 
   // True while a text field has the keyboard. The panel's letter shortcuts have
   // to stand down, or typing a game called "Retro" cycles the theme twice.
@@ -312,7 +312,9 @@ Panel {
             anchors.top: chassis.bottom
             anchors.left: parent.left
             anchors.right: parent.right
-            height: width
+            // The screen is 3:2 now. Height is the screen at this scale plus
+            // the same slack the width carries, so the bezel stays even.
+            height: 160 * pixelScale + (width - 240 * pixelScale)
 
             // Ask for the configured size, but never more than actually fits —
             // `fittedContentWidth` may have given us less than we wanted on a
@@ -322,7 +324,7 @@ Panel {
             // QML shadows it rather than complaining, which is worse than an
             // error — it would work until something animated the real one.
             readonly property int pixelScale: Math.max(1, Math.min(root.pixelSize,
-              Math.floor((width - root.screenInset * 2) / 128)))
+              Math.floor((width - root.screenInset * 2) / 240)))
 
             Rectangle {
               anchors.fill: parent
@@ -342,8 +344,8 @@ Panel {
             Item {
               id: screen
               anchors.centerIn: parent
-              width: 128 * screenBox.pixelScale
-              height: width
+              width: 240 * screenBox.pixelScale
+              height: 160 * screenBox.pixelScale
 
               // The shelf and a game arrive the same way — as frames — so this
               // only has to know about the one case that does not: a chosen
@@ -363,28 +365,74 @@ Panel {
                 else       { pageA.source = src; showA = true }
               }
 
-              Image {
-                id: pageA
+              // The raw frames live in their own item so the shader can take
+              // them as a texture and stand in front.
+              Item {
+                id: frames
                 anchors.fill: parent
-                visible: screen.showA
-                // 128 pixels blown up: never interpolate, or the whole point of
-                // an eight-colour console is lost to a blur.
-                smooth: false
-                mipmap: false
-                fillMode: Image.Stretch
-                cache: false
-                asynchronous: false
+
+                Image {
+                  id: pageA
+                  anchors.fill: parent
+                  visible: screen.showA
+                  // 240x160 blown up: never interpolate, or the whole point of
+                  // an eight-colour console is lost to a blur.
+                  smooth: false
+                  mipmap: false
+                  fillMode: Image.Stretch
+                  cache: false
+                  asynchronous: false
+                }
+
+                Image {
+                  id: pageB
+                  anchors.fill: parent
+                  visible: !screen.showA
+                  smooth: false
+                  mipmap: false
+                  fillMode: Image.Stretch
+                  cache: false
+                  asynchronous: false
+                }
               }
 
-              Image {
-                id: pageB
+              // ── the glass ─────────────────────────────────────────────────
+              // The QML twin of web/present.js: the frame drawn through the
+              // screen this theme imitates — scanlines, glow, fringing, grain —
+              // with the numbers arriving per theme in the helper's status
+              // JSON. If the compiled shader will not load, `hideSource` never
+              // engages and the plain frames stay visible: a theme without its
+              // glass, never a black screen.
+              ShaderEffect {
+                id: glass
                 anchors.fill: parent
-                visible: !screen.showA
-                smooth: false
-                mipmap: false
-                fillMode: Image.Stretch
-                cache: false
-                asynchronous: false
+                visible: status === ShaderEffect.Compiled
+                blending: false
+
+                property variant source: ShaderEffectSource {
+                  sourceItem: frames
+                  live: true
+                  smooth: false
+                  hideSource: glass.status === ShaderEffect.Compiled
+                }
+                property real scanline: Number(mm.fx && mm.fx.scanline || 0)
+                property real bloom: Number(mm.fx && mm.fx.bloom || 0)
+                property real aberration: Number(mm.fx && mm.fx.aberration || 0)
+                property real noise: Number(mm.fx && mm.fx.noise || 0)
+                property real vignette: Number(mm.fx && mm.fx.vignette || 0)
+                property real grid: Number(mm.fx && mm.fx.grid || 0)
+                property real time: 0
+                property vector2d px: Qt.vector2d(1 / 240, 1 / 160)
+
+                // only the grain needs a clock, so it only ticks when there is grain
+                NumberAnimation on time {
+                  running: glass.visible && Number(mm.fx && mm.fx.noise || 0) > 0
+                  from: 0; to: 1
+                  duration: 900
+                  loops: Animation.Infinite
+                }
+
+                fragmentShader: Qt.resolvedUrl("shaders/fx.frag.qsb")
               }
             }
 
@@ -1109,7 +1157,7 @@ Panel {
         }
 
         // The shelf itself is gone from here on purpose. It is drawn by the
-        // console now — `micromachee browse`, same 128x128, same six buttons —
+        // console now — `micromachee browse`, same 240x160, same six buttons —
         // so choosing a game is made of the same pixels as playing one.
       }
     }

@@ -6,16 +6,16 @@
 -- A nonogram. The clues along a row say how many squares are filled and in what
 -- runs, so "3 1" means three together, a gap, then one.
 --
--- Layout is the whole difficulty at this size. Eight cells need at most four
--- clues (1-0-1-0-1-0-1-0), each one digit wide, so the clue gutters are sized
--- for exactly that and no more.
+-- Layout is still the discipline, just a kinder one at this size. Eight cells
+-- need at most four clues (1-0-1-0-1-0-1-0), each one digit wide, so the clue
+-- gutters are sized for exactly that — now with room to breathe.
 
 local N     = 8
-local CELL  = 10
-local CLW   = 26          -- left gutter: four clues at six pixels each
-local CLH   = 29          -- top gutter: four clues at seven pixels each
-local OX    = 11          -- centres the 106-pixel block on a 128-pixel screen
-local OY    = 1
+local CELL  = 14
+local CLW   = 32          -- left gutter: four clues at eight pixels each
+local CLH   = 32          -- top gutter: four clues at eight pixels each
+local OX    = 47          -- centres the 145-pixel block on a 240-pixel screen
+local OY    = 2
 local GX    = OX + CLW
 local GY    = OY + CLH
 
@@ -125,19 +125,19 @@ local function draw_clues()
   for r = 1, N do
     local cl = rowclue[r]
     local done = row_done(r)
-    local y = GY + (r - 1) * CELL + 3
+    local y = GY + (r - 1) * CELL + 5
     for k = #cl, 1, -1 do
       -- Right-aligned against the grid, last clue nearest the squares.
-      local x = GX - 6 * (#cl - k + 1)
+      local x = GX - 8 * (#cl - k + 1)
       print(cl[k], x, y, done and 1 or 7)
     end
   end
   for c = 1, N do
     local cl = colclue[c]
     local done = col_done(c)
-    local x = GX + (c - 1) * CELL + 3
+    local x = GX + (c - 1) * CELL + 5
     for k = #cl, 1, -1 do
-      local y = GY - 7 * (#cl - k + 1)
+      local y = GY - 8 * (#cl - k + 1)
       print(cl[k], x, y, done and 1 or 7)
     end
   end
@@ -156,14 +156,14 @@ function _draw()
         rect(x + 1, y + 1, CELL - 1, CELL - 1, 7)
       elseif m == 2 then
         -- A small cross, for squares ruled out on purpose.
-        line(x + 3, y + 3, x + CELL - 3, y + CELL - 3, 2)
-        line(x + CELL - 3, y + 3, x + 3, y + CELL - 3, 2)
+        line(x + 4, y + 4, x + CELL - 4, y + CELL - 4, 2)
+        line(x + CELL - 4, y + 4, x + 4, y + CELL - 4, 2)
       end
       rectb(x, y, CELL + 1, CELL + 1, 1)
     end
   end
 
-  -- Every fifth line heavier, the way a printed nonogram is ruled.
+  -- Every fourth line heavier, the way a printed nonogram is ruled.
   for i = 0, N, 4 do
     line(GX + i * CELL, GY, GX + i * CELL, GY + N * CELL, 6)
     line(GX, GY + i * CELL, GX + N * CELL, GY + i * CELL, 6)
@@ -176,12 +176,12 @@ function _draw()
   end
 
   if won then
-    rect(24, 54, 80, 22, 0)
-    rectb(24, 54, 80, 22, 5)
-    print("THE SIGN HOLDS", 36, 59, 7)
-    print("O FOR ANOTHER", 38, 67, 3)
+    rect(80, 69, 80, 22, 0)
+    rectb(80, 69, 80, 22, 5)
+    print("THE SIGN HOLDS", 92, 74, 7)
+    print("O FOR ANOTHER", 94, 82, 3)
   else
-    print("O FILL   X RULE OUT", 20, 115, 1)
+    print("O FILL   X RULE OUT", 82, 151, 1)
   end
 end
 
@@ -200,19 +200,21 @@ function _cover()
   }
   for r = 1, 8 do
     for c = 1, 8 do
-      local x, y = 28 + (c - 1) * 10, 8 + (r - 1) * 10
+      local x, y = 72 + (c - 1) * 12, 6 + (r - 1) * 12
       if grid[r]:sub(c, c) == "#" then
-        rect(x, y, 9, 9, 7)
+        rect(x, y, 11, 11, 7)
       else
-        rectb(x, y, 10, 10, 1)
+        rectb(x, y, 12, 12, 1)
       end
     end
   end
-  print("4", 20, 11, 6)
-  print("1 1", 12, 21, 6)
-  print("1 1 1", 4, 31, 6)
-  print("1 1", 12, 41, 6)
+  print("4", 62, 10, 6)
+  print("1 1", 54, 22, 6)
+  print("1 1 1", 46, 34, 6)
+  print("1 1", 54, 46, 6)
+  print("2 2", 178, 34, 6)
+  print("1 1", 178, 46, 6)
 
-  rect(0, 96, 128, 32, 0)
-  print("SIGNCARVER", 4, 104, 4, 3)
+  rect(0, 112, 240, 48, 0)
+  print("SIGNCARVER", 40, 124, 4, 4)
 end

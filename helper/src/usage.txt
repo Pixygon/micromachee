@@ -1,4 +1,4 @@
-micromachee — a 128x128, eight-colour console that lives in your bar
+micromachee — a 240x160, eight-colour console that lives in your bar
 
 PLAYING
   micromachee status          one line of JSON for the bar
@@ -29,8 +29,8 @@ MAKING A GAME
                               expressible — which is the only way to drive a
                               game that reads btnp()
 
-A cart is one Lua file, at most 24K. It needs _draw(); _init() and _update()
-are optional. 30 frames a second.
+A cart is one Lua file, at most 24K, drawn on 240x160. It needs _draw();
+_init() and _update() are optional. 30 frames a second.
 
   cls(c) pset(x,y,c) pget(x,y) rect(x,y,w,h,c) rectb(x,y,w,h,c)
   line(x0,y0,x1,y1,c) circ(x,y,r,c) circb(x,y,r,c) print(text,x,y,c,scale)

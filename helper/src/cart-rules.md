@@ -4,7 +4,7 @@ whole game.
 
 # The machine
 
-A 128x128 screen, eight colours, 30 frames a second. The file must be under
+A 240x160 screen, eight colours, 30 frames a second. The file must be under
 24576 bytes.
 
 Define `_draw()`. `_init()` and `_update()` are optional but nearly every game
@@ -100,12 +100,12 @@ number is a particular colour. What is guaranteed is the order, dark to light:
 `cls(0)` then `print(..., 7)` is readable in every theme. Colours wrap: 9 is 1,
 -1 is 7. Drawing off the edge is safe — it clips, it does not wrap or crash.
 
-# Laying out 128x128
+# Laying out 240x160
 
 Text is 4 pixels per character and 6 per line at scale 1, multiplied by `scale`.
 So a line is `#text * 4 * scale` pixels wide, and centring is:
 
-    print(t, (128 - #t * 4 * scale) / 2, y, 7, scale)
+    print(t, (240 - #t * 4 * scale) / 2, y, 7, scale)
 
 Lower case prints as upper case. The font has A-Z, 0-9 and
 `.,:;!?-_+=*/\'"()[]<>%#@&^` — nothing else draws.
@@ -113,7 +113,7 @@ Lower case prints as upper case. The font has A-Z, 0-9 and
 # Things that make a game good here
 
 - **Reserve the HUD.** If anything moves through the top of the screen, draw
-  `rect(0, 0, 128, 14, 0)` behind the score AFTER drawing the game, or the one
+  `rect(0, 0, 240, 14, 0)` behind the score AFTER drawing the game, or the one
   number the player wants is the one they cannot read.
 - **Box any message** over the play area (`rect` then `rectb`), or it lands on
   top of something moving.
@@ -142,7 +142,7 @@ deals it out. Leave the line off and it plays there like everything else.
     local x, alive
 
     function _init()
-      x = 64
+      x = 120
       alive = true
       score(0)
     end
@@ -154,25 +154,25 @@ deals it out. Leave the line off and it plays there like everything else.
       end
       if btn(0) then x = x - 2 end
       if btn(1) then x = x + 2 end
-      x = mid(0, x, 127)
+      x = mid(0, x, 239)
     end
 
     function _draw()
       cls(0)
       rect(x - 3, 118, 7, 4, 6)
-      rect(0, 0, 128, 14, 0)
+      rect(0, 0, 240, 14, 0)
       print("SCORE 0", 2, 3, 7)
     end
 
     function _cover()
       cls(0)
-      print("NAME", (128 - 4 * 4 * 3) / 2, 50, 4, 3)
+      print("NAME", (240 - 4 * 4 * 3) / 2, 66, 4, 3)
     end
 
 The `-- title:` line matters — it is what the shelf shows.
 
 Write a game that is actually playable: it must have a way to lose or a score
-that goes up, respond to the buttons, and be readable at 128 pixels. Reply with
+that goes up, respond to the buttons, and be readable on a 240x160 screen. Reply with
 the Lua file and nothing else.
 
 

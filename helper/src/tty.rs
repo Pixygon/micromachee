@@ -8,7 +8,7 @@
 //!
 //! Pixels become half-blocks: one character cell is two pixels stacked, `▀`
 //! with the foreground the top pixel and the background the bottom, so a
-//! 128×128 screen is 128×64 cells.
+//! 240×160 screen is 240×80 cells.
 //!
 //! No crate is pulled in for any of this. Raw mode, echo and the window size
 //! all come from `stty`, which is already on any machine that has a terminal
@@ -59,7 +59,7 @@ fn term_size() -> (usize, usize) {
             }
         }
     }
-    (68, 128)
+    (84, 240)
 }
 
 /// Puts the terminal back however we leave — a normal quit, an error, or a
@@ -164,9 +164,9 @@ pub fn play(id: &str) -> i32 {
     };
 
     let (h, w) = term_size();
-    let step = if w >= 128 && h >= 68 { 1 } else { 2 };
+    let step = if w >= 240 && h >= 84 { 1 } else { 2 };
     if step == 2 && (w < 64 || h < 36) {
-        eprintln!("✗ this terminal is {w}x{h}; a cart needs 64x36, or 128x68 for one cell per pixel");
+        eprintln!("✗ this terminal is {w}x{h}; a cart needs 120x44, or 240x84 for one cell per pixel");
         return 2;
     }
     let palette = theme::active(shelf::saved_theme().as_deref()).palette;

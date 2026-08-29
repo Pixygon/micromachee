@@ -2,13 +2,13 @@
 -- author: pixygon
 -- about: coiling at the depths. do not eat yourself
 
--- The board is 16x15 cells of 8 pixels, with the top 8 pixels kept for the
+-- The board is 30x19 cells of 8 pixels, with the top 8 pixels kept for the
 -- score. Everything below works in cells and only multiplies up in _draw, so
 -- there is exactly one place where a coordinate becomes a pixel.
 
 local CELL = 8
-local COLS = 16
-local ROWS = 15
+local COLS = 30
+local ROWS = 19
 local TOP  = 8
 
 local snake, dir, turn, food, alive, tick, speed, points
@@ -34,7 +34,7 @@ local function place_food()
 end
 
 function _init()
-  snake  = { {x=8,y=7}, {x=7,y=7}, {x=6,y=7} }
+  snake  = { {x=15,y=9}, {x=14,y=9}, {x=13,y=9} }
   dir    = { x=1, y=0 }
   turn   = dir
   alive  = true
@@ -97,7 +97,7 @@ end
 function _draw()
   cls(0)
   print("TAKEN " .. points, 2, 1, 7)
-  line(0, TOP - 1, 127, TOP - 1, 1)
+  line(0, TOP - 1, 239, TOP - 1, 1)
 
   if food then
     rect(food.x * CELL + 2, TOP + food.y * CELL + 2, 4, 4, 2)
@@ -109,10 +109,10 @@ function _draw()
   end
 
   if not alive then
-    rect(24, 52, 80, 24, 0)
-    rectb(24, 52, 80, 24, 2)
-    print("IT TAKES YOU", 40, 58, 7)
-    print("PRESS O", 50, 66, 3)
+    rect(80, 68, 80, 24, 0)
+    rectb(80, 68, 80, 24, 2)
+    print("IT TAKES YOU", 96, 74, 7)
+    print("PRESS O", 106, 82, 3)
   end
 end
 
@@ -120,17 +120,21 @@ end
 -- game uses, so it follows the colour mode like everything else does.
 function _cover()
   cls(0)
-  for i = 0, 127, 12 do
-    line(0, i, 127, i, 1)
-    line(i, 0, i, 127, 1)
+  for i = 0, 159, 12 do
+    line(0, i, 239, i, 1)
+  end
+  for i = 0, 239, 12 do
+    line(i, 0, i, 159, 1)
   end
 
   local body = {
-    {1,2},{2,2},{3,2},{4,2},{5,2},
-    {5,3},{5,4},
-    {4,4},{3,4},
-    {3,5},{3,6},
-    {4,6},{5,6},{6,6},{7,6},
+    {2,2},{3,2},{4,2},{5,2},{6,2},{7,2},{8,2},
+    {8,3},{8,4},
+    {7,4},{6,4},{5,4},
+    {5,5},{5,6},
+    {6,6},{7,6},{8,6},{9,6},{10,6},{11,6},
+    {11,5},{11,4},{11,3},
+    {12,3},{13,3},
   }
   for i = 1, #body do
     rect(body[i][1] * 12 + 2, body[i][2] * 12 + 2, 10, 10, 5)
@@ -139,9 +143,9 @@ function _cover()
   rect(h[1] * 12 + 2, h[2] * 12 + 2, 10, 10, 4)
   pset(h[1] * 12 + 8, h[2] * 12 + 5, 0)
 
-  circ(8 * 12 + 6, 2 * 12 + 6, 5, 2)
+  circ(16 * 12 + 6, 3 * 12 + 6, 5, 2)
 
-  rect(0, 98, 128, 30, 0)
-  line(0, 98, 127, 98, 5)
-  print("SERPENT", 22, 106, 5, 3)
+  rect(0, 118, 240, 42, 0)
+  line(0, 118, 239, 118, 5)
+  print("SERPENT", 64, 128, 5, 4)
 end

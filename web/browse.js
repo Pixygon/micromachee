@@ -12,10 +12,12 @@
 import { Screen, W, H, CHAR_WIDTH } from "./micromachee.js";
 
 const COLS = 3;
-const TILE = 38;
-const GAP = 3;
-const X0 = 4;
-const GY = 16;
+// Tiles are 3:2, the same shape as the screen and therefore as every cover.
+const TILE_W = 72;
+const TILE_H = 48;
+const GAP = 4;
+const X0 = 8;
+const GY = 18;
 const VIS_ROWS = 2;
 
 export const MAKE_ID = "make";
@@ -98,23 +100,23 @@ export class Browse {
 
   drawEmpty() {
     this.out.cls(0);
-    this.out.print("NOTHING ON THE SHELF", centre("NOTHING ON THE SHELF"), 56, 2, 1);
-    this.out.print("RUN MICROMACHEE SYNC", centre("RUN MICROMACHEE SYNC"), 68, 1, 1);
+    this.out.print("NOTHING ON THE SHELF", centre("NOTHING ON THE SHELF"), H / 2 - 8, 2, 1);
+    this.out.print("RUN MICROMACHEE SYNC", centre("RUN MICROMACHEE SYNC"), H / 2 + 4, 1, 1);
   }
 
   drawTile(at, x, y) {
     // An exact miniature of the whole 128x128 cover: nearest-neighbour on the
     // centre pixel of each block, so the tile is what the cover is.
     const e = this.entries[at];
-    for (let ty = 0; ty < TILE; ty++) {
-      const sy = Math.floor(((ty * 2 + 1) * H) / (2 * TILE));
-      for (let tx = 0; tx < TILE; tx++) {
-        const sx = Math.floor(((tx * 2 + 1) * W) / (2 * TILE));
+    for (let ty = 0; ty < TILE_H; ty++) {
+      const sy = Math.floor(((ty * 2 + 1) * H) / (2 * TILE_H));
+      for (let tx = 0; tx < TILE_W; tx++) {
+        const sx = Math.floor(((tx * 2 + 1) * W) / (2 * TILE_W));
         this.out.pset(x + tx, y + ty, e.art.pget(sx, sy));
       }
     }
-    if (e.draft) this.out.rect(x + TILE - 4, y + 1, 3, 3, 2);
-    this.out.rectb(x - 1, y - 1, TILE + 2, TILE + 2, at === this.sel ? 7 : 1);
+    if (e.draft) this.out.rect(x + TILE_W - 4, y + 1, 3, 3, 2);
+    this.out.rectb(x - 1, y - 1, TILE_W + 2, TILE_H + 2, at === this.sel ? 7 : 1);
   }
 
   arrow(cx, y, up, c) {
@@ -139,18 +141,18 @@ export class Browse {
     for (let slot = 0; slot < COLS * VIS_ROWS; slot++) {
       const at = first + slot;
       if (at >= this.entries.length) break;
-      const x = X0 + (slot % COLS) * (TILE + GAP);
-      const y = GY + Math.floor(slot / COLS) * (TILE + GAP);
+      const x = X0 + (slot % COLS) * (TILE_W + GAP);
+      const y = GY + Math.floor(slot / COLS) * (TILE_H + GAP);
       this.drawTile(at, x, y);
     }
-    if (this.scroll > 0) this.arrow(W / 2, GY - 2, true, 1);
-    if (this.scroll + VIS_ROWS < this.rows()) this.arrow(W / 2, GY + VIS_ROWS * (TILE + GAP), false, 1);
+    if (this.scroll > 0) this.arrow(W / 2, GY - 3, true, 1);
+    if (this.scroll + VIS_ROWS < this.rows()) this.arrow(W / 2, GY + VIS_ROWS * (TILE_H + GAP), false, 1);
 
-    this.out.line(0, 104, W - 1, 104, 1);
+    this.out.line(0, H - 24, W - 1, H - 24, 1);
     const hint = "O PLAY   X INFO";
-    this.out.print(hint, centre(hint), 110, 6, 1);
+    this.out.print(hint, centre(hint), H - 18, 6, 1);
     const count = `${this.sel + 1} OF ${this.entries.length}`;
-    this.out.print(count, centre(count), 119, 1, 1);
+    this.out.print(count, centre(count), H - 9, 1, 1);
   }
 
   drawInfo() {
@@ -158,16 +160,16 @@ export class Browse {
     const e = this.entries[this.sel];
     const title = e.title.toUpperCase();
     const scale = title.length * CHAR_WIDTH * 2 <= W - 8 ? 2 : 1;
-    this.out.print(title, centre(title, scale), 10, 7, scale);
+    this.out.print(title, centre(title, scale), 16, 7, scale);
     const by = ("by " + e.author).toUpperCase();
-    this.out.print(by, centre(by), 28, 1, 1);
+    this.out.print(by, centre(by), 38, 1, 1);
 
-    let y = 46;
-    for (const line of wrap(e.about.toUpperCase(), 30)) {
+    let y = 58;
+    for (const line of wrap(e.about.toUpperCase(), 48)) {
       this.out.print(line, centre(line), y, 6, 1);
       y += 9;
     }
-    y = 70;
+    y = 88;
     if (e.best > 0) {
       const b = ("best " + e.best).toUpperCase();
       this.out.print(b, centre(b), y, 4, 1);
@@ -178,9 +180,9 @@ export class Browse {
       this.out.print(text, centre(text), y, c, 1);
       y += 11;
     }
-    this.out.line(0, 104, W - 1, 104, 1);
+    this.out.line(0, H - 24, W - 1, H - 24, 1);
     const hint = "O PLAY   X BACK";
-    this.out.print(hint, centre(hint), 112, 6, 1);
+    this.out.print(hint, centre(hint), H - 16, 6, 1);
   }
 }
 
@@ -188,9 +190,9 @@ export class Browse {
 function makeTile() {
   const s = new Screen();
   s.cls(0);
-  s.rectb(10, 8, 108, 80, 1);
-  s.rectb(11, 9, 106, 78, 1);
-  s.rect(56, 30, 16, 36, 5);
-  s.rect(46, 40, 36, 16, 5);
+  s.rectb(20, 12, W - 40, H - 44, 1);
+  s.rectb(21, 13, W - 42, H - 46, 1);
+  s.rect(W / 2 - 8, H / 2 - 24, 16, 40, 5);
+  s.rect(W / 2 - 20, H / 2 - 12, 40, 16, 5);
   return s;
 }

@@ -1,6 +1,6 @@
 # micromachee
 
-A 128×128, eight-colour fantasy console that lives in an Omarchy bar widget.
+A 240×160, eight-colour fantasy console — GBA-shaped — that lives in an Omarchy bar widget.
 One Lua file per game.
 
 ## How it is put together
@@ -47,16 +47,16 @@ This is the part most sessions are here for. A cart is **one Lua file, at most
 
 local x
 
-function _init()  x = 64 end
+function _init()  x = 120 end
 function _update()
   if btn(0) then x = x - 2 end
   if btn(1) then x = x + 2 end
-  x = mid(0, x, 127)
+  x = mid(0, x, 239)
 end
 function _draw()
   cls(0)
   print("SCORE 0", 2, 2, 7)
-  rect(x - 3, 118, 7, 4, 6)
+  rect(x - 3, 150, 7, 4, 6)
 end
 ```
 
@@ -117,18 +117,18 @@ point.
 - `print`'s fifth argument is an optional **scale**, defaulting to 1: every
   pixel of the glyph becomes a block that many wide. It is how you get a title
   worth looking at out of a 3x5 font. A scaled line is `#text * 4 * scale`
-  pixels wide, so centring is `(128 - #text * 4 * scale) / 2`.
+  pixels wide, so centring is `(240 - #text * 4 * scale) / 2`.
 
 ## Give it a cover
 
 `_cover()` draws the picture the shelf shows, and the one that comes up full
-size before the game starts. It runs once, after `_init()`, on the same 128x128
+size before the game starts. It runs once, after `_init()`, on the same 240x160
 screen with the same eight colours:
 
 ```lua
 function _cover()
   cls(0)
-  print("SNAKE", 34, 106, 5, 3)   -- scale 3, so it reads at thumbnail size
+  print("SNAKE", 90, 130, 5, 3)   -- scale 3, so it reads at thumbnail size
 end
 ```
 
@@ -171,11 +171,11 @@ What you can rely on is the **rank**, which every theme preserves:
 Read top-to-bottom as dark to light. `cls(0)` then `print(..., 7)` is readable
 in every theme, forever. See `themes/README.md`.
 
-## Laying out 128×128
+## Laying out 240×160
 
 Text is **4 pixels per character, 6 pixels per line**, drawn from the top-left
-of the first glyph. So a 32-character line exactly fills the screen, and
-centring is `x = (128 - #text * 4) / 2`.
+of the first glyph. So a 60-character line exactly fills the screen, and
+centring is `x = (240 - #text * 4) / 2`.
 
 Lower case prints as upper — there is one case in the font. Characters the font
 lacks are skipped silently, leaving a hole; `check` warns about it in a title.
@@ -186,11 +186,11 @@ stray `-1` is `7`.
 
 ## Things that bite
 
-- **A frame has an instruction budget** (about 2M). A `while true do end` ends
+- **A frame has an instruction budget** (about 5M). A `while true do end` ends
   the cart with "a frame ran forever", it does not lock the bar. Plenty for a
   real game; you will not meet it by accident.
 - **Reserve the HUD area.** If things move through the top of the screen, draw a
-  `rect(0,0,128,16,0)` behind the score *after* drawing them, or the one number
+  `rect(0,0,240,16,0)` behind the score *after* drawing them, or the one number
   the player wants is the one they cannot read.
 - **Put game-over text in a box** (`rect` then `rectb`) rather than straight on
   the field, or it lands on top of whatever was moving.

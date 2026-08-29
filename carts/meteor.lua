@@ -3,12 +3,12 @@
 -- about: the sphere is shedding. do not be under it
 
 -- A dodger that gets harder by spawning more often rather than by moving
--- faster, so it stays readable at 128 pixels: at speed the screen fills up,
--- but nothing ever crosses the screen faster than the eye can follow.
+-- faster, so it stays readable across 240 pixels: at speed the screen fills
+-- up, but nothing ever crosses the screen faster than the eye can follow.
 
-local SHIPY  = 112
-local SPAWN0 = 26      -- frames between rocks at the start
-local SPAWN1 = 7       -- and once it has fully warmed up
+local SHIPY  = 146
+local SPAWN0 = 14      -- frames between rocks at the start
+local SPAWN1 = 4       -- and once it has fully warmed up
 local WARMUP = 45 * 30 -- frames to get from one to the other
 
 local shipx, rocks, alive, frames, cooldown, points, best
@@ -16,7 +16,7 @@ local shipx, rocks, alive, frames, cooldown, points, best
 local function spawn()
   local w = 6 + flr(rnd(10))
   rocks[#rocks + 1] = {
-    x = flr(rnd(128 - w)),
+    x = flr(rnd(240 - w)),
     y = -8,
     w = w,
     h = 4 + flr(rnd(4)),
@@ -32,7 +32,7 @@ local function spawn_gap()
 end
 
 function _init()
-  shipx    = 64
+  shipx    = 120
   rocks    = {}
   alive    = true
   frames   = 0
@@ -54,9 +54,10 @@ function _update()
   sfx(3)
   if points > best then best = points end
 
-  if btn(0) then shipx = shipx - 2 end
-  if btn(1) then shipx = shipx + 2 end
-  shipx = mid(3, shipx, 124)
+  -- 240 wide now: the ship crosses the field at the old feel, not the old pixels
+  if btn(0) then shipx = shipx - 3.5 end
+  if btn(1) then shipx = shipx + 3.5 end
+  shipx = mid(3, shipx, 236)
 
   cooldown = cooldown - 1
   if cooldown <= 0 then
@@ -68,7 +69,7 @@ function _update()
   for i = #rocks, 1, -1 do
     local r = rocks[i]
     r.y = r.y + r.v
-    if r.y > 128 then
+    if r.y > 160 then
       table.remove(rocks, i)
     elseif r.y + r.h >= SHIPY - 2 and r.y <= SHIPY + 2
        and shipx + 2 >= r.x and shipx - 2 <= r.x + r.w then
@@ -83,9 +84,9 @@ function _draw()
   cls(0)
 
   -- A few stars, placed by position rather than stored, so they cost nothing.
-  for i = 0, 11 do
-    local sy = (i * 37 + flr(t() * 18)) % 128
-    pset((i * 53) % 128, sy, 1)
+  for i = 0, 23 do
+    local sy = (i * 37 + flr(t() * 18)) % 160
+    pset((i * 53) % 240, sy, 1)
   end
 
   for i = 1, #rocks do
@@ -106,35 +107,37 @@ function _draw()
   -- falling past the top makes the score unreadable at the moment you most
   -- want to read it. Rocks spawn above the bar and slide out from under it,
   -- which reads as entering the screen rather than popping into it.
-  rect(0, 0, 128, 16, 0)
-  line(0, 16, 127, 16, 1)
+  rect(0, 0, 240, 16, 0)
+  line(0, 16, 239, 16, 1)
   print("SCORE " .. points, 2, 2, 7)
   print("BEST " .. best, 2, 9, 6)
 
   if not alive then
-    rect(25, 52, 78, 24, 0)
-    rectb(25, 52, 78, 24, 2)
-    print("A PLATE TAKES YOU", 30, 58, 2)
-    print("PRESS O", 50, 66, 3)
+    rect(81, 68, 78, 24, 0)
+    rectb(81, 68, 78, 24, 2)
+    print("A PLATE TAKES YOU", 86, 74, 2)
+    print("PRESS O", 106, 82, 3)
   end
 end
 
 function _cover()
   cls(0)
-  for i = 0, 39 do
-    pset((i * 53) % 128, (i * 37) % 128, 1)
+  for i = 0, 59 do
+    pset((i * 53) % 240, (i * 37) % 160, 1)
   end
 
-  rect(18, 18, 22, 9, 2)
-  rect(84, 34, 16, 7, 3)
-  rect(52, 56, 26, 10, 2)
-  rect(96, 74, 14, 6, 4)
+  rect(24, 18, 30, 11, 2)
+  rect(150, 30, 22, 9, 3)
+  rect(88, 50, 34, 12, 2)
+  rect(196, 64, 18, 8, 4)
+  rect(48, 78, 24, 9, 3)
+  rect(170, 96, 26, 10, 2)
 
-  rect(60, 96, 5, 7, 6)
-  rect(56, 102, 13, 4, 6)
-  pset(62, 107, 4)
-  pset(62, 109, 3)
+  rect(117, 116, 5, 9, 6)
+  rect(112, 124, 15, 5, 6)
+  pset(119, 130, 4)
+  pset(119, 132, 3)
 
-  rect(0, 108, 128, 20, 0)
-  print("PLATE FALL", 4, 111, 3, 3)
+  rect(0, 136, 240, 24, 0)
+  print("PLATE FALL", 40, 139, 3, 4)
 end

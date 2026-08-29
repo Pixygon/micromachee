@@ -1,4 +1,4 @@
-//! A PNG encoder for exactly one job: a 128×128 indexed image with 8 colours.
+//! A PNG encoder for exactly one job: a 240×160 indexed image with 8 colours.
 //!
 //! Written by hand rather than pulled in, because the whole of it is smaller
 //! than the dependency would be. Two tricks keep it that way:
@@ -137,8 +137,8 @@ mod tests {
     fn a_frame_stays_small_enough_to_stream() {
         // 30 of these a second go down a pipe as base64; the size is the
         // budget, so it gets an assertion rather than a hope.
-        let png = encode(128, 128, &pal(), &vec![0u8; 128 * 128]);
-        assert!(png.len() < 9_000, "frame was {} bytes", png.len());
+        let png = encode(240, 160, &pal(), &vec![0u8; 240 * 160]);
+        assert!(png.len() < 21_000, "frame was {} bytes", png.len());
     }
 
     #[test]

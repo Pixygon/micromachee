@@ -6,10 +6,10 @@
 -- The Tower sign: "a massive tower guides them all. The journey's end is so
 -- close." So you climb, and each floor is further up and worse.
 --
--- This is a raycaster, which on a 128x128 screen with eight colours is less mad
+-- This is a raycaster, which on a 240x160 screen with eight colours is less mad
 -- than it sounds. One ray per screen column, walked over a grid by DDA until it
 -- meets a wall; the distance to that wall becomes the height of a ONE PIXEL
--- WIDE rectangle. That is the whole renderer: 128 calls to rect() and two more
+-- WIDE rectangle. That is the whole renderer: 240 calls to rect() and two more
 -- for the floor and the ceiling. No per-pixel work anywhere, which is the only
 -- reason it fits in a frame's instruction budget.
 --
@@ -19,7 +19,7 @@
 -- mode there will ever be. A cart that hardcoded "grey" would have one.
 
 local MAPW, MAPH = 24, 24
-local FOV = 0.66
+local FOV = 0.75            -- widened with the screen: 240/(2*160) keeps walls square
 local TURN = 0.075
 local WALK = 0.085
 local REACH = 0.28          -- how close to a wall you may stand
@@ -209,15 +209,15 @@ local function shoot()
       local tx = inv * (diry * relx - dirx * rely)
       local ty = inv * (-planey * relx + planex * rely)
       if ty > 0.3 then
-        local sx = 64 * (1 + tx / ty)
-        local w = 64 / ty
-        if sx - w / 2 < 64 and sx + w / 2 > 64 and ty < best_d then
+        local sx = 120 * (1 + tx / ty)
+        local w = 80 / ty
+        if sx - w / 2 < 120 and sx + w / 2 > 120 and ty < best_d then
           best_i, best_d = i, ty
         end
       end
     end
   end
-  if best_i > 0 and best_d < (zbuf[64] or 1e9) then
+  if best_i > 0 and best_d < (zbuf[120] or 1e9) then
     local f = foes[best_i]
     f.hp = f.hp - 1
     sfx(1)
@@ -290,11 +290,11 @@ end
 
 -- ── drawing the view ────────────────────────────────────────────────────────
 
-local HORIZON = 62
+local HORIZON = 78
 
 local function cast()
-  for x = 0, 127 do
-    local camx = 2 * x / 128 - 1
+  for x = 0, 239 do
+    local camx = 2 * x / 240 - 1
     local rdx = dirx + planex * camx
     local rdy = diry + planey * camx
 
@@ -331,11 +331,11 @@ local function cast()
     if dist < 0.05 then dist = 0.05 end
     zbuf[x] = dist
 
-    local h = flr(128 / dist)
+    local h = flr(160 / dist)
     local top = HORIZON - flr(h / 2)
     local bot = top + h
     if top < 0 then top = 0 end
-    if bot > 127 then bot = 127 end
+    if bot > 159 then bot = 159 end
 
     -- Where along the wall the ray landed. Untextured walls make huge flat
     -- fields with nothing to judge distance or angle by; a seam at every half
@@ -387,15 +387,15 @@ local function draw_foes()
     local tx = inv * (diry * relx - dirx * rely)
     local ty = inv * (-planey * relx + planex * rely)
     if ty > 0.3 then
-      local sx = flr(64 * (1 + tx / ty))
-      local h = flr(72 / ty)
+      local sx = flr(120 * (1 + tx / ty))
+      local h = flr(90 / ty)
       local w = flr(h * 0.7)
       local top = HORIZON - flr(h / 2) + flr(h / 6)
       local body = FOE[mid(1, flr(ty / BAND) + 1, #FOE)]
       local eye = 4
 
       for col = sx - flr(w / 2), sx + flr(w / 2) do
-        if col >= 0 and col <= 127 and ty < (zbuf[col] or 0) then
+        if col >= 0 and col <= 239 and ty < (zbuf[col] or 0) then
           local t = (col - (sx - w / 2)) / w      -- 0..1 across the sprite
           -- A shoulders-and-head silhouette, made of two heights rather than
           -- any real art: at this size, outline is all that survives.
@@ -403,7 +403,7 @@ local function draw_foes()
           local y0 = top + (h - hh)
           if y0 < 0 then y0 = 0 end
           local y1 = top + h
-          if y1 > 127 then y1 = 127 end
+          if y1 > 159 then y1 = 159 end
           if y1 >= y0 then rect(col, y0, 1, y1 - y0 + 1, body) end
         end
       end
@@ -411,10 +411,10 @@ local function draw_foes()
       if ty < 5 and h > 14 then
         local ey = top + flr(h * 0.18)
         local off = flr(w * 0.16)
-        if sx - off >= 0 and sx - off <= 127 and ty < (zbuf[sx - off] or 0) then
+        if sx - off >= 0 and sx - off <= 239 and ty < (zbuf[sx - off] or 0) then
           rect(sx - off - 1, ey, 2, 2, eye)
         end
-        if sx + off >= 0 and sx + off <= 127 and ty < (zbuf[sx + off] or 0) then
+        if sx + off >= 0 and sx + off <= 239 and ty < (zbuf[sx + off] or 0) then
           rect(sx + off, ey, 2, 2, eye)
         end
       end
@@ -428,40 +428,40 @@ function _draw()
   -- a distant wall always has something above and below it to be distant
   -- against. Anything fancier needs a per-pixel floor cast, which is the one
   -- thing the frame budget will not pay for.
-  rect(0, 0, 128, HORIZON, 1)
-  rect(0, HORIZON, 128, 128 - HORIZON, 0)
+  rect(0, 0, 240, HORIZON, 1)
+  rect(0, HORIZON, 240, 160 - HORIZON, 0)
   cast()
   draw_foes()
 
   -- the weapon, and the crosshair that tells the truth about it
   local kick = flash > 0 and 2 or 0
-  rect(52, 112 + kick, 24, 16, 1)
-  rect(56, 106 + kick, 16, 8, 6)
-  rect(60, 100 + kick, 8, 8, flash > 0 and 4 or 1)
-  line(62, 62, 66, 62, 7)
-  line(64, 60, 64, 64, 7)
+  rect(108, 144 + kick, 24, 16, 1)
+  rect(112, 138 + kick, 16, 8, 6)
+  rect(116, 132 + kick, 8, 8, flash > 0 and 4 or 1)
+  line(118, HORIZON, 122, HORIZON, 7)
+  line(120, HORIZON - 2, 120, HORIZON + 2, 7)
 
-  if hurt > 0 then rectb(0, 0, 128, 128, 2) end
+  if hurt > 0 then rectb(0, 0, 240, 160, 2) end
 
-  rect(0, 0, 128, 10, 0)
+  rect(0, 0, 240, 10, 0)
   print("HP", 2, 2, 1)
-  rect(12, 3, 40, 4, 1)
-  rect(12, 3, flr(mid(0, hp, 100) * 0.4), 4, hp > 30 and 5 or 2)
-  print("FLOOR " .. floor, 58, 2, 6)
-  print(points() .. "", 104, 2, 4)
+  rect(12, 3, 80, 4, 1)
+  rect(12, 3, flr(mid(0, hp, 100) * 0.8), 4, hp > 30 and 5 or 2)
+  print("FLOOR " .. floor, 120, 2, 6)
+  print(points() .. "", 208, 2, 4)
 
   if dead then
-    rect(12, 50, 104, 28, 0)
-    rectb(12, 50, 104, 28, 2)
-    print("THE TOWER KEEPS YOU", 22, 56, 2)
-    print("FLOOR " .. floor, 30, 67, 1)
-    print("PRESS O", 74, 67, 3)
+    rect(68, 66, 104, 28, 0)
+    rectb(68, 66, 104, 28, 2)
+    print("THE TOWER KEEPS YOU", 82, 72, 2)
+    print("FLOOR " .. floor, 86, 83, 1)
+    print("PRESS O", 130, 83, 3)
   elseif won then
-    rect(10, 48, 108, 32, 0)
-    rectb(10, 48, 108, 32, 5)
-    print("YOU REACH THE TOP", 26, 54, 5)
-    print(TOP .. " FLOORS", 46, 64, 7)
-    print("PRESS O", 50, 72, 3)
+    rect(66, 62, 108, 36, 0)
+    rectb(66, 62, 108, 36, 5)
+    print("YOU REACH THE TOP", 86, 68, 5)
+    print(TOP .. " FLOORS", 104, 78, 7)
+    print("PRESS O", 106, 88, 3)
   end
 end
 
@@ -469,21 +469,21 @@ function _cover()
   -- Drawn rather than played: a cover is the one frame that has to read at a
   -- third of an inch, and a corridor drawn on purpose beats a screenshot of one.
   cls(0)
-  rect(0, 0, 128, 62, 1)
-  rect(0, 62, 128, 42, 0)
+  rect(0, 0, 240, 78, 1)
+  rect(0, 78, 240, 82, 0)
   -- a corridor in one-point perspective, straight down the ramp
-  local depth = { { 0, 128, 7 }, { 14, 100, 4 }, { 26, 76, 5 }, { 36, 56, 3 }, { 44, 40, 6 } }
+  local depth = { { 0, 156, 7 }, { 26, 122, 4 }, { 48, 94, 5 }, { 66, 70, 3 }, { 80, 50, 6 } }
   for i = 1, #depth do
     local inset, h, c = depth[i][1], depth[i][2], depth[i][3]
-    rect(inset, 62 - flr(h / 2), 6, h, c)
-    rect(122 - inset, 62 - flr(h / 2), 6, h, c)
+    rect(inset, 78 - flr(h / 2), 10, h, c)
+    rect(230 - inset, 78 - flr(h / 2), 10, h, c)
   end
-  rect(50, 46, 28, 32, 5)          -- the way up, at the end of it
+  rect(96, 56, 48, 42, 5)          -- the way up, at the end of it
   -- something in the way
-  rect(56, 52, 16, 24, 2)
-  rect(52, 60, 24, 16, 2)
-  rect(59, 57, 3, 3, 4)
-  rect(66, 57, 3, 3, 4)
-  rect(0, 100, 128, 28, 0)
-  print("THE TOWER", 10, 106, 6, 3)
+  rect(106, 64, 28, 32, 2)
+  rect(100, 76, 40, 20, 2)
+  rect(112, 71, 4, 4, 4)
+  rect(124, 71, 4, 4, 4)
+  rect(0, 126, 240, 34, 0)
+  print("THE TOWER", 48, 134, 6, 4)
 end

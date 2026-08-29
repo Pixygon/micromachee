@@ -2,7 +2,7 @@
 //!
 //! It used to be a grid of QML tiles sitting outside the screen, which meant
 //! the thing you picked a game with was not made of the same pixels as the
-//! game. Everything here goes through the same 128×128 `Screen` and the same
+//! game. Everything here goes through the same 240×160 `Screen` and the same
 //! six buttons a cart gets, so the shelf is simply the first program the
 //! console runs.
 //!
@@ -19,10 +19,13 @@ use crate::shelf;
 use crate::vm::Machine;
 
 const COLS: usize = 3;
-const TILE: i32 = 38;
-const GAP: i32 = 3;
-const X0: i32 = 4; // 3 × 38 + 2 × 3 = 120, so four pixels of margin each side
-const GY: i32 = 16;
+// Tiles are 3:2, the same shape as the screen and therefore as every cover —
+// a tile IS the cover, shrunk, so the shapes have to agree.
+const TILE_W: i32 = 72;
+const TILE_H: i32 = 48;
+const GAP: i32 = 4;
+const X0: i32 = 8; // 3 × 72 + 2 × 4 = 224, so eight pixels of margin each side
+const GY: i32 = 18;
 const VIS_ROWS: usize = 2;
 
 
@@ -365,31 +368,31 @@ impl Browse {
         self.out.cls(0);
         let a = say("nothing on the shelf");
         let b = say("run micromachee sync");
-        self.out.print(&a, centre(&a, 1), 56, 2, 1);
-        self.out.print(&b, centre(&b, 1), 68, 1, 1);
+        self.out.print(&a, centre(&a, 1), H / 2 - 8, 2, 1);
+        self.out.print(&b, centre(&b, 1), H / 2 + 4, 1, 1);
     }
 
-    /// One cover, shrunk into a tile: an exact miniature of the WHOLE 128x128
+    /// One cover, shrunk into a tile: an exact miniature of the WHOLE 240x160
     /// cover, so what the shelf shows is what the cover is. Nearest-neighbour
     /// on the centre pixel of each block — a cover is pixel art drawn to read
     /// small, so a faithful sample beats the old mode-of-the-block averaging
     /// (muddy) and the old top-rows-only crop (which squished it out of shape).
     fn draw_tile(&mut self, at: usize, x: i32, y: i32) {
         let art = &self.entries[at].art;
-        for ty in 0..TILE {
-            let sy = (ty * 2 + 1) * H / (2 * TILE);
-            for tx in 0..TILE {
-                let sx = (tx * 2 + 1) * W / (2 * TILE);
+        for ty in 0..TILE_H {
+            let sy = (ty * 2 + 1) * H / (2 * TILE_H);
+            for tx in 0..TILE_W {
+                let sx = (tx * 2 + 1) * W / (2 * TILE_W);
                 self.out.pset(x + tx, y + ty, art.pget(sx, sy) as i32);
             }
         }
         if self.entries[at].draft {
-            self.out.rect(x + TILE - 4, y + 1, 3, 3, 2);
+            self.out.rect(x + TILE_W - 4, y + 1, 3, 3, 2);
         }
         if at == self.sel {
-            self.out.rectb(x - 1, y - 1, TILE + 2, TILE + 2, 7);
+            self.out.rectb(x - 1, y - 1, TILE_W + 2, TILE_H + 2, 7);
         } else {
-            self.out.rectb(x - 1, y - 1, TILE + 2, TILE + 2, 1);
+            self.out.rectb(x - 1, y - 1, TILE_W + 2, TILE_H + 2, 1);
         }
     }
 
@@ -424,24 +427,24 @@ impl Browse {
             if at >= self.entries.len() {
                 break;
             }
-            let x = X0 + (slot % COLS) as i32 * (TILE + GAP);
-            let y = GY + (slot / COLS) as i32 * (TILE + GAP);
+            let x = X0 + (slot % COLS) as i32 * (TILE_W + GAP);
+            let y = GY + (slot / COLS) as i32 * (TILE_H + GAP);
             self.draw_tile(at, x, y);
         }
 
         // How much shelf is off-screen, in the margin the tiles do not use.
         if self.scroll > 0 {
-            self.arrow(W / 2, GY - 2, true, 1);
+            self.arrow(W / 2, GY - 3, true, 1);
         }
         if self.scroll + VIS_ROWS < self.rows() {
-            self.arrow(W / 2, GY + VIS_ROWS as i32 * (TILE + GAP), false, 1);
+            self.arrow(W / 2, GY + VIS_ROWS as i32 * (TILE_H + GAP), false, 1);
         }
 
-        self.out.line(0, 104, W - 1, 104, 1);
+        self.out.line(0, H - 24, W - 1, H - 24, 1);
         let hint = say("o play   x info");
-        self.out.print(&hint, centre(&hint, 1), 110, 6, 1);
+        self.out.print(&hint, centre(&hint, 1), H - 18, 6, 1);
         let count = say(&format!("{} of {}", self.sel + 1, self.entries.len()));
-        self.out.print(&count, centre(&count, 1), 119, 1, 1);
+        self.out.print(&count, centre(&count, 1), H - 9, 1, 1);
     }
 
     fn draw_info(&mut self) {
@@ -451,19 +454,19 @@ impl Browse {
         let title = say(&e.title);
         // Two sizes and a rule for choosing: whichever still fits on the line.
         let scale = if title.chars().count() as i32 * CHAR_WIDTH * 2 <= W - 8 { 2 } else { 1 };
-        self.out.print(&title, centre(&title, scale), 10, 7, scale);
+        self.out.print(&title, centre(&title, scale), 16, 7, scale);
 
         let by = say(&format!("by {}", e.author));
-        self.out.print(&by, centre(&by, 1), 28, 1, 1);
+        self.out.print(&by, centre(&by, 1), 38, 1, 1);
 
         let about = say(&e.about);
-        let mut y = 46;
-        for line in wrap(&about, 30) {
+        let mut y = 58;
+        for line in wrap(&about, 48) {
             self.out.print(&line, centre(&line, 1), y, 6, 1);
             y += 9;
         }
 
-        let mut y = 70;
+        let mut y = 88;
         if e.best > 0 {
             let best = say(&format!("best {}", e.best));
             self.out.print(&best, centre(&best, 1), y, 4, 1);
@@ -489,9 +492,9 @@ impl Browse {
             self.out.print(&line, centre(&line, 1), y, 2, 1);
         }
 
-        self.out.line(0, 104, W - 1, 104, 1);
+        self.out.line(0, H - 24, W - 1, H - 24, 1);
         let hint = say("o play   x back");
-        self.out.print(&hint, centre(&hint, 1), 112, 6, 1);
+        self.out.print(&hint, centre(&hint, 1), H - 16, 6, 1);
     }
 }
 
@@ -662,7 +665,7 @@ mod tests {
         assert_eq!(s.pget(64, 13), 1);
         press(&mut b, 5);
         let s = b.frame(0);
-        assert_eq!(s.pget(64, 104), 1);
+        assert_eq!(s.pget(64, H - 24), 1);
     }
 
     #[test]

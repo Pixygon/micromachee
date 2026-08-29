@@ -18,8 +18,8 @@
 -- every gap the generator builds is sized against that.
 
 local TILE   = 8
-local ROWS   = 16
-local GROUND = 13
+local ROWS   = 20
+local GROUND = 17
 local ACC    = 0.34
 local FRIC   = 0.80
 local MAXVX  = 2.0
@@ -145,7 +145,7 @@ local function start_level()
   made, plan, planleft, lastgap, laidfoe = 0, "flat", 12, false, false
   planrow, planhigh = GROUND - 1, GROUND - 3
   goalcol = level_len()
-  generate_to(40)
+  generate_to(56)
   px, py = 24, (GROUND - 2) * TILE
   vx, vy = 0, 0
   onground, coyote, buffered, face = true, 0, 0, 1
@@ -295,7 +295,7 @@ function _update()
   for i = #drops, 1, -1 do
     local d = drops[i]
     d.t = d.t + 1
-    if not solid(d.x + 3, d.y + 8) and d.y < 120 then d.y = d.y + 1.5 end
+    if not solid(d.x + 3, d.y + 8) and d.y < 150 then d.y = d.y + 1.5 end
     if px + PW > d.x and px < d.x + 7 and py + PH > d.y and py < d.y + 7 then
       elem = d.kind
       table.remove(drops, i)
@@ -356,7 +356,7 @@ function _update()
           f.y = nyf
           f.grounded = false
         end
-        if f.y > 130 then table.remove(foes, i) end
+        if f.y > 165 then table.remove(foes, i) end
       else                          -- flyer: bobbing patrol at head height
         f.base = f.base or (GROUND - 4) * TILE
         f.x = f.x + f.d * 0.8
@@ -385,7 +385,7 @@ function _update()
     if b.life <= 0 then table.remove(bits, i) end
   end
 
-  if py > 128 then die() return end
+  if py > 160 then die() return end
 
   -- the beacon
   if col >= goalcol + 2 then
@@ -396,8 +396,8 @@ function _update()
     return
   end
 
-  if px - camx > 46 then camx = px - 46 end
-  generate_to(flr(camx / TILE) + 20)
+  if px - camx > 86 then camx = px - 86 end
+  generate_to(flr(camx / TILE) + 34)
   local dropcol = flr(camx / TILE) - 4
   if world[dropcol] then world[dropcol], coinat[dropcol] = nil, nil end
   score(points())
@@ -435,7 +435,7 @@ end
 
 local function draw_foe(f, ox)
   local sx, sy = flr(f.x) - ox, flr(f.y)
-  if sx < -8 or sx > 128 then return end
+  if sx < -8 or sx > 240 then return end
   if f.kind == 1 then
     rect(sx, sy + 1, 6, 5, 3)
     pset(sx + 1, sy + 2, 0) pset(sx + 4, sy + 2, 0)
@@ -456,12 +456,12 @@ function _draw()
   cls(0)
   local ox = flr(camx)
 
-  for i = 0, 9 do
-    pset((i * 53 - flr(ox / 3)) % 128, 14 + (i * 37) % 56, 1)
+  for i = 0, 17 do
+    pset((i * 53 - flr(ox / 3)) % 240, 16 + (i * 37) % 112, 1)
   end
 
   local first = flr(ox / TILE)
-  for c = first, first + 17 do
+  for c = first, first + 31 do
     local sx = c * TILE - ox
     for r = 0, ROWS - 1 do
       local t = tile(c, r)
@@ -503,48 +503,48 @@ function _draw()
 
   draw_runner(flr(px) - ox, flr(py), dead and 2 or 7)
 
-  rect(0, 0, 128, 14, 0)
-  line(0, 14, 127, 14, 1)
+  rect(0, 0, 240, 14, 0)
+  line(0, 14, 239, 14, 1)
   print(stage .. "-" .. lvl, 2, 3, 7)
   local secs = flr(timer / 30)
-  print(secs .. "S", 24, 3, secs <= 5 and 2 or 6)
-  print("O " .. coins, 46, 3, 4)
+  print(secs .. "S", 30, 3, secs <= 5 and 2 or 6)
+  print("O " .. coins, 60, 3, 4)
   if elem > 0 then
-    draw_element(elem, 72, 3)
-    print(ELEMN[elem], 82, 4, ELEMC[elem])
+    draw_element(elem, 110, 3)
+    print(ELEMN[elem], 120, 4, ELEMC[elem])
   end
-  print(points() .. "", 108, 3, 5)
+  print(points() .. "", 210, 3, 5)
 
   if dead then
-    rect(20, 50, 88, 26, 0)
-    rectb(20, 50, 88, 26, 2)
+    rect(76, 67, 88, 26, 0)
+    rectb(76, 67, 88, 26, 2)
     print(timer <= 0 and "OUT OF TIME" or "THE PIT KEEPS IT",
-      timer <= 0 and 42 or 28, 56, 2)
-    print("O RETRY " .. stage .. "-" .. lvl, 38, 66, 3)
+      timer <= 0 and 98 or 86, 73, 2)
+    print("O RETRY " .. stage .. "-" .. lvl, 98, 83, 3)
   elseif done then
-    rect(24, 52, 80, 22, 0)
-    rectb(24, 52, 80, 22, 5)
-    print("LEVEL CLEAR", 42, 58, 5)
+    rect(80, 69, 80, 22, 0)
+    rectb(80, 69, 80, 22, 5)
+    print("LEVEL CLEAR", 98, 75, 5)
   end
 end
 
 function _cover()
   cls(0)
-  for i = 0, 11 do pset((i * 43) % 128, 14 + (i * 29) % 46, 1) end
-  for c = 0, 15 do
+  for i = 0, 19 do pset((i * 43) % 240, 12 + (i * 29) % 70, 1) end
+  for c = 0, 29 do
     local sx = c * 8
-    if c < 7 or c > 9 then
-      rect(sx, 104, 8, 24, 1)
-      line(sx, 104, sx + 7, 104, 6)
+    if c < 13 or c > 16 then
+      rect(sx, 100, 8, 24, 1)
+      line(sx, 100, sx + 7, 100, 6)
     end
   end
-  rect(80, 72, 24, 8, 2)
-  line(80, 72, 103, 72, 6)
-  draw_element(1, 30, 58) draw_element(2, 44, 58)
-  draw_element(3, 30, 72) draw_element(4, 44, 72)
-  rect(110, 30, 2, 74, 7) circ(111, 28, 3, 4)
+  rect(100, 64, 32, 8, 2)
+  line(100, 64, 131, 64, 6)
+  draw_element(1, 30, 52) draw_element(2, 48, 52)
+  draw_element(3, 30, 68) draw_element(4, 48, 68)
+  rect(202, 46, 3, 54, 7) circ(203, 43, 4, 4)
   face, onground, vx, tick, elem = 1, false, 1, 0, 0
-  draw_runner(58, 78, 7)
-  rect(0, 96, 128, 32, 0)
-  print("PIXIEL", 28, 104, 6, 3)
+  draw_runner(112, 78, 7)
+  rect(0, 124, 240, 36, 0)
+  print("PIXIEL", 72, 132, 6, 4)
 end

@@ -46,6 +46,9 @@ Item {
   property color shellText: "#fff1e8"
   property color shellDim: "#b3a9a2"
   property color shellAccent: "#ff004d"
+  // The screen this theme is shown on (scanline/bloom/aberration/noise/
+  // vignette/grid/persist, each 0..1) — read by the panel's shader.
+  property var fx: ({})
 
   // While a cart is running
   property string playingId: ""
@@ -388,6 +391,7 @@ Item {
         root.shellDim = s.shell.dim || root.shellDim
         root.shellAccent = s.shell.accent || root.shellAccent
       }
+      if (s.fx) root.fx = s.fx
     }
   }
 

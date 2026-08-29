@@ -21,12 +21,13 @@ local LINES = {
   { 1, 5, 9 }, { 3, 5, 7 },
 }
 
--- The board is thirty a side rather than thirty-two so that everything else
--- gets a strip of its own: the tally along the top and whatever there is to say
--- along the bottom. A message box laid over the board hides the board, and the
--- one time that matters most is the moment it draws the line through three.
-local CELL, OX, OY = 30, 19, 16
-local SAY = 107
+-- The board is thirty-six a side rather than something bigger so that
+-- everything else gets a strip of its own: the tally along the top and whatever
+-- there is to say along the bottom. A message box laid over the board hides the
+-- board, and the one time that matters most is the moment it draws the line
+-- through three.
+local CELL, OX, OY = 36, 66, 22
+local SAY = 140
 local SUN, MOON = 1, 2
 local THINK = 16          -- frames the moon takes, so a reply reads as a reply
 
@@ -202,17 +203,17 @@ local function centre_of(i)
 end
 
 local function draw_sun(x, y, c)
-  circ(x, y, 7, c)
+  circ(x, y, 9, c)
   -- eight rays, by hand: a loop with sin and cos costs more than it buys at
   -- this size, and the diagonals would land on half pixels anyway.
-  rect(x - 1, y - 12, 2, 3, c)
-  rect(x - 1, y + 10, 2, 3, c)
-  rect(x - 12, y - 1, 3, 2, c)
-  rect(x + 10, y - 1, 3, 2, c)
-  pset(x - 8, y - 8, c) pset(x - 9, y - 9, c)
-  pset(x + 8, y - 8, c) pset(x + 9, y - 9, c)
-  pset(x - 8, y + 8, c) pset(x - 9, y + 9, c)
-  pset(x + 8, y + 8, c) pset(x + 9, y + 9, c)
+  rect(x - 1, y - 14, 2, 3, c)
+  rect(x - 1, y + 12, 2, 3, c)
+  rect(x - 14, y - 1, 3, 2, c)
+  rect(x + 12, y - 1, 3, 2, c)
+  pset(x - 9, y - 9, c) pset(x - 10, y - 10, c) pset(x - 11, y - 11, c)
+  pset(x + 9, y - 9, c) pset(x + 10, y - 10, c) pset(x + 11, y - 11, c)
+  pset(x - 9, y + 9, c) pset(x - 10, y + 10, c) pset(x - 11, y + 11, c)
+  pset(x + 9, y + 9, c) pset(x + 10, y + 10, c) pset(x + 11, y + 11, c)
 end
 
 -- A crescent is a disc with a disc taken out of it, which is one circle more
@@ -220,30 +221,30 @@ end
 -- background colour, so both circles have to stay well inside the cell — the
 -- first pass reached the grid line and quietly rubbed a notch out of it.
 local function draw_moon(x, y, c)
-  circ(x, y, 9, c)
-  circ(x + 5, y - 3, 8, 0)
+  circ(x, y, 11, c)
+  circ(x + 6, y - 4, 10, 0)
 end
 
 function _draw()
   cls(0)
 
   if picking then
-    print("THE TWINS", (128 - 9 * 4 * 2) / 2, 16, 7, 2)
-    print("WHO ARE YOU?", 40, 40, 1)
+    print("THE TWINS", (240 - 9 * 4 * 2) / 2, 24, 7, 2)
+    print("WHO ARE YOU?", (240 - 12 * 4) / 2, 52, 1)
     -- the two of them, side by side, the chosen one framed
-    draw_sun(40, 70, 4)
-    draw_moon(88, 70, 6)
-    rectb(picksel == 1 and 24 or 72, 54, 32, 32, picksel == 1 and 4 or 6)
-    print("SUN", 34, 92, picksel == 1 and 4 or 1)
-    print("MOON", 80, 92, picksel == 2 and 6 or 1)
-    print("O TO CHOOSE", 40, 112, 3)
+    draw_sun(84, 90, 4)
+    draw_moon(156, 90, 6)
+    rectb(picksel == 1 and 64 or 136, 70, 40, 40, picksel == 1 and 4 or 6)
+    print("SUN", 78, 116, picksel == 1 and 4 or 1)
+    print("MOON", 148, 116, picksel == 2 and 6 or 1)
+    print("O TO CHOOSE", (240 - 11 * 4) / 2, 138, 3)
     return
   end
 
-  print("YOU " .. wins, 2, 3, myside == SUN and 4 or 6)
-  print("THEM " .. losses, 48, 3, myside == SUN and 6 or 4)
-  print("DRAW " .. draws, 96, 3, 1)
-  line(0, 12, 127, 12, 1)
+  print("YOU " .. wins, 4, 3, myside == SUN and 4 or 6)
+  print("THEM " .. losses, 100, 3, myside == SUN and 6 or 4)
+  print("DRAW " .. draws, 192, 3, 1)
+  line(0, 12, 239, 12, 1)
 
   -- the board, drawn as four lines rather than nine boxes
   for i = 1, 2 do
@@ -268,34 +269,34 @@ function _draw()
     line(x0, y0, x1, y1, 7)
   end
 
-  rect(0, SAY, 128, 128 - SAY, 0)
-  line(0, SAY, 127, SAY, 1)
+  rect(0, SAY, 240, 160 - SAY, 0)
+  line(0, SAY, 239, SAY, 1)
   if over then
     local text, c
     if winner == SUN then text, c = "THE SUN CATCHES HER", 4
     elseif winner == MOON then text, c = "THE MOON TAKES IT", 6
     else text, c = "SHE SLIPS AWAY", 7 end
-    print(text, (128 - #text * 4) / 2, SAY + 4, c)
-    print("O AGAIN   X SWAP SIDE", 22, SAY + 13, 3)
+    print(text, (240 - #text * 4) / 2, SAY + 3, c)
+    print("O AGAIN   X SWAP SIDE", (240 - 21 * 4) / 2, SAY + 12, 3)
   elseif wait > 0 then
-    print("HER TURN", 46, SAY + 8, 1)
+    print("HER TURN", (240 - 8 * 4) / 2, SAY + 7, 1)
   else
-    print("O TO PLACE", 42, SAY + 8, 1)
+    print("O TO PLACE", (240 - 10 * 4) / 2, SAY + 7, 1)
   end
 end
 
 function _cover()
   cls(0)
   for i = 1, 2 do
-    line(16 + i * 32, 12, 16 + i * 32, 108, 1)
-    line(16, 12 + i * 32, 112, 12 + i * 32, 1)
+    line(66 + i * 36, 8, 66 + i * 36, 116, 1)
+    line(66, 8 + i * 36, 174, 8 + i * 36, 1)
   end
-  draw_sun(32, 28, 4)
-  draw_moon(96, 60, 6)
-  draw_sun(64, 60, 4)
-  draw_moon(32, 92, 6)
-  draw_sun(96, 92, 4)
-  line(32, 28, 96, 92, 7)
-  rect(0, 104, 128, 24, 0)
-  print("THE TWINS", 10, 110, 4, 3)
+  draw_sun(84, 26, 4)
+  draw_moon(156, 62, 6)
+  draw_sun(120, 62, 4)
+  draw_moon(84, 98, 6)
+  draw_sun(156, 98, 4)
+  line(84, 26, 156, 98, 7)
+  rect(0, 126, 240, 34, 0)
+  print("THE TWINS", (240 - 9 * 4 * 4) / 2, 133, 4, 4)
 end

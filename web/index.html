@@ -140,7 +140,7 @@
       </button>
     </div>
     <div id="screenwrap">
-      <div id="bezel"><canvas id="screen" width="128" height="128"></canvas></div>
+      <div id="bezel"><canvas id="screen" width="240" height="160"></canvas></div>
       <div id="info" class="hidden">
         <h2 id="infoTitle"></h2>
         <p id="infoAbout"></p>
@@ -363,10 +363,11 @@ function fitScreen() {
   const reserve = coarse ? 250 : side ? 150 : 300;
   const wRoom = Math.min(
     window.innerWidth - (coarse ? 28 : side ? 360 : 64),
-    coarse ? 460 : 1152
+    coarse ? 480 : 1680
   );
   const hRoom = window.innerHeight - reserve;
-  const scale = Math.max(1, Math.min(9, Math.floor(Math.min(wRoom, hRoom) / W)));
+  // Non-square now: the scale is whichever axis runs out first.
+  const scale = Math.max(1, Math.min(7, Math.floor(Math.min(wRoom / W, hRoom / H))));
   const c = $("screen");
   c.style.width = W * scale + "px";
   c.style.height = H * scale + "px";
