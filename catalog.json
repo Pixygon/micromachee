@@ -16,14 +16,14 @@
     {
       "about": "peel it away. that is how a world is born",
       "author": "pixygon",
-      "bytes": 10803,
-      "code": "-- title: The Veil\n-- author: pixygon\n-- about: peel it away. that is how a world is born\n\n-- Ball position is kept in floats and only rounded when it is drawn, so it\n-- moves at speeds that are not whole pixels. Collision is resolved one axis at\n-- a time: that is what stops the ball burrowing into a brick corner and coming\n-- out the far side.\n--\n-- The wall is not a fixed grid any more. Each layer of the veil has a SHAPE, a\n-- DRIFT and a DESCENT, and the three are read off the level number rather than\n-- stored, so there is no table of levels to run out of — layer forty is as\n-- well-defined as layer one and neither of them is written down.\n--\n-- Everything the wall does happens in ONE PLACE: `ox` and `oy` offset the whole\n-- grid, and both the drawing and the collision go through the same two numbers.\n-- A moving wall that moves only in the drawing is a wall the ball passes\n-- through, and it is the first thing that goes wrong when you add motion to a\n-- game that never had any.\n\nlocal COLS, ROWS   = 16, 6\nlocal BW, BH       = 14, 6\nlocal LEFT, TOP    = 8, 16\nlocal PADY         = 150\nlocal WALL_COLOUR  = { 2, 3, 4, 5, 6, 7 }\n\nlocal NARROW, NORMAL, WIDE = 14, 22, 34\nlocal DROP_CHANCE  = 0.14\nlocal POWER_FRAMES = 420\n\nlocal bricks, left, padx, padw, balls, points, lives, level, stuck\nlocal ox, oy, drift, descent, shape, t\nlocal drops, wide, pierce, bits, shake, stop\n\n-- ── the shape of a layer ────────────────────────────────────────────────────\n\n-- Five shapes, chosen by the level and nothing else. `r` and `c` are one-based.\nlocal function filled(kind, r, c)\n  if kind == 1 then\n    return true                                   -- the whole veil\n  elseif kind == 2 then\n    return (r + c) % 2 == 0                       -- woven\n  elseif kind == 3 then\n    return c > r - 1 and c < COLS - r + 2         -- a peak\n  elseif kind == 4 then\n    return c % 3 ~= 0                             -- pillars\n  else\n    return r == 1 or r == ROWS or c == 1 or c == COLS   -- a frame\n  end\nend\n\nlocal function build_layer()\n  shape = (level - 1) % 5 + 1\n  -- Drift starts at the second layer and grows, capped so the wall never moves\n  -- faster than a ball can be aimed at it.\n  -- Capped, and the cap is not arbitrary: the outer column sits 13 pixels from\n  -- the wall, so a drift wider than that would swing bricks past where the ball\n  -- can follow and leave a layer that cannot be cleared.\n  drift = mid(0, (level - 1) * 0.35, 2.4)\n  descent = level >= 3 and 0.006 + level * 0.0015 or 0\n  ox, oy, t = 0, 0, 0\n\n  bricks, left = {}, 0\n  for r = 1, ROWS do\n    bricks[r] = {}\n    for c = 1, COLS do\n      local on = filled(shape, r, c)\n      bricks[r][c] = on\n      if on then left = left + 1 end\n    end\n  end\nend\n\n-- A brick that blinks out is a brick that was never hit. Six pixels in its own\n-- colour, thrown outward, and the eye reads the impact instead of the absence.\nlocal function burst(x, y, n, c)\n  for _ = 1, n do\n    bits[#bits + 1] = {\n      x = x, y = y,\n      dx = rnd(2.6) - 1.3, dy = rnd(2.2) - 1.4,\n      life = 8 + flr(rnd(8)), c = c,\n    }\n  end\nend\n\n-- ── balls ───────────────────────────────────────────────────────────────────\n\nlocal function new_ball(x, y, vx, vy)\n  balls[#balls + 1] = { x = x, y = y, vx = vx, vy = vy }\nend\n\nlocal function reset_ball()\n  balls = {}\n  new_ball(padx + padw / 2, PADY - 3, 1.1, -1.4)\n  stuck = true\nend\n\nfunction _init()\n  level  = 1\n  padw   = NORMAL\n  padx   = 120 - padw / 2\n  points = 0\n  lives  = 3\n  drops, wide, pierce = {}, 0, 0\n  bits, shake, stop = {}, 0, 0\n  build_layer()\n  score(0)\n  reset_ball()\nend\n\n-- ── the wall, wherever it currently is ──────────────────────────────────────\n\nlocal function brick_at(x, y)\n  local c = flr((x - LEFT - ox) / BW) + 1\n  local r = flr((y - TOP - oy) / BH) + 1\n  if r >= 1 and r <= ROWS and c >= 1 and c <= COLS and bricks[r][c] then\n    return r, c\n  end\nend\n\nlocal function drop_power(x, y)\n  -- Four kinds, and one of them is a hazard: a capsule you always want is not\n  -- a decision, it is a coin.\n  local kind = flr(rnd(4)) + 1\n  drops[#drops + 1] = { x = x, y = y, kind = kind }\nend\n\nlocal function hit(x, y)\n  local r, c = brick_at(x, y)\n  if not r then return false end\n  bricks[r][c] = false\n  left = left - 1\n  burst(LEFT + ox + (c - 1) * BW + BW / 2, TOP + oy + (r - 1) * BH + BH / 2, 5, WALL_COLOUR[r])\n  shake = 2\n  sfx(1)\n  points = points + (ROWS - r + 1) * 10 + (level - 1) * 5\n  score(points)\n  if rnd(1) < DROP_CHANCE then\n    drop_power(LEFT + ox + (c - 1) * BW + BW / 2, TOP + oy + (r - 1) * BH)\n  end\n  return true\nend\n\nlocal function set_paddle(w)\n  local mid_x = padx + padw / 2\n  padw = w\n  padx = mid(0, mid_x - w / 2, 240 - w)\nend\n\nlocal function take(kind)\n  if kind == 1 then\n    set_paddle(WIDE)\n    wide = POWER_FRAMES\n  elseif kind == 2 then\n    set_paddle(NARROW)\n    wide = POWER_FRAMES\n  elseif kind == 3 then\n    -- Two more, thrown off the ball that is furthest along. Copying the\n    -- velocity and turning it is enough to make three balls that diverge.\n    local b = balls[1]\n    if b then\n      new_ball(b.x, b.y, b.vy * 0.9, b.vx * 0.9)\n      new_ball(b.x, b.y, -b.vy * 0.9, -b.vx * 0.9)\n    end\n  else\n    pierce = POWER_FRAMES / 2\n  end\nend\n\n-- ── one frame ───────────────────────────────────────────────────────────────\n\nlocal function step_ball(b)\n  b.x = b.x + b.vx\n  if b.x < 1 then b.x, b.vx = 1, -b.vx end\n  if b.x > 238 then b.x, b.vx = 238, -b.vx end\n  if hit(b.x, b.y) and pierce <= 0 then b.vx = -b.vx end\n\n  b.y = b.y + b.vy\n  if b.y < 10 then b.y, b.vy = 10, -b.vy end\n  if hit(b.x, b.y) and pierce <= 0 then b.vy = -b.vy end\n\n  -- The paddle steers: where the ball lands on it decides how far it comes off\n  -- sideways, which is the whole game.\n  if b.vy > 0 and b.y >= PADY - 1 and b.y <= PADY + 2\n    and b.x >= padx and b.x <= padx + padw then\n    b.y = PADY - 1\n    b.vy = -b.vy\n    b.vx = mid(-2.2, (b.x - (padx + padw / 2)) / 5, 2.2)\n    sfx(0)\n  end\nend\n\nfunction _update()\n  if lives <= 0 then\n    if btnp(4) then _init() end\n    return\n  end\n  t = t + 1\n  if shake > 0 then shake = shake - 1 end\n  for i = #bits, 1, -1 do\n    local b = bits[i]\n    b.x, b.y, b.life = b.x + b.dx, b.y + b.dy, b.life - 1\n    b.dy = b.dy + 0.09\n    if b.life <= 0 then table.remove(bits, i) end\n  end\n  -- A beat of nothing after losing a ball. It is four frames and it is the\n  -- difference between the ball vanishing and the ball being lost.\n  if stop > 0 then stop = stop - 1 return end\n\n  -- 240 wide now: the paddle crosses the field at the old feel, not the old pixels\n  if btn(0) then padx = padx - 5 end\n  if btn(1) then padx = padx + 5 end\n  padx = mid(0, padx, 240 - padw)\n\n  if wide > 0 then\n    wide = wide - 1\n    if wide == 0 then set_paddle(NORMAL) end\n  end\n  if pierce > 0 then pierce = pierce - 1 end\n\n  -- The whole layer, drifting and settling. `oy` stops before the wall could\n  -- reach the paddle, so descent is pressure rather than a second way to lose.\n  ox = math.sin(t * 0.013) * drift * 5\n  oy = mid(0, oy + descent, 48)\n\n  if stuck then\n    balls[1].x = padx + padw / 2\n    balls[1].y = PADY - 3\n    if btnp(4) then stuck = false end\n    return\n  end\n\n  for i = #balls, 1, -1 do\n    local b = balls[i]\n    step_ball(b)\n    if b.y > 159 then table.remove(balls, i) end\n  end\n\n  -- Falling capsules\n  for i = #drops, 1, -1 do\n    local d = drops[i]\n    d.y = d.y + 1.1\n    if d.y > 159 then\n      table.remove(drops, i)\n    elseif d.y >= PADY - 2 and d.y <= PADY + 4 and d.x >= padx - 2 and d.x <= padx + padw + 2 then\n      take(d.kind)\n      -- The bad one has to sound bad, or a hazard you cannot hear is a hazard\n      -- you learn about by losing.\n      sfx(d.kind == 2 and 5 or 3)\n      table.remove(drops, i)\n    end\n  end\n\n  if #balls == 0 then\n    lives = lives - 1\n    shake, stop = 10, 6\n    sfx(5)\n    lose()\n    drops = {}\n    if pierce > 0 then pierce = 0 end\n    if wide > 0 then wide = 0 set_paddle(NORMAL) end\n    if lives > 0 then reset_ball() end\n  end\n\n  if left == 0 then\n    -- A layer peeled is not the end of it. There is always another underneath.\n    sfx(6)\n    level = level + 1\n    points = points + 100\n    score(points)\n    build_layer()\n    drops = {}\n    set_paddle(NORMAL)\n    wide, pierce = 0, 0\n    reset_ball()\n  end\nend\n\n-- ── how it looks ────────────────────────────────────────────────────────────\n\nlocal CAPSULE = { 5, 2, 4, 6 }\nlocal CAPLABEL = { \"W\", \"N\", \"M\", \"P\" }\n\nfunction _draw()\n  cls(0)\n  local sx = shake > 0 and (flr(rnd(3)) - 1) or 0\n  local sy = shake > 0 and (flr(rnd(3)) - 1) or 0\n\n  -- The walls the ball bounces off. They were always there in the physics and\n  -- never drawn, so the ball turned around in mid-air at the edge of nothing.\n  rect(0, 9, 1, 151, 1)\n  rect(239, 9, 1, 151, 1)\n\n  for r = 1, ROWS do\n    for c = 1, COLS do\n      if bricks[r][c] then\n        rect(flr(LEFT + ox + (c - 1) * BW) + sx, flr(TOP + oy + (r - 1) * BH) + sy,\n             BW - 1, BH - 1, WALL_COLOUR[r])\n      end\n    end\n  end\n\n  for i = 1, #drops do\n    local d = drops[i]\n    rect(flr(d.x) - 3, flr(d.y), 7, 5, CAPSULE[d.kind])\n    print(CAPLABEL[d.kind], flr(d.x) - 1, flr(d.y), 0)\n  end\n\n  for i = 1, #bits do\n    local b = bits[i]\n    pset(flr(b.x) + sx, flr(b.y) + sy, b.life > 5 and 7 or b.c)\n  end\n\n  rect(padx, PADY, padw, 3, pierce > 0 and 4 or 7)\n  for i = 1, #balls do\n    local b = balls[i]\n    circ(b.x, b.y, 1, pierce > 0 and 4 or 7)\n  end\n\n  rect(0, 0, 240, 8, 0)\n  print(points .. \"\", 2, 1, 7)\n  print(\"L\" .. level, 116, 1, 6)\n  for i = 1, lives do\n    rect(232 - (i - 1) * 5, 2, 3, 3, 2)\n  end\n  line(0, 8, 239, 8, 1)\n\n  if lives <= 0 then\n    rect(76, 68, 88, 24, 0)\n    rectb(76, 68, 88, 24, 2)\n    print(\"THE VEIL HOLDS\", 92, 74, 2)\n    print(\"PRESS O\", 106, 83, 3)\n  elseif stuck then\n    print(\"O TO LAUNCH\", 98, 132, 3)\n  end\nend\n\nfunction _cover()\n  cls(0)\n  local rows = { 2, 3, 4, 5, 6 }\n  for r = 1, 5 do\n    for c = 0, 15 do\n      if (r + c) % 2 == 0 or r > 3 then\n        rect(c * 15, 10 + (r - 1) * 11, 14, 10, rows[r])\n      end\n    end\n  end\n\n  rect(102, 138, 36, 5, 7)\n  rect(117, 124, 5, 5, 4)\n  rect(60, 130, 7, 5, 5)\n  print(\"W\", 62, 130, 0)\n\n  rect(0, 70, 240, 46, 0)\n  print(\"THE\", 102, 74, 7, 3)\n  print(\"VEIL\", 88, 92, 2, 4)\nend\n",
+      "bytes": 10893,
+      "code": "-- title: The Veil\n-- author: pixygon\n-- about: peel it away. that is how a world is born\n\n-- Ball position is kept in floats and only rounded when it is drawn, so it\n-- moves at speeds that are not whole pixels. Collision is resolved one axis at\n-- a time: that is what stops the ball burrowing into a brick corner and coming\n-- out the far side.\n--\n-- The wall is not a fixed grid any more. Each layer of the veil has a SHAPE, a\n-- DRIFT and a DESCENT, and the three are read off the level number rather than\n-- stored, so there is no table of levels to run out of — layer forty is as\n-- well-defined as layer one and neither of them is written down.\n--\n-- Everything the wall does happens in ONE PLACE: `ox` and `oy` offset the whole\n-- grid, and both the drawing and the collision go through the same two numbers.\n-- A moving wall that moves only in the drawing is a wall the ball passes\n-- through, and it is the first thing that goes wrong when you add motion to a\n-- game that never had any.\n\nlocal COLS, ROWS   = 16, 6\nlocal BW, BH       = 14, 6\nlocal LEFT, TOP    = 8, 16\nlocal PADY         = 150\nlocal WALL_COLOUR  = { 2, 3, 4, 5, 6, 7 }\n\nlocal NARROW, NORMAL, WIDE = 14, 22, 34\nlocal DROP_CHANCE  = 0.14\nlocal POWER_FRAMES = 420\n\nlocal bricks, left, padx, padw, balls, points, lives, level, stuck\nlocal ox, oy, drift, descent, shape, t\nlocal drops, wide, pierce, bits, shake, stop\n\n-- ── the shape of a layer ────────────────────────────────────────────────────\n\n-- Five shapes, chosen by the level and nothing else. `r` and `c` are one-based.\nlocal function filled(kind, r, c)\n  if kind == 1 then\n    return true                                   -- the whole veil\n  elseif kind == 2 then\n    return (r + c) % 2 == 0                       -- woven\n  elseif kind == 3 then\n    return c > r - 1 and c < COLS - r + 2         -- a peak\n  elseif kind == 4 then\n    return c % 3 ~= 0                             -- pillars\n  else\n    return r == 1 or r == ROWS or c == 1 or c == COLS   -- a frame\n  end\nend\n\nlocal function build_layer()\n  shape = (level - 1) % 5 + 1\n  -- Drift starts at the second layer and grows, capped so the wall never moves\n  -- faster than a ball can be aimed at it.\n  -- Capped, and the cap is not arbitrary: the outer column sits 13 pixels from\n  -- the wall, so a drift wider than that would swing bricks past where the ball\n  -- can follow and leave a layer that cannot be cleared.\n  drift = mid(0, (level - 1) * 0.35, 2.4)\n  descent = level >= 3 and 0.006 + level * 0.0015 or 0\n  ox, oy, t = 0, 0, 0\n\n  bricks, left = {}, 0\n  for r = 1, ROWS do\n    bricks[r] = {}\n    for c = 1, COLS do\n      local on = filled(shape, r, c)\n      bricks[r][c] = on\n      if on then left = left + 1 end\n    end\n  end\nend\n\n-- A brick that blinks out is a brick that was never hit. Six pixels in its own\n-- colour, thrown outward, and the eye reads the impact instead of the absence.\nlocal function burst(x, y, n, c)\n  for _ = 1, n do\n    bits[#bits + 1] = {\n      x = x, y = y,\n      dx = rnd(2.6) - 1.3, dy = rnd(2.2) - 1.4,\n      life = 8 + flr(rnd(8)), c = c,\n    }\n  end\nend\n\n-- ── balls ───────────────────────────────────────────────────────────────────\n\nlocal function new_ball(x, y, vx, vy)\n  balls[#balls + 1] = { x = x, y = y, vx = vx, vy = vy }\nend\n\nlocal function reset_ball()\n  balls = {}\n  new_ball(padx + padw / 2, PADY - 3, 1.1, -1.4)\n  stuck = true\nend\n\nfunction _init()\n  level  = 1\n  padw   = NORMAL\n  padx   = 120 - padw / 2\n  points = 0\n  lives  = 3\n  drops, wide, pierce = {}, 0, 0\n  bits, shake, stop = {}, 0, 0\n  build_layer()\n  score(0)\n  reset_ball()\nend\n\n-- ── the wall, wherever it currently is ──────────────────────────────────────\n\nlocal function brick_at(x, y)\n  local c = flr((x - LEFT - ox) / BW) + 1\n  local r = flr((y - TOP - oy) / BH) + 1\n  if r >= 1 and r <= ROWS and c >= 1 and c <= COLS and bricks[r][c] then\n    return r, c\n  end\nend\n\nlocal function drop_power(x, y)\n  -- Four kinds, and one of them is a hazard: a capsule you always want is not\n  -- a decision, it is a coin.\n  local kind = flr(rnd(4)) + 1\n  drops[#drops + 1] = { x = x, y = y, kind = kind }\nend\n\nlocal function hit(x, y)\n  local r, c = brick_at(x, y)\n  if not r then return false end\n  bricks[r][c] = false\n  left = left - 1\n  burst(LEFT + ox + (c - 1) * BW + BW / 2, TOP + oy + (r - 1) * BH + BH / 2, 5, WALL_COLOUR[r])\n  shake = 2\n  sfx(1)\n  points = points + (ROWS - r + 1) * 10 + (level - 1) * 5\n  score(points)\n  if rnd(1) < DROP_CHANCE then\n    drop_power(LEFT + ox + (c - 1) * BW + BW / 2, TOP + oy + (r - 1) * BH)\n  end\n  return true\nend\n\nlocal function set_paddle(w)\n  local mid_x = padx + padw / 2\n  padw = w\n  padx = mid(0, mid_x - w / 2, 240 - w)\nend\n\nlocal function take(kind)\n  if kind == 1 then\n    set_paddle(WIDE)\n    wide = POWER_FRAMES\n  elseif kind == 2 then\n    set_paddle(NARROW)\n    wide = POWER_FRAMES\n  elseif kind == 3 then\n    -- Two more, thrown off the ball that is furthest along. Copying the\n    -- velocity and turning it is enough to make three balls that diverge.\n    local b = balls[1]\n    if b then\n      new_ball(b.x, b.y, b.vy * 0.9, b.vx * 0.9)\n      new_ball(b.x, b.y, -b.vy * 0.9, -b.vx * 0.9)\n    end\n  else\n    pierce = POWER_FRAMES / 2\n  end\nend\n\n-- ── one frame ───────────────────────────────────────────────────────────────\n\nlocal function step_ball(b)\n  b.x = b.x + b.vx\n  if b.x < 1 then b.x, b.vx = 1, -b.vx end\n  if b.x > 238 then b.x, b.vx = 238, -b.vx end\n  if hit(b.x, b.y) and pierce <= 0 then b.vx = -b.vx end\n\n  b.y = b.y + b.vy\n  if b.y < 10 then b.y, b.vy = 10, -b.vy end\n  if hit(b.x, b.y) and pierce <= 0 then b.vy = -b.vy end\n\n  -- The paddle steers: where the ball lands on it decides how far it comes off\n  -- sideways, which is the whole game.\n  if b.vy > 0 and b.y >= PADY - 1 and b.y <= PADY + 2\n    and b.x >= padx and b.x <= padx + padw then\n    b.y = PADY - 1\n    b.vy = -b.vy\n    b.vx = mid(-2.2, (b.x - (padx + padw / 2)) / 5, 2.2)\n    sfx(0)\n  end\nend\n\nfunction _update()\n  if lives <= 0 then\n    if btnp(4) then _init() end\n    return\n  end\n  t = t + 1\n  if shake > 0 then shake = shake - 1 end\n  for i = #bits, 1, -1 do\n    local b = bits[i]\n    b.x, b.y, b.life = b.x + b.dx, b.y + b.dy, b.life - 1\n    b.dy = b.dy + 0.09\n    if b.life <= 0 then table.remove(bits, i) end\n  end\n  -- A beat of nothing after losing a ball. It is four frames and it is the\n  -- difference between the ball vanishing and the ball being lost.\n  if stop > 0 then stop = stop - 1 return end\n\n  -- 240 wide now: the paddle crosses the field at the old feel, not the old pixels\n  if btn(0) then padx = padx - 5 end\n  if btn(1) then padx = padx + 5 end\n  padx = mid(0, padx, 240 - padw)\n\n  if wide > 0 then\n    wide = wide - 1\n    if wide == 0 then set_paddle(NORMAL) end\n  end\n  if pierce > 0 then pierce = pierce - 1 end\n\n  -- The whole layer, drifting and settling. `oy` stops before the wall could\n  -- reach the paddle, so descent is pressure rather than a second way to lose.\n  ox = math.sin(t * 0.013) * drift * 5\n  oy = mid(0, oy + descent, 48)\n\n  if stuck then\n    balls[1].x = padx + padw / 2\n    balls[1].y = PADY - 3\n    if btnp(4) then stuck = false end\n    return\n  end\n\n  for i = #balls, 1, -1 do\n    local b = balls[i]\n    step_ball(b)\n    if b.y > 159 then table.remove(balls, i) end\n  end\n\n  -- Falling capsules\n  for i = #drops, 1, -1 do\n    local d = drops[i]\n    d.y = d.y + 1.1\n    if d.y > 159 then\n      table.remove(drops, i)\n    elseif d.y >= PADY - 2 and d.y <= PADY + 4 and d.x >= padx - 2 and d.x <= padx + padw + 2 then\n      take(d.kind)\n      -- The bad one has to sound bad, or a hazard you cannot hear is a hazard\n      -- you learn about by losing.\n      sfx(d.kind == 2 and 5 or 3)\n      table.remove(drops, i)\n    end\n  end\n\n  if #balls == 0 then\n    lives = lives - 1\n    shake, stop = 10, 6\n    sfx(5)\n    lose()\n    drops = {}\n    if pierce > 0 then pierce = 0 end\n    if wide > 0 then wide = 0 set_paddle(NORMAL) end\n    if lives > 0 then reset_ball() end\n  end\n\n  if left == 0 then\n    -- A layer peeled is not the end of it. There is always another underneath.\n    sfx(6)\n    level = level + 1\n    points = points + 100\n    score(points)\n    build_layer()\n    drops = {}\n    set_paddle(NORMAL)\n    wide, pierce = 0, 0\n    reset_ball()\n  end\nend\n\n-- ── how it looks ────────────────────────────────────────────────────────────\n\nlocal CAPSULE = { 5, 2, 4, 6 }\nlocal CAPLABEL = { \"W\", \"N\", \"M\", \"P\" }\n\nfunction _draw()\n  cls(0)\n  local sx = shake > 0 and (flr(rnd(3)) - 1) or 0\n  local sy = shake > 0 and (flr(rnd(3)) - 1) or 0\n\n  -- The walls the ball bounces off. They were always there in the physics and\n  -- never drawn, so the ball turned around in mid-air at the edge of nothing.\n  rect(0, 9, 1, 151, 1)\n  rect(239, 9, 1, 151, 1)\n\n  for r = 1, ROWS do\n    for c = 1, COLS do\n      if bricks[r][c] then\n        rect(flr(LEFT + ox + (c - 1) * BW) + sx, flr(TOP + oy + (r - 1) * BH) + sy,\n             BW - 1, BH - 1, WALL_COLOUR[r])\n      end\n    end\n  end\n\n  for i = 1, #drops do\n    local d = drops[i]\n    rect(flr(d.x) - 3, flr(d.y), 7, 5, CAPSULE[d.kind])\n    print(CAPLABEL[d.kind], flr(d.x) - 1, flr(d.y), 0)\n  end\n\n  for i = 1, #bits do\n    local b = bits[i]\n    pset(flr(b.x) + sx, flr(b.y) + sy, b.life > 5 and 7 or b.c)\n  end\n\n  rect(padx, PADY, padw, 3, pierce > 0 and 4 or 7)\n  for i = 1, #balls do\n    local b = balls[i]\n    circ(b.x, b.y, 1, pierce > 0 and 4 or 7)\n  end\n\n  rect(0, 0, 240, 8, 0)\n  print(points .. \"\", 2, 1, 7)\n  print(\"L\" .. level, 116, 1, 6)\n  for i = 1, lives do\n    rect(232 - (i - 1) * 5, 2, 3, 3, 2)\n  end\n  line(0, 8, 239, 8, 1)\n\n  if lives <= 0 then\n    rect(76, 68, 88, 24, 0)\n    rectb(76, 68, 88, 24, 2)\n    print(\"THE VEIL HOLDS\", 92, 74, 2)\n    print(\"PRESS O\", 106, 83, 3)\n  elseif stuck then\n    print(\"O TO LAUNCH\", 98, 132, 3)\n  end\nend\n\nfunction _cover()\n  cls(0)\n  local rows = { 2, 3, 4, 5, 6 }\n  for r = 1, 5 do\n    for c = 0, 15 do\n      if (r + c) % 2 == 0 or r > 3 then\n        rect(c * 15, 10 + (r - 1) * 11, 14, 10, rows[r])\n      end\n    end\n  end\n\n  rect(102, 108, 36, 5, 7)\n  rect(117, 94, 5, 5, 4)\n  rect(60, 100, 7, 5, 5)\n  print(\"W\", 62, 100, 0)\n\n  -- the title lives in the bottom band the shelf crops away; the tile's own\n  -- caption carries the name instead\n  rect(0, 122, 240, 38, 0)\n  print(\"THE VEIL\", 56, 130, 2, 4)\nend\n",
       "id": "breakout",
       "mega": true,
       "price": 0,
-      "sha256": "e8afcbe0481f3df03d84a797a1cfa285bcc59bb96dfc332059ad91bbaffc9f54",
+      "sha256": "8df7e26f4c2583e9d1adf31afea3012e3cc0f6f1c984c8d00f2f7a2e3fcf09bf",
       "title": "The Veil",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.35.0/breakout.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.36.0/breakout.lua"
     },
     {
       "about": "walk Limbo, empty the mag, take the cliff",
@@ -35,7 +35,7 @@
       "price": 0,
       "sha256": "fe611943e6fa76ec34c61dd0d81215344172398d9f11768e96278849fed53daa",
       "title": "Dreadwager",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.35.0/dreadwager.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.36.0/dreadwager.lua"
     },
     {
       "about": "a plate that carries a whole world. grow it",
@@ -47,7 +47,7 @@
       "price": 0,
       "sha256": "b5ebe25270087fac4528ce2dda472856fad1b098443786916a3b96dad2577104",
       "title": "Farm of Arra",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.35.0/farm.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.36.0/farm.lua"
     },
     {
       "about": "hold the light. they come down in ranks",
@@ -59,7 +59,7 @@
       "price": 0,
       "sha256": "5338534ebb4b62f673e056d4c1e6a723ec62c11811675f627ef7ce22cacc599d",
       "title": "Firekeeper",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.35.0/firekeeper.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.36.0/firekeeper.lua"
     },
     {
       "about": "the sphere is shedding. do not be under it",
@@ -71,7 +71,7 @@
       "price": 0,
       "sha256": "2a7c93c6e8b0b93e4d297809ee7fa700d4df7ce19ad319e34018beb8203b62db",
       "title": "Plate Fall",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.35.0/meteor.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.36.0/meteor.lua"
     },
     {
       "about": "the numbers describe a sign. carve it",
@@ -83,7 +83,7 @@
       "price": 0,
       "sha256": "969bec3e895fa48efc6c937baf850bf84813d87c49365c0fc8002ffab36fbeb4",
       "title": "Signcarver",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.35.0/picross.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.36.0/picross.lua"
     },
     {
       "about": "a discarded body, running the pit in stages",
@@ -95,7 +95,7 @@
       "price": 0,
       "sha256": "b3d4b8fd03cc5416886ae6e5bb3c3870f552c1ca8f168635a163f11d394546f2",
       "title": "Pixiel",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.35.0/pixiel.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.36.0/pixiel.lua"
     },
     {
       "about": "first to seven. it does not blink",
@@ -107,7 +107,7 @@
       "price": 0,
       "sha256": "8bc56976ccb77099665e5c92c5e8a1d2960dfc561194f252d8f6cc0107d618a4",
       "title": "The Whale",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.35.0/pong.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.36.0/pong.lua"
     },
     {
       "about": "down as far as you can get. nothing escapes",
@@ -119,7 +119,7 @@
       "price": 0,
       "sha256": "cc3ee57fe0fae89a466e47b97a5a5e3c46444b37a2d6ce4eeda002e88bdd0905",
       "title": "Abaddon",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.35.0/rogue.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.36.0/rogue.lua"
     },
     {
       "about": "coiling at the depths. do not eat yourself",
@@ -131,7 +131,7 @@
       "price": 0,
       "sha256": "11d561e598376ea5cbf383f1332aa642b0e7a0847fa89c5cd43313bc5a0a4d8e",
       "title": "Serpent",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.35.0/snake.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.36.0/snake.lua"
     },
     {
       "about": "fly for the temple. clear a wing, take its gift",
@@ -143,7 +143,7 @@
       "price": 0,
       "sha256": "de45f8f81777bea9991edc9ed993b34cb978d0eb0b834d03bc6784f3763bc8cd",
       "title": "Sparrow",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.35.0/sparrow.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.36.0/sparrow.lua"
     },
     {
       "about": "climb it. the journey's end is so close",
@@ -155,7 +155,7 @@
       "price": 0,
       "sha256": "6a93e00ee161fccfe65000cee8802cbe92e6584dfeb959b18daabc16745ea64e",
       "title": "The Tower",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.35.0/tower.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.36.0/tower.lua"
     },
     {
       "about": "it looks like a tower rising. fly it down.",
@@ -167,7 +167,7 @@
       "price": 0,
       "sha256": "505dd3f8e70ab62b1e93f5fc6895356779378269ae05eb744473fe17f25b4db0",
       "title": "Down-Shaft",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.35.0/tunnel.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.36.0/tunnel.lua"
     },
     {
       "about": "sun and moon. three in a row",
@@ -179,7 +179,7 @@
       "price": 0,
       "sha256": "c80bb556b1128147153d4f34e7f6f3e2800bfc9c8731f718f4653a6aefc8c6a1",
       "title": "The Twins",
-      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.35.0/twins.lua"
+      "url": "https://pixygontech.b-cdn.net/releases/micromachee/0.36.0/twins.lua"
     }
   ],
   "micromachee": 1

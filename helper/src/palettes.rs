@@ -426,6 +426,21 @@ pub fn generate_js() -> String {
     }
     s.push_str("};\n\n");
 
+    s.push_str("// the console's own 5x7 display face — shelf titles, captions, the info\n// card. Carts never see it; their print() stays 3x5.\nexport const HEADLINE_WIDTH = 6;\nexport const HEADLINE = {\n");
+    for (ch, rows) in console::headline_table() {
+        let key = match ch {
+            '\\' => "\\\\".to_string(),
+            '"' => "\\\"".to_string(),
+            '\'' => "\\'".to_string(),
+            c => c.to_string(),
+        };
+        s.push_str(&format!(
+            "  \"{key}\": [{}],\n",
+            rows.iter().map(|r| r.to_string()).collect::<Vec<_>>().join(",")
+        ));
+    }
+    s.push_str("};\n\n");
+
     s.push_str("// dark to light; every theme keeps this order\nexport const RANK = [");
     s.push_str(&rank().iter().map(|n| n.to_string()).collect::<Vec<_>>().join(", "));
     s.push_str("];\n\nexport const THEMES = {\n");

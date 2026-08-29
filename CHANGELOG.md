@@ -4,6 +4,21 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
+## [0.35.0] — 2026-08-29
+
+### Added
+- Introduced a new 5x7 "headline" display face used for shelf titles, tile captions, and the info card, replacing the small 3x5 font in these spots for much better legibility. Cart rendering is unaffected — carts still use the original 3x5 font.
+
+### Changed
+- Redesigned game tiles on the shelf as cards: cropped art on top with a clearly legible title caption underneath, instead of trying to cram a full-size cover thumbnail with baked-in title text into a tiny tile.
+
+### Improved
+- Tile artwork thumbnails now use a smarter downsampling method that favors bright details over dark backgrounds, so thin bright strokes in cover art no longer disappear when shrunk down.
+
+### Fixed
+- Updated the Breakout cart's cover art so its title no longer gets cropped away by the new tile/shelf layout.
+
+
 ## [0.34.0] — 2026-08-29
 
 ### Added

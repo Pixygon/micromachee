@@ -346,12 +346,13 @@ function _cover()
     end
   end
 
-  rect(102, 138, 36, 5, 7)
-  rect(117, 124, 5, 5, 4)
-  rect(60, 130, 7, 5, 5)
-  print("W", 62, 130, 0)
+  rect(102, 108, 36, 5, 7)
+  rect(117, 94, 5, 5, 4)
+  rect(60, 100, 7, 5, 5)
+  print("W", 62, 100, 0)
 
-  rect(0, 70, 240, 46, 0)
-  print("THE", 102, 74, 7, 3)
-  print("VEIL", 88, 92, 2, 4)
+  -- the title lives in the bottom band the shelf crops away; the tile's own
+  -- caption carries the name instead
+  rect(0, 122, 240, 38, 0)
+  print("THE VEIL", 56, 130, 2, 4)
 end

@@ -13,7 +13,7 @@
 //! the font was drawn for.
 
 use crate::cart::Cart;
-use crate::console::{Screen, CHAR_WIDTH, H, W};
+use crate::console::{headline_glyph, Screen, CHAR_WIDTH, HEADLINE_WIDTH, H, W};
 use crate::mega;
 use crate::shelf;
 use crate::vm::Machine;
@@ -23,6 +23,13 @@ const COLS: usize = 3;
 // a tile IS the cover, shrunk, so the shapes have to agree.
 const TILE_W: i32 = 72;
 const TILE_H: i32 = 48;
+// A tile is a CARD: art on top, the title set properly underneath. The art
+// crops to the top 3/4 of the cover — the band where covers bake their big
+// painted titles is cut, because a scale-4 title squeezed through a 3.3:1
+// downsample is mush, and the caption below says the same thing legibly.
+const ART_H: i32 = 36;
+const ART_SRC_H: i32 = 120; // 3/4 of 160, the same 10:3 ratio as the width
+const CAP_H: i32 = TILE_H - ART_H;
 const GAP: i32 = 4;
 const X0: i32 = 8; // 3 × 72 + 2 × 4 = 224, so eight pixels of margin each side
 const GY: i32 = 18;
@@ -90,6 +97,31 @@ fn say(text: &str) -> String {
     } else {
         text.to_uppercase()
     }
+}
+
+/// The console's own display face: 5x7, for titles the 3x5 font turns to mush.
+fn headline(out: &mut Screen, text: &str, x: i32, y: i32, c: i32, scale: i32) {
+    let mut cx = x;
+    for ch in text.chars() {
+        if let Some(rows) = headline_glyph(ch) {
+            for (ry, row) in rows.iter().enumerate() {
+                for rx in 0..5 {
+                    if row & (0b10000 >> rx) != 0 {
+                        if scale == 1 {
+                            out.pset(cx + rx, y + ry as i32, c);
+                        } else {
+                            out.rect(cx + rx * scale, y + ry as i32 * scale, scale, scale, c);
+                        }
+                    }
+                }
+            }
+        }
+        cx += HEADLINE_WIDTH * scale;
+    }
+}
+
+fn headline_centre(text: &str, scale: i32) -> i32 {
+    (W - text.chars().count() as i32 * HEADLINE_WIDTH * scale) / 2
 }
 
 fn wrap(text: &str, cols: usize) -> Vec<String> {
@@ -378,22 +410,56 @@ impl Browse {
     /// small, so a faithful sample beats the old mode-of-the-block averaging
     /// (muddy) and the old top-rows-only crop (which squished it out of shape).
     fn draw_tile(&mut self, at: usize, x: i32, y: i32) {
-        let art = &self.entries[at].art;
-        for ty in 0..TILE_H {
-            let sy = (ty * 2 + 1) * H / (2 * TILE_H);
+        let e = &self.entries[at];
+        // rank_of[slot] = place in the luminance order, so bright art outvotes
+        // its dark ground when a block is squeezed to one pixel. Point
+        // sampling dropped thin bright strokes; a plain majority drowned them.
+        let mut rank_of = [0i32; 8];
+        for (place, slot) in crate::palettes::rank().iter().enumerate() {
+            rank_of[*slot] = place as i32;
+        }
+        for ty in 0..ART_H {
+            let sy0 = ty * ART_SRC_H / ART_H;
+            let sy1 = ((ty + 1) * ART_SRC_H / ART_H).max(sy0 + 1);
             for tx in 0..TILE_W {
-                let sx = (tx * 2 + 1) * W / (2 * TILE_W);
-                self.out.pset(x + tx, y + ty, art.pget(sx, sy) as i32);
+                let sx0 = tx * W / TILE_W;
+                let sx1 = ((tx + 1) * W / TILE_W).max(sx0 + 1);
+                let mut votes = [0i32; 8];
+                for sy in sy0..sy1 {
+                    for sx in sx0..sx1 {
+                        let c = e.art.pget(sx, sy) as usize & 7;
+                        votes[c] += 1 + rank_of[c];
+                    }
+                }
+                let mut best = 0;
+                for c in 1..8 {
+                    if votes[c] > votes[best] {
+                        best = c;
+                    }
+                }
+                self.out.pset(x + tx, y + ty, best as i32);
             }
         }
-        if self.entries[at].draft {
+        // the caption: the title, set in the headline face, never sampled
+        self.out.rect(x, y + ART_H, TILE_W, CAP_H, 0);
+        self.out.line(x, y + ART_H, x + TILE_W - 1, y + ART_H, 1);
+        let title = say(&e.title);
+        let sel = at == self.sel;
+        let colour = if sel { 7 } else { 6 };
+        let n = title.chars().count() as i32;
+        if n * HEADLINE_WIDTH <= TILE_W {
+            // the headline face, whenever it fits
+            headline(&mut self.out, &title, x + (TILE_W - n * HEADLINE_WIDTH) / 2, y + ART_H + 3, colour, 1);
+        } else {
+            // a long name drops to the small face rather than losing its tail
+            let title: String = title.chars().take((TILE_W / CHAR_WIDTH) as usize).collect();
+            let tw = title.chars().count() as i32 * CHAR_WIDTH;
+            self.out.print(&title, x + (TILE_W - tw) / 2, y + ART_H + 4, colour, 1);
+        }
+        if e.draft {
             self.out.rect(x + TILE_W - 4, y + 1, 3, 3, 2);
         }
-        if at == self.sel {
-            self.out.rectb(x - 1, y - 1, TILE_W + 2, TILE_H + 2, 7);
-        } else {
-            self.out.rectb(x - 1, y - 1, TILE_W + 2, TILE_H + 2, 1);
-        }
+        self.out.rectb(x - 1, y - 1, TILE_W + 2, TILE_H + 2, if sel { 7 } else { 1 });
     }
 
     /// A small solid triangle, for "there is more this way".
@@ -411,7 +477,7 @@ impl Browse {
         let sel = self.sel;
         let title = say(&self.entries[sel].title);
         let colour = if self.entries[sel].draft { 2 } else { 7 };
-        self.out.print(&title, 3, 4, colour, 1);
+        headline(&mut self.out, &title, 4, 3, colour, 1);
 
         let best = self.entries[sel].best;
         if best > 0 {
@@ -453,8 +519,8 @@ impl Browse {
 
         let title = say(&e.title);
         // Two sizes and a rule for choosing: whichever still fits on the line.
-        let scale = if title.chars().count() as i32 * CHAR_WIDTH * 2 <= W - 8 { 2 } else { 1 };
-        self.out.print(&title, centre(&title, scale), 16, 7, scale);
+        let scale = if title.chars().count() as i32 * HEADLINE_WIDTH * 2 <= W - 8 { 2 } else { 1 };
+        headline(&mut self.out, &title, headline_centre(&title, scale), 14, 7, scale);
 
         let by = say(&format!("by {}", e.author));
         self.out.print(&by, centre(&by, 1), 38, 1, 1);

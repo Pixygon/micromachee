@@ -10,11 +10,42 @@
 // shelves look like one shelf.
 
 import { Screen, W, H, CHAR_WIDTH } from "./micromachee.js";
+import { HEADLINE, HEADLINE_WIDTH, RANK } from "./console-data.js";
 
 const COLS = 3;
-// Tiles are 3:2, the same shape as the screen and therefore as every cover.
+// A tile is a CARD: art on top, the title set properly underneath. The art
+// crops to the top 3/4 of the cover — the band where covers bake their big
+// painted titles is cut, because a scale-4 title squeezed through a 3.3:1
+// downsample is mush, and the caption below says the same thing legibly.
 const TILE_W = 72;
 const TILE_H = 48;
+const ART_H = 36;
+const ART_SRC_H = 120;
+const CAP_H = TILE_H - ART_H;
+
+// rank_of[slot] = place in the luminance order, so bright art outvotes its
+// dark ground when a block is squeezed to one pixel.
+const RANK_OF = (() => { const r = new Array(8).fill(0); RANK.forEach((s, i) => { r[s & 7] = i; }); return r; })();
+
+// The console's own display face: 5x7, for titles the 3x5 font turns to mush.
+function headline(out, text, x, y, c, scale = 1) {
+  let cx = x;
+  for (const ch of String(text).toUpperCase()) {
+    const rows = HEADLINE[ch];
+    if (rows) {
+      for (let ry = 0; ry < 7; ry++) {
+        for (let rx = 0; rx < 5; rx++) {
+          if (rows[ry] & (0b10000 >> rx)) {
+            if (scale === 1) out.pset(cx + rx, y + ry, c);
+            else out.rect(cx + rx * scale, y + ry * scale, scale, scale, c);
+          }
+        }
+      }
+    }
+    cx += HEADLINE_WIDTH * scale;
+  }
+}
+const headlineCentre = (text, scale = 1) => Math.floor((W - text.length * HEADLINE_WIDTH * scale) / 2);
 const GAP = 4;
 const X0 = 8;
 const GY = 18;
@@ -105,18 +136,39 @@ export class Browse {
   }
 
   drawTile(at, x, y) {
-    // An exact miniature of the whole 128x128 cover: nearest-neighbour on the
-    // centre pixel of each block, so the tile is what the cover is.
     const e = this.entries[at];
-    for (let ty = 0; ty < TILE_H; ty++) {
-      const sy = Math.floor(((ty * 2 + 1) * H) / (2 * TILE_H));
+    for (let ty = 0; ty < ART_H; ty++) {
+      const sy0 = Math.floor((ty * ART_SRC_H) / ART_H);
+      const sy1 = Math.max(sy0 + 1, Math.floor(((ty + 1) * ART_SRC_H) / ART_H));
       for (let tx = 0; tx < TILE_W; tx++) {
-        const sx = Math.floor(((tx * 2 + 1) * W) / (2 * TILE_W));
-        this.out.pset(x + tx, y + ty, e.art.pget(sx, sy));
+        const sx0 = Math.floor((tx * W) / TILE_W);
+        const sx1 = Math.max(sx0 + 1, Math.floor(((tx + 1) * W) / TILE_W));
+        const votes = [0, 0, 0, 0, 0, 0, 0, 0];
+        for (let sy = sy0; sy < sy1; sy++) {
+          for (let sx = sx0; sx < sx1; sx++) {
+            const c = e.art.pget(sx, sy) & 7;
+            votes[c] += 1 + RANK_OF[c];
+          }
+        }
+        let best = 0;
+        for (let c = 1; c < 8; c++) if (votes[c] > votes[best]) best = c;
+        this.out.pset(x + tx, y + ty, best);
       }
     }
+    // the caption: the title, set in the headline face, never sampled
+    this.out.rect(x, y + ART_H, TILE_W, CAP_H, 0);
+    this.out.line(x, y + ART_H, x + TILE_W - 1, y + ART_H, 1);
+    const full = e.title.toUpperCase();
+    const sel = at === this.sel;
+    const colour = sel ? 7 : 6;
+    if (full.length * HEADLINE_WIDTH <= TILE_W) {
+      headline(this.out, full, x + Math.floor((TILE_W - full.length * HEADLINE_WIDTH) / 2), y + ART_H + 3, colour, 1);
+    } else {
+      const t = full.slice(0, Math.floor(TILE_W / CHAR_WIDTH));
+      this.out.print(t, x + Math.floor((TILE_W - t.length * CHAR_WIDTH) / 2), y + ART_H + 4, colour, 1);
+    }
     if (e.draft) this.out.rect(x + TILE_W - 4, y + 1, 3, 3, 2);
-    this.out.rectb(x - 1, y - 1, TILE_W + 2, TILE_H + 2, at === this.sel ? 7 : 1);
+    this.out.rectb(x - 1, y - 1, TILE_W + 2, TILE_H + 2, sel ? 7 : 1);
   }
 
   arrow(cx, y, up, c) {
@@ -130,7 +182,7 @@ export class Browse {
   drawGrid() {
     this.out.cls(0);
     const e = this.entries[this.sel];
-    this.out.print(e.title.toUpperCase(), 3, 4, e.draft ? 2 : 7, 1);
+    headline(this.out, e.title, 4, 3, e.draft ? 2 : 7, 1);
     if (e.best > 0) {
       const label = ("best " + e.best).toUpperCase();
       this.out.print(label, W - 3 - label.length * CHAR_WIDTH, 4, 6, 1);
@@ -159,8 +211,8 @@ export class Browse {
     this.out.cls(0);
     const e = this.entries[this.sel];
     const title = e.title.toUpperCase();
-    const scale = title.length * CHAR_WIDTH * 2 <= W - 8 ? 2 : 1;
-    this.out.print(title, centre(title, scale), 16, 7, scale);
+    const scale = title.length * HEADLINE_WIDTH * 2 <= W - 8 ? 2 : 1;
+    headline(this.out, title, headlineCentre(title, scale), 14, 7, scale);
     const by = ("by " + e.author).toUpperCase();
     this.out.print(by, centre(by), 38, 1, 1);
 
