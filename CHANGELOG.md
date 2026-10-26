@@ -4,7 +4,7 @@ All notable changes to **micromachee**. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this file is
 materialized from the Pixygon Changelog API — edit there, not here.
 
-## [0.35.0] — 2026-08-29
+## [0.36.0] — 2026-08-29
 
 ### Added
 - Introduced a new 5x7 "headline" display face used for shelf titles, tile captions, and the info card, replacing the small 3x5 font in these spots for much better legibility. Cart rendering is unaffected — carts still use the original 3x5 font.
@@ -423,5 +423,3 @@ materialized from the Pixygon Changelog API — edit there, not here.
 
 ### Improved
 - Running `play` directly at a prompt now prints a helpful note pointing you to `tty` instead of dumping raw frame protocol data to your terminal.
-
-
