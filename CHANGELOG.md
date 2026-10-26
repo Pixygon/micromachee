@@ -19,7 +19,7 @@ materialized from the Pixygon Changelog API — edit there, not here.
 - Updated the Breakout cart's cover art so its title no longer gets cropped away by the new tile/shelf layout.
 
 
-## [0.34.0] — 2026-08-29
+## [0.35.0] — 2026-08-29
 
 ### Added
 - The console panel now renders games through a per-theme screen shader adding effects like scanlines, bloom, colour fringing, grain, and vignette, so each theme's display feels distinct. If the shader can't load, games still display normally without the effect.
@@ -30,7 +30,7 @@ materialized from the Pixygon Changelog API — edit there, not here.
 - The panel's console frame and bezel have been reworked to fit the new 3:2 screen aspect ratio, keeping the bezel even at any panel size.
 
 
-## [0.33.0] — 2026-08-29
+## [0.34.0] — 2026-08-29
 
 ### Added
 - Each theme now renders through a simulated screen: the arcade cabinet gets a CRT-style raster and colour fringing, the Game Boy theme shows a real LCD cell grid with motion smear, the amber theme glows with phosphor persistence, and so on. It only changes how pixels are displayed, not the game itself.
@@ -40,7 +40,7 @@ materialized from the Pixygon Changelog API — edit there, not here.
 - The on-screen display now renders at a higher maximum scale on larger screens, and its resolution matches your actual device pixels so effects like scanlines look crisp rather than blurry.
 
 
-## [0.32.0] — 2026-08-27
+## [0.33.0] — 2026-08-27
 
 ### Added
 - New `micromachee submit <file|id>` command sends a cart straight to the public community shelf. It's automatically verified with a sandboxed play-test plus two review passes, and if accepted it goes live at pixygon.io/micromachee within a minute — with a clear reason given if it's rejected instead.
@@ -50,7 +50,7 @@ materialized from the Pixygon Changelog API — edit there, not here.
 - The web player now locks down the Lua sandbox to match the desktop console, disabling file, OS, and process-level Lua libraries so community carts run in the browser can't escape the console.
 
 
-## [0.31.0] — 2026-08-25
+## [0.32.0] — 2026-08-25
 
 ### Added
 - The console now has its own theme and home buttons mounted above the screen, on both the desktop app and the web console, matching each other so switching color themes or returning to the shelf works the same way everywhere.
@@ -67,7 +67,7 @@ materialized from the Pixygon Changelog API — edit there, not here.
 - Veilwalkers: hero portraits are more detailed, with hair, cheeks, and shaded features, and the party list now highlights the currently selected hero.
 
 
-## [0.30.0] — 2026-08-25
+## [0.31.0] — 2026-08-25
 
 ### Added
 - Dreadwager adds ammo and reloading: hold the fire button to empty your magazine (each shot gives a little recoil-shove), then it auto-reloads. New skills let you grow the magazine (DRUM), reload faster (CRANK), burn enemies on touch (THORN), heal on kills (LEECH), and absorb a hit with a recharging ward (GUARD).
@@ -81,7 +81,7 @@ materialized from the Pixygon Changelog API — edit there, not here.
 - Shelf cover thumbnails on both the desktop app and web now show a faithful, exact miniature of the whole cover image instead of a cropped, blurred approximation, so what you see on the shelf matches the actual cover art.
 
 
-## [0.29.0] — 2026-08-25
+## [0.30.0] — 2026-08-25
 
 ### Added
 - Each game on the shelf now has an info card (shown with the X button) listing its title, author, description, best score, and whether it plays in Mega.
@@ -94,7 +94,7 @@ materialized from the Pixygon Changelog API — edit there, not here.
 - The console stays on screen the whole time now: picking a game, viewing its info card, and playing all happen in one continuous view, with no page layout jump when you go back to the shelf.
 
 
-## [0.28.1] — 2026-08-24
+## [0.29.0] — 2026-08-24
 
 ### Added
 - Veilwalkers now has a full class, skill, and job system. Each hero's class grows a small skill tree as they level up (e.g. Whale grows Tide into Crash into Bulwark), and a new Jobs tab lets you assign a second job that adjusts stats and grants an extra skill. Status effects like burn, poison, stun, haste, and slow now factor into combat, with small icons showing what's affecting each combatant. _(a3766ca)_
@@ -104,13 +104,13 @@ materialized from the Pixygon Changelog API — edit there, not here.
 - The web player is now properly playable on phones: pinch-zoom, double-tap zoom, rubber-banding, and long-press menus are disabled while playing, the layout and controls resize to fit touch screens, and the on-screen hint text adapts for touch devices. _(a3766ca)_
 
 
-## [0.28.0] — 2026-08-24
+## [0.28.1] — 2026-08-24
 
 ### Fixed
 - Fixed a crash that could occur when drawing circles with a center point far off-screen; coordinates are now safely clamped instead of causing an arithmetic overflow.
 
 
-## [0.27.0] — 2026-08-22
+## [0.28.0] — 2026-08-22
 
 ### Changed
 - Commands that take a cart id (`revise`, `publish`, `discard`, and cart lookup) now reject ids containing slashes, `..`, or other characters that aren't valid in a plain cart name, reporting them as "no draft called <id>" instead of touching the filesystem. **(BREAKING)**
@@ -123,7 +123,7 @@ materialized from the Pixygon Changelog API — edit there, not here.
 - Downloads made by `sync` (the catalog itself and any cart fetched by URL) are now capped at a hard byte limit while streaming, so a server that never stops sending data is refused instead of being buffered into memory indefinitely.
 
 
-## [0.26.0] — 2026-08-22
+## [0.27.0] — 2026-08-22
 
 ### Added
 - The console now has sound! Eight fixed effects — blip, hit, boom, pickup, jump, hurt, win, lose — play across every included cart, generated automatically on install so no audio files ship in the repo.
@@ -140,7 +140,7 @@ materialized from the Pixygon Changelog API — edit there, not here.
 - The hidden secret button sequence on the shelf (previously an Easter egg for the Ydrast text mode) has been removed since it could no longer reliably trigger. The Ydrast tongue is now toggled via a small, unlabelled dot button in the panel instead. **(BREAKING)**
 
 
-## [0.25.0] — 2026-08-22
+## [0.26.0] — 2026-08-22
 
 ### Added
 - The console shelf now plays a brief animated title sequence when you first open the panel (skippable with any button press), instead of showing a static header.
@@ -161,7 +161,7 @@ materialized from the Pixygon Changelog API — edit there, not here.
 - Sparrow's max shots and gun levels have been increased, giving more room for sustained fire at higher power.
 
 
-## [0.24.0] — 2026-08-21
+## [0.25.0] — 2026-08-21
 
 ### Added
 - `sync` now detects when a cart already on your shelf has changed from the published version and tells you which ones differ, instead of silently treating them as up to date.
@@ -171,14 +171,14 @@ materialized from the Pixygon Changelog API — edit there, not here.
 - The `sync` summary line now reports how many carts were updated, alongside the counts of new, already-here, and failed carts.
 
 
-## [0.23.0] — 2026-08-21
+## [0.24.0] — 2026-08-21
 
 ### Added
 - New cart: Dreadwager — drift into an endless horde of enemies or take control of your own ending by leaping into a cliff once you've gathered enough sparks. Two distinct endings, dash-based movement, and an upgradeable multi-gun system based on how many sparks you collect.
 - New cart: The Tower — a raycasted first-person dungeon climb across 9 procedurally built floors. Fight off horrors with a simple shooter, find the way up each floor, and rack up a score from kills, floors cleared, and a bonus for reaching the top.
 
 
-## [0.22.0] — 2026-08-21
+## [0.23.0] — 2026-08-21
 
 ### Added
 - The `shot` command now supports a `--keys` option to script a frame-by-frame button track (e.g. `--keys 10:2,11:0,20:16,21:0`). This lets you simulate a tap rather than a held button, which is essential for capturing screenshots of games that read input with `btnp()` — previously `--hold` could only ever show frame 1 of such games since a held button never re-fires.
